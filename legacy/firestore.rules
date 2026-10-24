@@ -1,0 +1,168 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Default deny all
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    // --- Users ---
+    match /users/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // --- Settings ---
+    match /settings/{userId} {
+      allow read, write: if isOwner(userId);
+    }
+
+    // --- Customers ---
+    match /customers/{customerId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // --- Items ---
+    match /items/{itemId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // --- Invoices (Owner Collection) ---
+    // Authenticated business owner only. NO unauthenticated access or public writes.
+    match /invoices/{invoiceId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // --- Quotes (Owner Collection) ---
+    // Business owner has full access. Unauthenticated clients can update status/publicRevisions if backed by valid quoteShareLinks doc.
+    match /quotes/{quoteId} {
+      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update: if (isSignedIn() && resource.data.userId == request.auth.uid) || (
+        resource.data.status == 'sent_for_approval' &&
+        request.resource.data.shareToken != null &&
+        exists(/databases/$(database)/documents/quoteShareLinks/$(request.resource.data.shareToken)) &&
+        get(/databases/$(database)/documents/quoteShareLinks/$(request.resource.data.shareToken)).data.id == quoteId &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'publicRevisions', 'shareToken']) &&
+        request.resource.data.status in ['approved', 'changes_requested'] &&
+        request.resource.data.total == resource.data.total &&
+        request.resource.data.lineItems == resource.data.lineItems
+      );
+    }
+
+    // --- Quote Revisions (Owner Collection) ---
+    match /quoteRevisions/{revisionId} {
+      allow read, list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if (isSignedIn() && request.resource.data.userId == request.auth.uid) || (
+        request.resource.data.createdBy == 'client' &&
+        request.resource.data.shareToken != null &&
+        exists(/databases/$(database)/documents/quoteShareLinks/$(request.resource.data.shareToken)) &&
+        get(/databases/$(database)/documents/quoteShareLinks/$(request.resource.data.shareToken)).data.id == request.resource.data.quoteId &&
+        (request.resource.data.clientComment == null || request.resource.data.clientComment.size() <= 1000)
+      );
+    }
+
+    // --- Public Quote Share Links ---
+    // Structural isolation: Document ID = exact unguessable shareToken string.
+    match /quoteShareLinks/{shareToken} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, list: if isSignedIn() && resource != null && resource.data.userId == request.auth.uid;
+
+      // Unauthenticated public GET by exact shareToken path segment
+      allow get: if true;
+
+      // Client status & publicRevisions update or Owner update
+      allow update: if (isSignedIn() && (resource.data.userId == request.auth.uid || request.resource.data.userId == request.auth.uid)) || (
+        resource.data.status == 'sent_for_approval' &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAt', 'publicRevisions']) &&
+        request.resource.data.status in ['approved', 'changes_requested'] &&
+        request.resource.data.userId == resource.data.userId &&
+        request.resource.data.total == resource.data.total &&
+        request.resource.data.lineItems == resource.data.lineItems &&
+        (
+          !('publicRevisions' in request.resource.data.diff(resource.data).affectedKeys()) ||
+          request.resource.data.publicRevisions[0].clientComment == null ||
+          request.resource.data.publicRevisions[0].clientComment.size() <= 1000
+        )
+      );
+    }
+
+    // --- Public Invoice Share Links ---
+    // Structural isolation: Document ID = exact unguessable shareToken string.
+    // READ-ONLY for public users (no unauthenticated writes).
+    match /invoiceShareLinks/{shareToken} {
+      allow create: if isSignedIn() && request.resource.data.userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow read, list: if isSignedIn() && resource != null && resource.data.userId == request.auth.uid;
+
+      // Unauthenticated public GET by exact shareToken path segment
+      allow get: if true;
+    }
+
+    match /invoiceRevisions/{revisionId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // --- Expenses ---
+    match /expenses/{expenseId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // --- Payments ---
+    match /payments/{paymentId} {
+      allow read, write: if isSignedIn() && (
+        (resource != null && resource.data.userId == request.auth.uid) ||
+        (request.resource != null && request.resource.data.userId == request.auth.uid)
+      );
+    }
+
+    // --- Notifications ---
+    // Unauthenticated creation requires valid shareToken document proof in /quoteShareLinks.
+    match /notifications/{notificationId} {
+      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isOwner(request.resource.data.userId) || (
+        request.resource.data.shareToken != null &&
+        exists(/databases/$(database)/documents/quoteShareLinks/$(request.resource.data.shareToken)) &&
+        request.resource.data.userId == get(/databases/$(database)/documents/quoteShareLinks/$(request.resource.data.shareToken)).data.userId
+      );
+    }
+
+    // --- Activity Logs ---
+    // Unauthenticated creation requires valid shareToken document proof in /quoteShareLinks.
+    match /activityLogs/{logId} {
+      allow read, update, delete: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isOwner(request.resource.data.userId) || (
+        request.resource.data.shareToken != null &&
+        exists(/databases/$(database)/documents/quoteShareLinks/$(request.resource.data.shareToken)) &&
+        request.resource.data.userId == get(/databases/$(database)/documents/quoteShareLinks/$(request.resource.data.shareToken)).data.userId
+      );
+    }
+  }
+}

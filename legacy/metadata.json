@@ -1,0 +1,6 @@
+{
+  "name": "Insides Interior Limited",
+  "description": "Premium invoicing application for interior design business.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
