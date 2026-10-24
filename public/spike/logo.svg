@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 240 64" role="img" aria-label="Insides Interior">
+  <rect x="0" y="4" width="56" height="56" rx="14" fill="#2f6f6a"/>
+  <path d="M18 18h20v6h-7v16h7v6H18v-6h7V24h-7z" fill="#fbf7f1"/>
+  <text x="70" y="30" font-family="Fraunces, Georgia, serif" font-size="22" font-weight="600" fill="#2b2622">Insides</text>
+  <text x="70" y="52" font-family="Inter, Arial, sans-serif" font-size="14" letter-spacing="3" fill="#6d645c">INTERIOR</text>
+</svg>

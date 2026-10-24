@@ -1,0 +1,6 @@
+﻿# Copy to .dev.vars for local secrets (never commit .dev.vars).
+APP_ENV=development
+# Unlocks /spike/pdf locally: http://localhost:5173/spike/pdf?key=<SPIKE_KEY>
+SPIKE_KEY=change-me
+# Leave unset to use the dev email transport (emails are printed to the terminal).
+# RESEND_API_KEY=re_...

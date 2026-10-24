@@ -1,0 +1,12 @@
+legacy/
+build/
+.react-router/
+.wrangler/
+playwright-report/
+test-results/
+worker-configuration.d.ts
+app/server/db/migrations/meta/
+package-lock.json
+docs/SPEC.md
+# Exact copy of SPEC 14.3.
+CLAUDE.md
