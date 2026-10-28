@@ -1,4 +1,4 @@
-﻿# Copy to .dev.vars for local secrets (never commit .dev.vars).
+# Copy to .dev.vars for local secrets (never commit .dev.vars).
 APP_ENV=development
 # Unlocks /spike/pdf locally: http://localhost:5173/spike/pdf?key=<SPIKE_KEY>
 SPIKE_KEY=change-me

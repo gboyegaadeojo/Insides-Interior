@@ -1,0 +1,100 @@
+import type { Hue } from "~/styles/tokens";
+
+export type ToneName = Hue | "slate" | "danger";
+
+/** Literal class names per hue so Tailwind can see them. */
+export const TONE: Record<
+  ToneName,
+  { tint: string; base: string; ink: string; solid: string; soft: string; text: string; border: string }
+> = {
+  teal: {
+    tint: "bg-teal-tint",
+    base: "bg-teal-base",
+    ink: "text-teal-ink",
+    solid: "bg-teal-base text-teal-on",
+    soft: "bg-teal-tint text-teal-ink",
+    text: "text-teal-base",
+    border: "border-teal-base",
+  },
+  plum: {
+    tint: "bg-plum-tint",
+    base: "bg-plum-base",
+    ink: "text-plum-ink",
+    solid: "bg-plum-base text-plum-on",
+    soft: "bg-plum-tint text-plum-ink",
+    text: "text-plum-base",
+    border: "border-plum-base",
+  },
+  indigo: {
+    tint: "bg-indigo-tint",
+    base: "bg-indigo-base",
+    ink: "text-indigo-ink",
+    solid: "bg-indigo-base text-indigo-on",
+    soft: "bg-indigo-tint text-indigo-ink",
+    text: "text-indigo-base",
+    border: "border-indigo-base",
+  },
+  terracotta: {
+    tint: "bg-terracotta-tint",
+    base: "bg-terracotta-base",
+    ink: "text-terracotta-ink",
+    solid: "bg-terracotta-base text-terracotta-on",
+    soft: "bg-terracotta-tint text-terracotta-ink",
+    text: "text-terracotta-base",
+    border: "border-terracotta-base",
+  },
+  saffron: {
+    tint: "bg-saffron-tint",
+    base: "bg-saffron-base",
+    ink: "text-saffron-ink",
+    solid: "bg-saffron-base text-saffron-on",
+    soft: "bg-saffron-tint text-saffron-ink",
+    text: "text-saffron-base",
+    border: "border-saffron-base",
+  },
+  sage: {
+    tint: "bg-sage-tint",
+    base: "bg-sage-base",
+    ink: "text-sage-ink",
+    solid: "bg-sage-base text-sage-on",
+    soft: "bg-sage-tint text-sage-ink",
+    text: "text-sage-base",
+    border: "border-sage-base",
+  },
+  roseclay: {
+    tint: "bg-roseclay-tint",
+    base: "bg-roseclay-base",
+    ink: "text-roseclay-ink",
+    solid: "bg-roseclay-base text-roseclay-on",
+    soft: "bg-roseclay-tint text-roseclay-ink",
+    text: "text-roseclay-base",
+    border: "border-roseclay-base",
+  },
+  ocean: {
+    tint: "bg-ocean-tint",
+    base: "bg-ocean-base",
+    ink: "text-ocean-ink",
+    solid: "bg-ocean-base text-ocean-on",
+    soft: "bg-ocean-tint text-ocean-ink",
+    text: "text-ocean-base",
+    border: "border-ocean-base",
+  },
+  slate: {
+    tint: "bg-slate-tint",
+    base: "bg-slate-base",
+    ink: "text-slate-ink",
+    solid: "bg-slate-base text-slate-on",
+    soft: "bg-slate-tint text-slate-ink",
+    text: "text-slate-base",
+    border: "border-slate-base",
+  },
+  danger: {
+    tint: "bg-danger-tint",
+    base: "bg-danger-base",
+    ink: "text-danger-ink",
+    solid: "bg-danger-base text-danger-on",
+    soft: "bg-danger-tint text-danger-ink",
+    text: "text-danger-base",
+    border: "border-danger-base",
+  },
+};

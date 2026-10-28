@@ -1,4 +1,4 @@
-﻿import puppeteer, { type Browser } from "@cloudflare/puppeteer";
+import puppeteer, { type Browser } from "@cloudflare/puppeteer";
 import type { Route } from "./+types/spike.pdf";
 
 // Phase 0 PDF spike (SPEC 10.4): print /spike/pdf-sample with Browser Rendering,
