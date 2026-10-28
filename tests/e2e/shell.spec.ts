@@ -75,7 +75,7 @@ test("command palette opens from search and with Ctrl+K (DS-NAV-06)", async ({ p
 });
 
 test("appearance setting switches theme and survives a reload", async ({ page }) => {
-  await page.goto("/settings");
+  await page.goto("/settings/appearance");
   const saved = page.waitForResponse(
     (r) => r.url().includes("/api/preferences") && r.request().method() === "POST",
   );

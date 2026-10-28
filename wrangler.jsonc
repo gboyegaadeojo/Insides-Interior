@@ -11,13 +11,15 @@
   "observability": { "enabled": true },
   "vars": {
     "APP_ENV": "production",
+    "APP_URL": "https://insides-interior.insides-interior.workers.dev",
+    // Extra origins allowed to sign in (comma separated, * wildcards).
+    "TRUSTED_ORIGINS": "",
     "BUSINESS_TIMEZONE": "America/Winnipeg",
     // Resend's shared sender until mail.<domain> is verified (SPEC 9.1).
     "EMAIL_FROM": "Insides Interior <onboarding@resend.dev>",
   },
-  // Secrets (set with `npx wrangler secret put <NAME>`, never committed):
-  //   RESEND_API_KEY  enables the Resend email transport (dev transport otherwise)
-  //   SPIKE_KEY       unlocks /spike/pdf (phase 0 PDF spike)
+  // Secrets (set with `npx wrangler secret put <NAME>`, never committed; the
+  // full list with descriptions is in .dev.vars.example).
   "d1_databases": [
     {
       "binding": "DB",
@@ -42,5 +44,37 @@
     // America/Winnipeg: both candidate UTC hours are scheduled and the handler
     // checks local time (SPEC 14.4, phase 8). Weekly digest Monday 07:30.
     "crons": ["0 13 * * *", "0 14 * * *", "30 12 * * 1", "30 13 * * 1"],
+  },
+  "env": {
+    // PR previews (SPEC 13): a separate Worker with its own D1, R2 and queue,
+    // seeded with fake data. Production data is never copied here.
+    "preview": {
+      "name": "insides-interior-preview",
+      "vars": {
+        "APP_ENV": "preview",
+        "APP_URL": "https://insides-interior-preview.insides-interior.workers.dev",
+        "TRUSTED_ORIGINS": "https://*-insides-interior-preview.insides-interior.workers.dev",
+        "BUSINESS_TIMEZONE": "America/Winnipeg",
+        "EMAIL_FROM": "Insides Interior <onboarding@resend.dev>",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "insides_db_preview",
+          "database_id": "6ec99a8e-315a-4602-ad4e-17bfe583d8c8",
+          "migrations_dir": "app/server/db/migrations",
+        },
+      ],
+      "r2_buckets": [
+        { "binding": "FILES", "bucket_name": "insides-files-preview" },
+        { "binding": "BACKUPS", "bucket_name": "insides-files-preview" },
+      ],
+      "queues": {
+        "producers": [{ "binding": "JOBS", "queue": "insides-jobs-preview" }],
+        "consumers": [{ "queue": "insides-jobs-preview", "max_batch_size": 10, "max_retries": 5 }],
+      },
+      "browser": { "binding": "BROWSER" },
+      "triggers": { "crons": [] },
+    },
   },
 }

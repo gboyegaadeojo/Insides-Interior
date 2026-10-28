@@ -13,3 +13,4 @@ test-results/
 .DS_Store
 Thumbs.db
 coverage/
+tests/e2e/.auth/

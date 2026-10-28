@@ -1,6 +1,32 @@
 // Money and quantity parsing/formatting (SPEC 10.1). Integer cents and integer
 // thousandths only; strings are parsed digit by digit, never through floats.
-// Phase 2 adds line, tax and total calculation here.
+
+/**
+ * `numerator / denominator` rounded half away from zero, exactly (BigInt), so
+ * $192.375 → $192.38 and −$0.165 → −$0.17. The one rounding primitive.
+ */
+export function roundHalfUpDiv(numerator: number, denominator: number): number {
+  if (!Number.isSafeInteger(numerator) || !Number.isSafeInteger(denominator) || denominator === 0) {
+    throw new RangeError(`roundHalfUpDiv needs safe integers, got ${numerator}/${denominator}`);
+  }
+  const n = BigInt(numerator);
+  const d = BigInt(denominator);
+  const negative = n < 0n !== d < 0n;
+  const an = n < 0n ? -n : n;
+  const ad = d < 0n ? -d : d;
+  const q = (an * 2n + ad) / (ad * 2n);
+  return Number(negative ? -q : q);
+}
+
+/** Line amount = round_half_up(qty_milli × unit_price_cents / 1000) (SPEC 10.1). */
+export function lineAmountCents(qtyMilli: number, unitPriceCents: number): number {
+  return roundHalfUpDiv(qtyMilli * unitPriceCents, 1000);
+}
+
+/** `cents × bp / 10000`, rounded half up: percentages and tax rates in basis points. */
+export function applyBp(cents: number, bp: number): number {
+  return roundHalfUpDiv(cents * bp, 10_000);
+}
 
 const CAD = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
 const GROUPED = new Intl.NumberFormat("en-CA", { useGrouping: true });
@@ -49,6 +75,16 @@ export function formatCentsPlain(cents: number): string {
   const sign = cents < 0 ? "-" : "";
   const abs = Math.abs(cents);
   return `${sign}${GROUPED.format(Math.trunc(abs / 100))}.${String(abs % 100).padStart(2, "0")}`;
+}
+
+/** Basis points as a percentage for display and editing: 500 → "5", 750 → "7.5", 1234 → "12.34". */
+export function formatBp(bp: number): string {
+  const sign = bp < 0 ? "-" : "";
+  const abs = Math.abs(bp);
+  const fraction = String(abs % 100)
+    .padStart(2, "0")
+    .replace(/0+$/, "");
+  return `${sign}${Math.trunc(abs / 100)}${fraction ? `.${fraction}` : ""}`;
 }
 
 /** 4500 → "4.5", 3000 → "3". */

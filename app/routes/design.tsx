@@ -32,17 +32,19 @@ import { MoneyText } from "~/components/ui/text";
 import { toast } from "~/components/ui/toast";
 import { cn } from "~/lib/utils";
 import { HUES, MOTION, NEUTRALS, PALETTE, RADII, STATUS_EXTRA, TYPE_SCALE } from "~/styles/tokens";
+import { requireOwner } from "~/server/session";
 import type { Route } from "./+types/design";
 
 // /design (SPEC 6.11): every token and component in every state, light and dark.
 // Refactored from legacy/src/routes/design-system.tsx (SPEC 2.5). Owner and
-// developer only once sign-in exists (phase 2).
+// developer only: owner sign-in required.
 
 export function meta() {
   return [{ title: "Design system · Insides Interior" }, { name: "robots", content: "noindex" }];
 }
 
-export function loader({ request }: Route.LoaderArgs) {
+export async function loader({ request, context }: Route.LoaderArgs) {
+  await requireOwner(context.cloudflare.env, request);
   const theme = new URL(request.url).searchParams.get("theme");
   return { themes: theme === "light" || theme === "dark" ? [theme] : (["light", "dark"] as const) };
 }

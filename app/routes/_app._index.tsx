@@ -3,6 +3,7 @@ import { Link } from "react-router";
 import { IconChip } from "~/components/ui/icon-chip";
 import type { AppHandle } from "~/lib/route-handle";
 import { cn } from "~/lib/utils";
+import { requireUser } from "~/server/session";
 import type { Route } from "./+types/_app._index";
 
 export const handle: AppHandle = { module: "home", title: "Home" };
@@ -16,7 +17,8 @@ export function meta() {
 
 const TZ = "America/Winnipeg";
 
-export function loader() {
+export async function loader({ request, context }: Route.LoaderArgs) {
+  await requireUser(context.cloudflare.env, request);
   const now = new Date();
   const hour = Number(
     new Intl.DateTimeFormat("en-CA", { hour: "numeric", hourCycle: "h23", timeZone: TZ }).format(now),

@@ -1,6 +1,22 @@
-# Copy to .dev.vars for local secrets (never commit .dev.vars).
+# Copy to .dev.vars for local development (never commit .dev.vars).
+# This file also defines the secret names for `npm run typegen`.
+# In production set each with `npx wrangler secret put <NAME>`.
+
 APP_ENV=development
-# Unlocks /spike/pdf locally: http://localhost:5173/spike/pdf?key=<SPIKE_KEY>
+APP_URL=http://localhost:5173
+
+# Signs sessions and tokens. Any long random string; production uses its own.
+BETTER_AUTH_SECRET=dev-only-change-me-to-a-long-random-string
+
+# Unlocks /spike/pdf: http://localhost:5173/spike/pdf?key=<SPIKE_KEY>
 SPIKE_KEY=change-me
-# Leave unset to use the dev email transport (emails are printed to the terminal).
-# RESEND_API_KEY=re_...
+
+# Empty = dev email transport (emails, with their links, print in the terminal).
+RESEND_API_KEY=
+
+# Empty = the "Continue with Google" button is hidden.
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Enables /api/test/* sign-in helpers for Playwright. Never set in production.
+E2E_SECRET=local-e2e-secret
