@@ -10,7 +10,14 @@ import { EmptyState } from "~/components/ui/states";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MoneyText } from "~/components/ui/text";
 import { formatCents } from "~/domain/money";
-import { createQuote, listQuotes, QUOTE_FILTERS, type QuoteFilter } from "~/features/quotes/service";
+import {
+  awaitingSummary,
+  createQuote,
+  listQuotes,
+  QUOTE_FILTERS,
+  QUOTE_PAGE_SIZE,
+  type QuoteFilter,
+} from "~/features/quotes/service";
 import { NewQuoteButton } from "~/features/quotes/ui/new-quote-button";
 import { formatDate } from "~/lib/dates";
 import type { AppHandle } from "~/lib/route-handle";
@@ -28,15 +35,20 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const filter = (QUOTE_FILTERS.find((f) => f === url.searchParams.get("status")) ?? "all") as QuoteFilter;
   const query = url.searchParams.get("q") ?? "";
-  const { quotes, counts } = await listQuotes(ctx, { filter, query });
-  const awaiting = (await listQuotes(ctx, { filter: "sent" })).quotes;
+  const limit = Math.max(QUOTE_PAGE_SIZE, Number(url.searchParams.get("show")) || 0);
+  const [{ quotes, counts, hasMore }, awaiting] = await Promise.all([
+    listQuotes(ctx, { filter, query, limit }),
+    awaitingSummary(ctx),
+  ]);
   return {
     quotes,
     counts,
+    hasMore,
+    limit,
     filter,
     query,
-    awaitingCount: awaiting.length,
-    awaitingCents: awaiting.reduce((s, q) => s + q.totalCents, 0),
+    awaitingCount: awaiting.count,
+    awaitingCents: awaiting.totalCents,
   };
 }
 
@@ -179,6 +191,19 @@ export default function Quotes({ loaderData }: Route.ComponentProps) {
             </li>
           ))}
         </ul>
+      )}
+      {loaderData.hasMore && (
+        <div className="mt-4 flex justify-center">
+          <Button asChild variant="secondary">
+            <Link
+              to={`?${new URLSearchParams({ ...Object.fromEntries(params), show: String(loaderData.limit + QUOTE_PAGE_SIZE) })}`}
+              preventScrollReset
+              replace
+            >
+              Show more
+            </Link>
+          </Button>
+        </div>
       )}
     </>
   );

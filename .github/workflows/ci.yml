@@ -19,6 +19,40 @@ jobs:
       - run: npm ci
       - run: npm run check
 
+  # The full suite on every device project, against the production build running
+  # locally in workerd with a local D1 (as `npm run test:e2e` does on a laptop).
+  # Hammering the deployed preview for 15 minutes trips Workers Free's CPU
+  # limit (error 1102), which tests the plan rather than the app.
+  e2e:
+    # Fork PRs have no secrets (the Browser Rendering binding needs an account).
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    needs: check
+    runs-on: ubuntu-latest
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium webkit
+      - name: Local database and test-only secrets
+        run: |
+          cp .dev.vars.example .dev.vars
+          npm run db:migrate:local
+          node scripts/seed.ts --local --e2e
+      - run: npm run test:e2e
+      # Always uploaded: it carries the /design screenshots for review (SPEC 13).
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 7
+
   preview:
     # Fork PRs have no secrets, so they get check only.
     if: github.event.pull_request.head.repo.full_name == github.repository
@@ -59,15 +93,17 @@ jobs:
           echo "url=$url" >> "$GITHUB_OUTPUT"
           echo "Preview: $url" >> "$GITHUB_STEP_SUMMARY"
       - run: npx playwright install --with-deps chromium webkit
-      - name: End-to-end tests against the preview
+      # Proves the deployed Worker, D1 and sign-in work; the e2e job covers behaviour.
+      - name: Smoke tests against the preview
         env:
           E2E_BASE_URL: ${{ steps.upload.outputs.url }}
           E2E_SECRET: ${{ secrets.E2E_SECRET }}
-        run: npm run test:e2e
-      # Always uploaded: it carries the /design screenshots for review (SPEC 13).
+        run: >-
+          npx playwright test tests/e2e/smoke.spec.ts tests/e2e/quote-builder.spec.ts
+          --project="iPhone 14" --project="Desktop Chrome 1440"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: playwright-report
+          name: preview-smoke-report
           path: playwright-report/
           retention-days: 7

@@ -7,6 +7,7 @@ import type { z } from "zod";
 import { markupFromPrice } from "~/domain/pricing";
 import { ServiceError } from "~/features/settings/service";
 import { newId } from "~/lib/ids";
+import { likeTerm } from "~/lib/like";
 import { activityInsert } from "~/server/audit";
 import { schema } from "~/server/db";
 import { IMAGE_TYPES, PHOTO_MAX_BYTES } from "~/server/files";
@@ -33,7 +34,22 @@ function audit(
   });
 }
 
-export async function listItems(ctx: Ctx, opts: { query?: string; type?: string; archived?: boolean } = {}) {
+/** Rows per page on the catalogue list; "Show more" asks for the next page. */
+export const ITEM_PAGE_SIZE = 50;
+
+/** Active catalogue items, for the Catalogue header. */
+export async function countItems(ctx: Ctx) {
+  const [row] = await ctx.db
+    .select({ n: sql<number>`count(*)` })
+    .from(schema.item)
+    .where(and(eq(schema.item.businessId, ctx.user.businessId), isNull(schema.item.archivedAt)));
+  return row?.n ?? 0;
+}
+
+export async function listItems(
+  ctx: Ctx,
+  opts: { query?: string; type?: string; archived?: boolean; limit?: number } = {},
+) {
   const i = schema.item;
   const conditions = [
     eq(i.businessId, ctx.user.businessId),
@@ -42,7 +58,7 @@ export async function listItems(ctx: Ctx, opts: { query?: string; type?: string;
   if (opts.type) conditions.push(eq(i.type, opts.type as (typeof schema.ITEM_TYPE_VALUES)[number]));
   const query = opts.query?.trim().toLowerCase();
   if (query) {
-    const term = `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
+    const term = likeTerm(query);
     conditions.push(
       or(
         sql`lower(${i.name}) LIKE ${term} ESCAPE '\\'`,
@@ -56,7 +72,8 @@ export async function listItems(ctx: Ctx, opts: { query?: string; type?: string;
     .select()
     .from(i)
     .where(and(...conditions))
-    .orderBy(asc(sql`lower(${i.name})`));
+    .orderBy(asc(sql`lower(${i.name})`))
+    .limit(opts.limit ?? ITEM_PAGE_SIZE);
 }
 
 export type ItemRow = Awaited<ReturnType<typeof listItems>>[number];

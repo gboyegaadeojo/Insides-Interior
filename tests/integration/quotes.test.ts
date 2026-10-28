@@ -4,6 +4,7 @@ import { quickCreateClient, saveSite } from "~/features/clients/service";
 import type { SaveDraftInput } from "~/features/quotes/schema";
 import { saveDraftSchema } from "~/features/quotes/schema";
 import {
+  awaitingSummary,
   createQuote,
   deleteDraft,
   DraftConflictError,
@@ -168,5 +169,57 @@ describe("listing, duplicating, deleting", () => {
     expect(await getQuote(ctx, copyId)).toBeNull();
     await ctx.db.update(schema.quote).set({ status: "sent" }).where(eq(schema.quote.id, id));
     await expect(deleteDraft(ctx, id)).rejects.toThrow(/kept/);
+  });
+});
+
+describe("list performance (Workers Free CPU budget)", () => {
+  it("stores the draft total on save and lists it without re-totalling", async () => {
+    const ctx = ownerContext();
+    const id = await createQuote(ctx);
+    await saveDraft(ctx, id, f1Draft(1, null));
+    const [row] = await ctx.db.select().from(schema.quote).where(eq(schema.quote.id, id));
+    expect(row!.draftTotalCents).toBe(53467);
+    const listed = (await listQuotes(ctx, { filter: "draft" })).quotes.find((q) => q.id === id);
+    expect(listed!.totalCents).toBe(53467);
+  });
+
+  it("still totals drafts saved before totals were stored", async () => {
+    const ctx = ownerContext();
+    const id = await createQuote(ctx);
+    await saveDraft(ctx, id, f1Draft(1, null));
+    await ctx.db.update(schema.quote).set({ draftTotalCents: null }).where(eq(schema.quote.id, id));
+    const listed = (await listQuotes(ctx)).quotes.find((q) => q.id === id);
+    expect(listed!.totalCents).toBe(53467);
+  });
+
+  it("pages in SQL and counts every quote", async () => {
+    const ctx = ownerContext();
+    for (let i = 0; i < 3; i++) await createQuote(ctx);
+    const page = await listQuotes(ctx, { limit: 2 });
+    expect(page.quotes).toHaveLength(2);
+    expect(page.hasMore).toBe(true);
+    const statuses = await ctx.db.select({ status: schema.quote.status }).from(schema.quote);
+    expect(page.counts.all).toBe(statuses.length);
+    expect(page.counts.draft).toBe(statuses.filter((r) => r.status === "draft").length);
+  });
+
+  it("treats % and _ in a search as literal characters", async () => {
+    const ctx = ownerContext();
+    const id = await createQuote(ctx);
+    const draft = f1Draft(1, null);
+    draft.header.title = "100% wool throw";
+    await saveDraft(ctx, id, draft);
+    await createQuote(ctx);
+    const found = (await listQuotes(ctx, { query: "100%" })).quotes.map((q) => q.id);
+    expect(found).toEqual([id]);
+    expect((await listQuotes(ctx, { query: "_" })).quotes).toHaveLength(0);
+  });
+
+  it("counts quotes awaiting an answer", async () => {
+    const ctx = ownerContext();
+    const before = await awaitingSummary(ctx);
+    const id = await createQuote(ctx);
+    await ctx.db.update(schema.quote).set({ status: "viewed" }).where(eq(schema.quote.id, id));
+    expect(await awaitingSummary(ctx)).toEqual({ count: before.count + 1, totalCents: before.totalCents });
   });
 });

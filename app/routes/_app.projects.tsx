@@ -23,7 +23,7 @@ import { MoneyText } from "~/components/ui/text";
 import { formatCents } from "~/domain/money";
 import { ClientCombobox } from "~/features/clients/ui/client-combobox";
 import { projectSchema } from "~/features/projects/schema";
-import { createProject, listProjects } from "~/features/projects/service";
+import { createProject, listProjects, PROJECT_PAGE_SIZE, projectSummary } from "~/features/projects/service";
 import { SiteSelect } from "~/features/projects/ui/site-select";
 import { ServiceError } from "~/features/settings/service";
 import { type FieldErrors, parseForm } from "~/lib/form";
@@ -45,11 +45,18 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const ctx = await requireUser(context.cloudflare.env, request);
   const url = new URL(request.url);
   const status = FILTERS.find((f) => f === url.searchParams.get("status")) ?? "active";
-  const projects = await listProjects(ctx, { status });
+  const limit = Math.max(PROJECT_PAGE_SIZE, Number(url.searchParams.get("show")) || 0);
+  const [rows, summary] = await Promise.all([
+    listProjects(ctx, { status, limit: limit + 1 }),
+    projectSummary(ctx, { status }),
+  ]);
   return {
     status,
+    summary,
+    hasMore: rows.length > limit,
+    limit,
     projects: await Promise.all(
-      projects.map(async (p) => ({
+      rows.slice(0, limit).map(async (p) => ({
         ...p,
         coverUrl: p.coverPhotoKey ? await signedFileUrl(ctx.env, p.coverPhotoKey) : null,
       })),
@@ -82,17 +89,16 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
 
   if (pathname !== "/projects" && pathname !== "/projects/") return <Outlet />;
 
-  const totalContract = loaderData.projects.reduce((s, p) => s + p.contractCents, 0);
-  const toBill = loaderData.projects.reduce((s, p) => s + p.progress.remainingToBillCents, 0);
+  const { summary } = loaderData;
 
   return (
     <>
       <ModuleHeader
         eyebrow="Projects"
         summary={
-          loaderData.projects.length === 0
+          summary.count === 0
             ? "No projects here"
-            : `${loaderData.projects.length} ${loaderData.status} · ${formatCents(totalContract)} contracted · ${formatCents(toBill)} to bill`
+            : `${summary.count} ${loaderData.status} · ${formatCents(summary.contractCents)} contracted · ${formatCents(summary.toBillCents)} to bill`
         }
         action={
           <Button size="lg" variant="tinted" onClick={() => sheet.show()}>
@@ -158,6 +164,19 @@ export default function Projects({ loaderData }: Route.ComponentProps) {
             </li>
           ))}
         </ul>
+      )}
+      {loaderData.hasMore && (
+        <div className="mt-4 flex justify-center">
+          <Button asChild variant="secondary">
+            <Link
+              to={`?${new URLSearchParams({ ...Object.fromEntries(params), show: String(loaderData.limit + PROJECT_PAGE_SIZE) })}`}
+              preventScrollReset
+              replace
+            >
+              Show more
+            </Link>
+          </Button>
+        </div>
       )}
 
       <Sheet open={sheet.open} onOpenChange={sheet.onOpenChange}>

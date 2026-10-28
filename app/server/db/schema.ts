@@ -424,6 +424,8 @@ export const quote = sqliteTable(
     currentRevisionId: text(),
     /** Draft content lives here until sent; sent content is frozen in quote_revision. */
     draftContent: text({ mode: "json" }).$type<DocumentContent>(),
+    /** Server-computed total of draftContent, stored so lists needn't re-total every draft. */
+    draftTotalCents: integer(),
     draftVersion: integer().notNull().default(0),
     depositType: text({ enum: ["percent", "amount"] }),
     depositValue: integer(),

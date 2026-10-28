@@ -1,0 +1,1 @@
+ALTER TABLE `quote` ADD `draft_total_cents` integer;

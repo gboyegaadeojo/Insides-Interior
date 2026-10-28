@@ -7,6 +7,7 @@ import { computeContent, depositFrom } from "~/domain/document";
 import { ServiceError } from "~/features/settings/service";
 import { addDays, businessToday } from "~/lib/dates";
 import { newId } from "~/lib/ids";
+import { likeTerm } from "~/lib/like";
 import { activityInsert } from "~/server/audit";
 import { type DocumentContent, schema } from "~/server/db";
 import type { RequestContext } from "~/server/session";
@@ -77,6 +78,7 @@ export async function createQuote(
       projectId: opts.projectId ?? null,
       status: "draft",
       draftContent: content,
+      draftTotalCents: 0,
       draftVersion: 1,
       depositType: settings.defaultDepositBp > 0 ? "percent" : null,
       depositValue: settings.defaultDepositBp > 0 ? settings.defaultDepositBp : null,
@@ -179,6 +181,7 @@ export async function saveDraft(ctx: RequestContext, id: string, input: SaveDraf
       ? { type: header.depositType, value: header.depositValue }
       : null;
 
+  const totals = computeContent(content, depositFrom(deposit?.type, deposit?.value));
   const nextVersion = input.version + 1;
   const updated = await ctx.db
     .update(schema.quote)
@@ -190,6 +193,7 @@ export async function saveDraft(ctx: RequestContext, id: string, input: SaveDraf
       depositType: deposit?.type ?? null,
       depositValue: deposit?.value ?? null,
       draftContent: content,
+      draftTotalCents: totals.computed.totalCents,
       draftVersion: nextVersion,
       updatedAt: nowIso(),
     })
@@ -209,7 +213,6 @@ export async function saveDraft(ctx: RequestContext, id: string, input: SaveDraf
       .where(eq(schema.quote.id, id));
     throw new DraftConflictError(latest?.v ?? input.version);
   }
-  const totals = computeContent(content, depositFrom(deposit?.type, deposit?.value));
   return {
     version: nextVersion,
     savedAt: nowIso(),
@@ -240,8 +243,45 @@ const FILTER_STATUSES: Record<
   closed: ["declined", "expired"],
 };
 
-export async function listQuotes(ctx: Ctx, opts: { filter?: QuoteFilter; query?: string } = {}) {
+/** Rows per page on list screens; "Show more" asks for the next page. */
+export const QUOTE_PAGE_SIZE = 50;
+
+/**
+ * Quote list, filtered, searched and paged in SQL. Workers Free allows 10 ms of
+ * CPU per request, so totals come from columns (the frozen revision, or the
+ * draft total stored on save) rather than re-totalling every draft.
+ */
+export async function listQuotes(
+  ctx: Ctx,
+  opts: { filter?: QuoteFilter; query?: string; limit?: number } = {},
+) {
   const q = schema.quote;
+  const mine = eq(q.businessId, ctx.user.businessId);
+
+  const byStatus = await ctx.db
+    .select({ status: q.status, n: sql<number>`count(*)` })
+    .from(q)
+    .where(mine)
+    .groupBy(q.status);
+  const counts: Record<QuoteFilter, number> = {
+    all: 0,
+    draft: 0,
+    sent: 0,
+    changes_requested: 0,
+    approved: 0,
+    closed: 0,
+  };
+  for (const { status, n } of byStatus) {
+    counts.all += n;
+    for (const [filter, statuses] of Object.entries(FILTER_STATUSES)) {
+      if (statuses.includes(status)) counts[filter as QuoteFilter] += n;
+    }
+  }
+
+  const filter = opts.filter ?? "all";
+  const query = opts.query?.trim().toLowerCase();
+  const pattern = query ? likeTerm(query) : null;
+  const limit = Math.min(Math.max(opts.limit ?? QUOTE_PAGE_SIZE, 1), 500);
   const rows = await ctx.db
     .select({
       id: q.id,
@@ -252,53 +292,59 @@ export async function listQuotes(ctx: Ctx, opts: { filter?: QuoteFilter; query?:
       updatedAt: q.updatedAt,
       clientId: q.clientId,
       clientName: schema.client.displayName,
-      draftContent: q.draftContent,
-      depositType: q.depositType,
-      depositValue: q.depositValue,
       revisionTotalCents: schema.quoteRevision.totalCents,
+      draftTotalCents: q.draftTotalCents,
+      // Only drafts saved before draft totals were stored need their content.
+      legacyContent: sql<
+        string | null
+      >`case when ${q.draftTotalCents} is null and ${q.currentRevisionId} is null then ${q.draftContent} end`,
     })
     .from(q)
     .leftJoin(schema.client, eq(schema.client.id, q.clientId))
     .leftJoin(schema.quoteRevision, eq(schema.quoteRevision.id, q.currentRevisionId))
-    .where(eq(q.businessId, ctx.user.businessId))
-    .orderBy(desc(q.updatedAt));
-
-  const counts: Record<QuoteFilter, number> = {
-    all: rows.length,
-    draft: 0,
-    sent: 0,
-    changes_requested: 0,
-    approved: 0,
-    closed: 0,
-  };
-  for (const row of rows) {
-    for (const [filter, statuses] of Object.entries(FILTER_STATUSES)) {
-      if (statuses.includes(row.status)) counts[filter as QuoteFilter]++;
-    }
-  }
-
-  const filter = opts.filter ?? "all";
-  const query = opts.query?.trim().toLowerCase();
-  const visible = rows.filter(
-    (r) =>
-      (filter === "all" || FILTER_STATUSES[filter].includes(r.status)) &&
-      (!query || [r.number, r.title, r.clientName].some((v) => v?.toLowerCase().includes(query))),
-  );
+    .where(
+      and(
+        mine,
+        filter === "all" ? undefined : inArray(q.status, FILTER_STATUSES[filter]),
+        pattern
+          ? or(
+              sql`lower(coalesce(${q.number}, '')) LIKE ${pattern} ESCAPE '\\'`,
+              sql`lower(coalesce(${q.title}, '')) LIKE ${pattern} ESCAPE '\\'`,
+              sql`lower(coalesce(${schema.client.displayName}, '')) LIKE ${pattern} ESCAPE '\\'`,
+            )
+          : undefined,
+      ),
+    )
+    .orderBy(desc(q.updatedAt))
+    .limit(limit + 1);
 
   return {
     counts,
-    quotes: visible.map(
-      ({ draftContent, depositType: _d, depositValue: _v, revisionTotalCents, ...row }) => ({
-        ...row,
-        // Drafts are totalled from their content; sent quotes use the frozen revision.
-        totalCents:
-          revisionTotalCents ??
-          (draftContent
-            ? computeContent({ ...draftContent, taxRates: draftContent.taxRates }).computed.totalCents
-            : 0),
-      }),
-    ),
+    hasMore: rows.length > limit,
+    quotes: rows.slice(0, limit).map(({ revisionTotalCents, draftTotalCents, legacyContent, ...row }) => ({
+      ...row,
+      totalCents:
+        revisionTotalCents ??
+        draftTotalCents ??
+        (legacyContent
+          ? computeContent(JSON.parse(legacyContent) as DocumentContent).computed.totalCents
+          : 0),
+    })),
   };
+}
+
+/** Quotes waiting on the client: how many and their total (Quotes header band). */
+export async function awaitingSummary(ctx: Ctx) {
+  const q = schema.quote;
+  const [row] = await ctx.db
+    .select({
+      count: sql<number>`count(*)`,
+      totalCents: sql<number>`coalesce(sum(${schema.quoteRevision.totalCents}), 0)`,
+    })
+    .from(q)
+    .leftJoin(schema.quoteRevision, eq(schema.quoteRevision.id, q.currentRevisionId))
+    .where(and(eq(q.businessId, ctx.user.businessId), inArray(q.status, FILTER_STATUSES.sent)));
+  return { count: row?.count ?? 0, totalCents: row?.totalCents ?? 0 };
 }
 
 export type QuoteListRow = Awaited<ReturnType<typeof listQuotes>>["quotes"][number];
@@ -328,6 +374,7 @@ export async function duplicateQuote(ctx: RequestContext, id: string) {
       title: quote.title ? `${quote.title} (copy)` : null,
       status: "draft",
       draftContent: copy,
+      draftTotalCents: computeContent(copy).computed.totalCents,
       draftVersion: 1,
       depositType: quote.depositType,
       depositValue: quote.depositValue,

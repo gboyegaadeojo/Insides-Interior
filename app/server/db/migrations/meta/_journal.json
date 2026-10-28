@@ -29,6 +29,13 @@
       "when": 1793206946473,
       "tag": "0003_nullable_draft_client",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "6",
+      "when": 1793227063715,
+      "tag": "0004_draft_totals",
+      "breakpoints": true
     }
   ]
 }

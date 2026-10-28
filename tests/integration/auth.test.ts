@@ -112,3 +112,45 @@ describe("a second owner (handover)", () => {
     await expect(setMemberDisabled(secondCtx, second!.id, true)).rejects.toThrow(/your own/);
   });
 });
+
+describe("page-load session check (lean getUser)", () => {
+  async function signedIn() {
+    const { response } = await signInWith(E2E_OWNER_EMAIL);
+    return sessionCookie(response!);
+  }
+
+  it("refuses a cookie whose signature doesn't match", async () => {
+    const cookie = await signedIn();
+    const [name, value] = cookie.split(/=(.*)/s) as [string, string];
+    const decoded = decodeURIComponent(value);
+    const token = decoded.slice(0, decoded.lastIndexOf("."));
+    const forged = `${name}=${encodeURIComponent(`${token}.${"A".repeat(43)}=`)}`;
+    expect(await getUser(testEnv, appRequest("/", { headers: { cookie: forged } }))).toBeNull();
+  });
+
+  it("refuses an expired session and renews one that is due", async () => {
+    const cookie = await signedIn();
+    const db = getDb(testEnv);
+    const value = decodeURIComponent(cookie.split(/=(.*)/s)[1]!);
+    const token = value.slice(0, value.lastIndexOf("."));
+    const [row] = await db.select().from(schema.session).where(eq(schema.session.token, token));
+
+    // Two days into a 30-day session: renewal is due.
+    const due = new Date(Date.now() + 28 * 86_400_000);
+    await db.update(schema.session).set({ expiresAt: due }).where(eq(schema.session.id, row!.id));
+    expect(await getUser(testEnv, appRequest("/", { headers: { cookie } }))).not.toBeNull();
+    const [renewed] = await db.select().from(schema.session).where(eq(schema.session.id, row!.id));
+    expect(renewed!.expiresAt.getTime()).toBeGreaterThan(due.getTime());
+
+    await db
+      .update(schema.session)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(schema.session.id, row!.id));
+    expect(await getUser(testEnv, appRequest("/", { headers: { cookie } }))).toBeNull();
+  });
+
+  it("checks once per request", async () => {
+    const request = appRequest("/", { headers: { cookie: await signedIn() } });
+    expect(getUser(testEnv, request)).toBe(getUser(testEnv, request));
+  });
+});

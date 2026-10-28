@@ -1,4 +1,4 @@
-import puppeteer, { type Browser } from "@cloudflare/puppeteer";
+import type { Browser } from "@cloudflare/puppeteer";
 import type { Route } from "./+types/spike.pdf";
 
 // Phase 0 PDF spike (SPEC 10.4): print /spike/pdf-sample with Browser Rendering,
@@ -87,6 +87,9 @@ export async function loader({ request, context }: Route.LoaderArgs) {
 // Reconnect to an idle browser session when there is one; otherwise start a new
 // browser that stays alive for 10 minutes after the last disconnect.
 async function getBrowser(endpoint: Env["BROWSER"]) {
+  // Loaded on demand: puppeteer is large, and evaluating it on every cold start
+  // pushed page requests over the Worker CPU limit (error 1102).
+  const { default: puppeteer } = await import("@cloudflare/puppeteer");
   const idle = (await puppeteer.sessions(endpoint)).filter((s) => !s.connectionId);
   for (const session of idle) {
     try {
