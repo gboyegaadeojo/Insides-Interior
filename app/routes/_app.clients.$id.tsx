@@ -537,11 +537,11 @@ function SitesCard({
   return (
     <Card className={cn("desktop:col-span-2")}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-section font-semibold">Sites</h3>
+        <h3 className="text-section font-semibold">Job addresses</h3>
         {!adding && (
           <Button variant="ghost" onClick={() => setAdding(true)}>
             <Plus aria-hidden />
-            Add site
+            Add job address
           </Button>
         )}
       </div>
@@ -572,9 +572,9 @@ function SitesCard({
         <Form method="post" className="mt-3 grid gap-3 rounded-card bg-surface-2 p-3 tablet:grid-cols-2">
           <input type="hidden" name="intent" value="site" />
           <TextField
-            label="Site name"
+            label="Address name"
             name="label"
-            placeholder="e.g. Home"
+            placeholder="e.g. Home, Cottage"
             required
             error={errors.label}
             autoFocus
@@ -588,7 +588,7 @@ function SitesCard({
               Cancel
             </Button>
             <Button type="submit" loading={pendingIntent === "site"}>
-              Save site
+              Save address
             </Button>
           </div>
         </Form>

@@ -20,8 +20,12 @@ export interface ComboboxProps extends Pick<FieldProps, "label" | "hint" | "erro
   placeholder?: string;
   searchPlaceholder?: string;
   emptyText?: string;
-  /** Offers "Create '<query>'" when nothing matches exactly (SPEC 6.8 client picker). */
+  /**
+   * Offers "Create '<query>'" when nothing matches exactly, and `createLabel`
+   * (e.g. "New client") before anything is typed (SPEC 6.8 client picker).
+   */
   onCreate?: (query: string) => void;
+  createLabel?: string;
 }
 
 export function Combobox({
@@ -32,6 +36,7 @@ export function Combobox({
   searchPlaceholder = "Search",
   emptyText = "No matches",
   onCreate,
+  createLabel = "Create new",
   ...field
 }: ComboboxProps) {
   const [open, setOpen] = React.useState(false);
@@ -51,7 +56,7 @@ export function Combobox({
               aria-expanded={open}
               aria-describedby={describedBy}
               aria-invalid={invalid || undefined}
-              className={cn(controlClass, "flex h-11 items-center gap-2 text-left")}
+              className={cn(controlClass, "flex h-11 items-center gap-2 text-left pointer-fine:h-10")}
             >
               {selected?.icon}
               <span className={cn("min-w-0 flex-1 truncate", !selected && "text-secondary")}>
@@ -100,7 +105,7 @@ export function Combobox({
                       )}
                     </Command.Item>
                   ))}
-                  {onCreate && query.trim() && !exact && (
+                  {onCreate && !exact && (
                     <Command.Item
                       value={`__create__ ${query}`}
                       forceMount
@@ -109,10 +114,10 @@ export function Combobox({
                         setOpen(false);
                         setQuery("");
                       }}
-                      className="flex min-h-11 cursor-pointer items-center gap-3 rounded-control px-3 py-2 font-semibold text-teal-ink data-[selected=true]:bg-teal-tint"
+                      className="mt-1 flex min-h-11 cursor-pointer items-center gap-3 rounded-control border-t border-border px-3 py-2 font-semibold text-teal-ink data-[selected=true]:bg-teal-tint"
                     >
                       <Plus className="size-5" aria-hidden />
-                      Create “{query.trim()}”
+                      {query.trim() ? `Create “${query.trim()}”` : createLabel}
                     </Command.Item>
                   )}
                 </Command.List>

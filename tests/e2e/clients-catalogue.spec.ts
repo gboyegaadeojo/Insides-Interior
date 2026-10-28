@@ -28,10 +28,10 @@ test("create a client, add a site and find them by search", async ({ page }) => 
   await expect(page).toHaveURL(/\/clients\/cli_/);
   await expect(page.getByRole("heading", { level: 2, name })).toBeVisible();
 
-  await page.getByRole("button", { name: "Add site" }).click();
-  await page.getByLabel("Site name").fill("Cottage");
+  await page.getByRole("button", { name: "Add job address" }).click();
+  await page.getByLabel("Address name").fill("Cottage");
   await page.getByLabel("Street address").fill("12 Lakeshore Rd");
-  await page.getByRole("button", { name: "Save site" }).click();
+  await page.getByRole("button", { name: "Save address" }).click();
   await expect(page.getByText("12 Lakeshore Rd")).toBeVisible();
   await shot(page, "client-profile");
 

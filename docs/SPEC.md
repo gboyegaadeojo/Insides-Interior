@@ -617,14 +617,14 @@ In dark mode, tints become the base colour at 14–18% opacity over `surface`, a
 
 | Style | Font | Size / line height (tablet & desktop) | Phone | Weight | Use |
 | --- | --- | --- | --- | --- | --- |
-| Display | Fraunces (variable serif) | 34 / 1.15 | 28 | 600 | Home greeting, document titles |
-| Page title | Fraunces | 28 / 1.2 | 24 | 600 | Module and record titles |
-| Section title | Inter | 19 / 1.3 | 18 | 600 | Card and section headings |
-| Body | Inter | 16 / 1.5 | 16 | 400 | Main content (never smaller on touch) |
-| Compact body | Inter | 14 / 1.45 | 15 | 400–500 | Dense tables on desktop only |
-| Label | Inter | 13 / 1.4 | 13 | 600 | Form labels, metadata |
-| KPI value | Inter, tabular figures | 32 / 1.1 | 28 | 650 | Key totals |
-| Micro | Inter | 12 / 1.4 | 12 | 500 | Badges, helper text (never essential instructions alone) |
+| Display | Fraunces (variable serif) | 28 / 1.15 | 24 | 500 | Home greeting, document titles |
+| Page title | Fraunces | 24 / 1.2 | 21 | 500 | Module and record titles |
+| Section title | Inter | 16 / 1.35 | 16 | 600 | Card and section headings |
+| Body | Inter | 14 / 1.5 | 15 | 400 | Main content; text fields stay 16 px on touch screens (iOS zoom) |
+| Compact body | Inter | 13 / 1.45 | 14 | 400–500 | Dense tables on desktop only |
+| Label | Inter | 12 / 1.4 | 12 | 600 | Form labels, metadata |
+| KPI value | Inter, tabular figures | 28 / 1.1 | 24 | 650 | Key totals |
+| Micro | Inter | 11 / 1.4 | 11 | 500 | Badges, helper text (never essential instructions alone) |
 
 - **DS-TYP-01** Fallback stack: `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`; serif fallback `Georgia, serif`. Self-host both fonts (subsetted WOFF2, `font-display: swap`).
 - **DS-TYP-02** Tabular numerals (`font-variant-numeric: tabular-nums`) everywhere money or quantities appear; amounts right-aligned in tables.

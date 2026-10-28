@@ -62,6 +62,16 @@ build-level calls (salvage map calls under SPEC 2.5, vendor deviations, spike re
 | 2026-10-28 | **The builder recomputes totals in the browser with the same `app/domain/document` functions** the server uses on save; the server's figures are the ones stored.            | Live totals without trusting the client (CLAUDE.md).                                                                                              |
 | 2026-10-28 | **One `DocumentRenderer` tree** serves the builder preview, the read-only sent view and (from phase 5) the portal and PDF.                                                   | SPEC 6.9: what the owner previews is what the client gets.                                                                                        |
 
+### Design pass (after phase 4)
+
+| Date       | Decision                                                                                                                                                        | Rationale                                                              |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| 2026-10-28 | **The type scale is two steps below SPEC 6.4** (body 14px on tablet and desktop, 15px on phones; titles 24/21; serif headings at weight 500). SPEC 6.4 updated. | The owner found the app oversized and not premium.                     |
+| 2026-10-28 | **Text fields stay 16px on touch screens** (`pointer: coarse`, unlayered rule in `app.css`).                                                                    | iOS Safari zooms the page when a field under 16px gets focus.          |
+| 2026-10-28 | **Controls are 40px with a mouse or trackpad (`pointer-fine:`), 44px on touch.**                                                                                | DS-SPC-03 already allows 40px on desktop; touch targets are unchanged. |
+| 2026-10-28 | **"Site" is called "Job address" in the UI**; code and database keep `site`.                                                                                    | The owner didn't know what "Site" meant.                               |
+| 2026-10-28 | **Segmented controls hug their content; lists are one card with dividers; module bands drop the repeated module name.**                                         | Less visual weight; the module name is already the page title.         |
+
 ## PDF spike (SPEC 10.4)
 
 **Setup.** `/spike/pdf-sample` renders a static 3-page quote (Letter, five rooms, 46 lines, Fraunces

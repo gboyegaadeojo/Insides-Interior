@@ -98,6 +98,7 @@ export function ClientCombobox({
         placeholder={list.state === "loading" && !list.data ? "Loading clients…" : "Choose a client"}
         searchPlaceholder="Search clients"
         emptyText="No clients match"
+        createLabel="New client"
         onCreate={(query) => {
           setCreateErrors({});
           setDraft(query);

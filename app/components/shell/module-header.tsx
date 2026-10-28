@@ -21,13 +21,14 @@ export function ModuleHeader({
   return (
     <section
       className={cn(
-        "-mx-[var(--gutter)] mb-6 flex min-h-24 flex-col justify-end gap-4 bg-gradient-to-b from-mod-tint to-canvas px-[var(--gutter)] pt-4 pb-4 tablet:min-h-32 tablet:flex-row tablet:items-end tablet:justify-between",
+        "-mx-[var(--gutter)] mb-5 flex flex-col gap-3 border-t border-mod-tint bg-gradient-to-b from-mod-tint to-canvas px-[var(--gutter)] pt-5 pb-3 tablet:flex-row tablet:items-center tablet:justify-between",
         className,
       )}
     >
       <div>
-        <p className="text-label font-semibold text-mod-ink">{eyebrow}</p>
-        <p className="mt-1 text-section font-semibold text-primary">{summary}</p>
+        {/* The top bar already shows the module name; keep it for screen readers. */}
+        <p className="sr-only">{eyebrow}</p>
+        <p className="text-body font-medium text-secondary">{summary}</p>
       </div>
       {action && <div className="shrink-0">{action}</div>}
     </section>

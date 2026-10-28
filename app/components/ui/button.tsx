@@ -5,13 +5,14 @@ import * as React from "react";
 import { cn } from "~/lib/utils";
 
 // Refactored from legacy/src/components/ui/button.tsx (SPEC 2.5): tokens only,
-// sizes md 44 / lg 52 (DS-SPC-03), tinted and loading variants, 0.98 press (DS-MOT-02).
+// sizes md 44 / lg 52 on touch, 40 / 44 with a mouse (DS-SPC-03), tinted and
+// loading variants, 0.98 press (DS-MOT-02).
 export const buttonVariants = cva(
   [
     "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-control font-semibold",
     "transition-[transform,background-color,color,box-shadow,opacity] duration-fast ease-out",
     "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-55 aria-busy:pointer-events-none",
-    "[&_svg]:size-5 [&_svg]:shrink-0",
+    "[&_svg]:size-4.5 [&_svg]:shrink-0",
   ],
   {
     variants: {
@@ -23,9 +24,9 @@ export const buttonVariants = cva(
         destructive: "bg-danger-base text-danger-on hover:brightness-110",
       },
       size: {
-        md: "h-11 px-4 text-body",
-        lg: "h-13 px-6 text-body",
-        icon: "size-11",
+        md: "h-11 px-4 text-body pointer-fine:h-10",
+        lg: "h-13 px-6 text-body pointer-fine:h-11",
+        icon: "size-11 pointer-fine:size-10",
       },
     },
     defaultVariants: { variant: "primary", size: "md" },

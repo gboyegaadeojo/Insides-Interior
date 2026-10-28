@@ -73,8 +73,10 @@
 
   --text-display: var(--fs-display);
   --text-display--line-height: var(--lh-display);
+  --text-display--font-weight: var(--fw-display);
   --text-title: var(--fs-title);
   --text-title--line-height: var(--lh-title);
+  --text-title--font-weight: var(--fw-title);
   --text-section: var(--fs-section);
   --text-section--line-height: var(--lh-section);
   --text-body: var(--fs-body);
@@ -132,6 +134,18 @@
   [role="button"]:not([aria-disabled="true"]),
   a[href] {
     cursor: pointer;
+  }
+}
+
+/* iOS Safari zooms the page when a field under 16px gets focus, so text entry
+   stays 16px on touch screens although body text is smaller. Unlayered, so it
+   wins over the text-* utilities on the controls. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"]),
+  select,
+  textarea,
+  [contenteditable="true"] {
+    font-size: max(1rem, 16px);
   }
 }
 
