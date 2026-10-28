@@ -1,0 +1,46 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "insides-interior",
+  "main": "./workers/app.ts",
+  "compatibility_date": "2026-10-01",
+  "compatibility_flags": ["nodejs_compat"],
+  // Phase 0: served from the free workers.dev address. The custom domain
+  // (app.<domain>, SPEC 9.1) is added in a later phase.
+  "workers_dev": true,
+  "preview_urls": true,
+  "observability": { "enabled": true },
+  "vars": {
+    "APP_ENV": "production",
+    "BUSINESS_TIMEZONE": "America/Winnipeg",
+    // Resend's shared sender until mail.<domain> is verified (SPEC 9.1).
+    "EMAIL_FROM": "Insides Interior <onboarding@resend.dev>",
+  },
+  // Secrets (set with `npx wrangler secret put <NAME>`, never committed):
+  //   RESEND_API_KEY  enables the Resend email transport (dev transport otherwise)
+  //   SPIKE_KEY       unlocks /spike/pdf (phase 0 PDF spike)
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "insides_db",
+      "database_id": "ae9b4bd0-525d-4a48-b17f-c4159f159fe4",
+      "migrations_dir": "app/server/db/migrations",
+    },
+  ],
+  // R2 bucket and queue names only allow lowercase letters, digits and hyphens,
+  // so SPEC's insides_files / insides_backups / insides_jobs use hyphens here.
+  "r2_buckets": [
+    { "binding": "FILES", "bucket_name": "insides-files" },
+    { "binding": "BACKUPS", "bucket_name": "insides-backups" },
+  ],
+  "queues": {
+    "producers": [{ "binding": "JOBS", "queue": "insides-jobs" }],
+    "consumers": [{ "queue": "insides-jobs", "max_batch_size": 10, "max_retries": 5 }],
+  },
+  "browser": { "binding": "BROWSER" },
+  "triggers": {
+    // Placeholders (handlers are no-ops until phase 8). Daily job runs at 08:00
+    // America/Winnipeg: both candidate UTC hours are scheduled and the handler
+    // checks local time (SPEC 14.4, phase 8). Weekly digest Monday 07:30.
+    "crons": ["0 13 * * *", "0 14 * * *", "30 12 * * 1", "30 13 * * 1"],
+  },
+}
