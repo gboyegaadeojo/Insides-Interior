@@ -22,7 +22,13 @@ import { EmptyState } from "~/components/ui/states";
 import { MoneyText } from "~/components/ui/text";
 import { formatCents } from "~/domain/money";
 import { clientSchema } from "~/features/clients/schema";
-import { createClient, formatAddress, listClients } from "~/features/clients/service";
+import {
+  CLIENT_PAGE_SIZE,
+  clientSummary,
+  createClient,
+  formatAddress,
+  listClients,
+} from "~/features/clients/service";
 import { ClientFields } from "~/features/clients/ui/client-form";
 import { parseForm, type FieldErrors } from "~/lib/form";
 import type { AppHandle } from "~/lib/route-handle";
@@ -42,17 +48,19 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const url = new URL(request.url);
   const query = url.searchParams.get("q") ?? "";
   const archived = url.searchParams.get("archived") === "1";
-  const [clients, all] = await Promise.all([
-    listClients(ctx, { query, archived }),
-    query || archived ? listClients(ctx) : null,
+  const limit = Math.max(CLIENT_PAGE_SIZE, Number(url.searchParams.get("show")) || 0);
+  const [rows, summary] = await Promise.all([
+    listClients(ctx, { query, archived, limit: limit + 1 }),
+    clientSummary(ctx),
   ]);
-  const active = all ?? clients;
   return {
-    clients,
+    clients: rows.slice(0, limit),
+    hasMore: rows.length > limit,
+    limit,
     query,
     archived,
-    totalActive: active.length,
-    totalOutstanding: active.reduce((sum, c) => sum + Math.max(0, c.outstandingCents), 0),
+    totalActive: summary.count,
+    totalOutstanding: summary.outstandingCents,
   };
 }
 
@@ -119,7 +127,14 @@ export default function ClientsLayout({ loaderData }: Route.ComponentProps) {
   );
 }
 
-function ClientList({ clients, query, archived, totalActive }: Route.ComponentProps["loaderData"]) {
+function ClientList({
+  clients,
+  query,
+  archived,
+  totalActive,
+  hasMore,
+  limit,
+}: Route.ComponentProps["loaderData"]) {
   const submit = useSubmit();
   const [params] = useSearchParams();
   const navigation = useNavigation();
@@ -243,6 +258,19 @@ function ClientList({ clients, query, archived, totalActive }: Route.ComponentPr
             </li>
           ))}
         </ul>
+      )}
+      {hasMore && (
+        <div className="flex justify-center">
+          <Button asChild variant="secondary">
+            <Link
+              to={`?${new URLSearchParams({ ...Object.fromEntries(params), show: String(limit + CLIENT_PAGE_SIZE) })}`}
+              preventScrollReset
+              replace
+            >
+              Show more
+            </Link>
+          </Button>
+        </div>
       )}
     </div>
   );

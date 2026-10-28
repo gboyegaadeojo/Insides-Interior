@@ -15,7 +15,11 @@ import { signInEmail } from "./email/templates";
 import { allowedOrigins, resolveOrigin } from "./origins";
 
 export const MAGIC_LINK_TTL_SECONDS = 15 * 60;
-const THIRTY_DAYS = 60 * 60 * 24 * 30;
+export const THIRTY_DAYS = 60 * 60 * 24 * 30;
+/** Sliding renewal: a session's expiry moves forward at most once a day. */
+export const SESSION_UPDATE_AGE = 60 * 60 * 24;
+/** Better Auth's session cookie (cookiePrefix "ii"), with __Secure- over HTTPS. */
+export const SESSION_COOKIES = ["__Secure-ii.session_token", "ii.session_token"] as const;
 
 const ID_PREFIX: Record<string, IdPrefix> = {
   user: "usr",
@@ -58,7 +62,7 @@ export function createAuth(env: Env, request: Request, options: AuthOptions = {}
     },
     session: {
       expiresIn: THIRTY_DAYS,
-      updateAge: 60 * 60 * 24,
+      updateAge: SESSION_UPDATE_AGE,
       cookieCache: { enabled: false },
     },
     emailAndPassword: { enabled: false },

@@ -3,6 +3,7 @@
 
 import { and, asc, desc, eq, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
 import type { z } from "zod";
+import { likeTerm } from "~/lib/like";
 import { ServiceError } from "~/features/settings/service";
 import { newId } from "~/lib/ids";
 import { activityInsert } from "~/server/audit";
@@ -51,11 +52,6 @@ export function formatAddress(address: Address | null | undefined): string {
   ]
     .filter(Boolean)
     .join(", ");
-}
-
-/** Escapes LIKE wildcards in a search term. */
-function likeTerm(query: string) {
-  return `%${query.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
 }
 
 /**
@@ -108,10 +104,27 @@ export async function listClients(
     .innerJoin(schema.clientBalance, eq(schema.clientBalance.clientId, c.id))
     .where(and(...conditions))
     .orderBy(asc(sql`lower(${c.displayName})`))
-    .limit(opts.limit ?? 500);
+    .limit(opts.limit ?? CLIENT_PAGE_SIZE);
 }
 
 export type ClientListRow = Awaited<ReturnType<typeof listClients>>[number];
+
+/** Rows per page on the client list; "Show more" asks for the next page. */
+export const CLIENT_PAGE_SIZE = 50;
+
+/** Active clients and what they owe in total, for the Clients header band. */
+export async function clientSummary(ctx: Ctx) {
+  const b = schema.clientBalance;
+  const [row] = await ctx.db
+    .select({
+      count: sql<number>`count(*)`,
+      outstandingCents: sql<number>`coalesce(sum(max(0, ${b.billedCents} - ${b.paidCents} - ${b.creditsAppliedCents})), 0)`,
+    })
+    .from(schema.client)
+    .innerJoin(b, eq(b.clientId, schema.client.id))
+    .where(and(eq(schema.client.businessId, ctx.user.businessId), isNull(schema.client.archivedAt)));
+  return { count: row?.count ?? 0, outstandingCents: row?.outstandingCents ?? 0 };
+}
 
 export async function getClient(ctx: Ctx, id: string) {
   const c = schema.client;

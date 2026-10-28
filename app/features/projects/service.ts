@@ -1,7 +1,7 @@
 // Projects (SPEC 5.5): a job for one client and one site grouping quotes,
 // invoices and expenses. Figures come from the project_financials view.
 
-import { and, desc, eq, inArray, ne } from "drizzle-orm";
+import { and, desc, eq, inArray, ne, sql } from "drizzle-orm";
 import type { z } from "zod";
 import { projectProgress } from "~/domain/pricing";
 import { ServiceError } from "~/features/settings/service";
@@ -32,7 +32,36 @@ function withProgress<
   return { ...row, progress: projectProgress(row), marginCents: row.paidCents - row.expensesCents };
 }
 
-export async function listProjects(ctx: Ctx, opts: { status?: "active" | "completed" | "archived" } = {}) {
+/** Rows per page on the project list; "Show more" asks for the next page. */
+export const PROJECT_PAGE_SIZE = 50;
+
+type ProjectStatusFilter = "active" | "completed" | "archived";
+
+function projectFilter(ctx: Ctx, status?: ProjectStatusFilter) {
+  const p = schema.project;
+  return and(eq(p.businessId, ctx.user.businessId), status ? eq(p.status, status) : ne(p.status, "archived"));
+}
+
+/** Count, contract value and amount left to bill (as projectProgress) for the Projects header. */
+export async function projectSummary(ctx: Ctx, opts: { status?: ProjectStatusFilter } = {}) {
+  const f = schema.projectFinancials;
+  const [row] = await ctx.db
+    .select({
+      count: sql<number>`count(*)`,
+      contractCents: sql<number>`coalesce(sum(${f.contractCents}), 0)`,
+      toBillCents: sql<number>`coalesce(sum(max(0, ${f.contractCents} - ${f.invoicedCents})), 0)`,
+    })
+    .from(schema.project)
+    .innerJoin(f, eq(f.projectId, schema.project.id))
+    .where(projectFilter(ctx, opts.status));
+  return {
+    count: row?.count ?? 0,
+    contractCents: row?.contractCents ?? 0,
+    toBillCents: row?.toBillCents ?? 0,
+  };
+}
+
+export async function listProjects(ctx: Ctx, opts: { status?: ProjectStatusFilter; limit?: number } = {}) {
   const p = schema.project;
   const rows = await ctx.db
     .select({
@@ -53,13 +82,9 @@ export async function listProjects(ctx: Ctx, opts: { status?: "active" | "comple
     .innerJoin(schema.client, eq(schema.client.id, p.clientId))
     .innerJoin(schema.projectFinancials, eq(schema.projectFinancials.projectId, p.id))
     .leftJoin(schema.site, eq(schema.site.id, p.siteId))
-    .where(
-      and(
-        eq(p.businessId, ctx.user.businessId),
-        opts.status ? eq(p.status, opts.status) : ne(p.status, "archived"),
-      ),
-    )
-    .orderBy(desc(p.createdAt));
+    .where(projectFilter(ctx, opts.status))
+    .orderBy(desc(p.createdAt))
+    .limit(opts.limit ?? PROJECT_PAGE_SIZE);
   return rows.map(withProgress);
 }
 

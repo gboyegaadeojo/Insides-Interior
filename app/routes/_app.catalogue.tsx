@@ -26,7 +26,9 @@ import { formatQuantity } from "~/domain/money";
 import { itemSchema, ITEM_TYPES, templateSchema } from "~/features/catalogue/schema";
 import {
   archiveTemplate,
+  countItems,
   createItem,
+  ITEM_PAGE_SIZE,
   listItems,
   listTemplates,
   removeItemPhoto,
@@ -59,14 +61,17 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   const query = url.searchParams.get("q") ?? "";
   const type = ITEM_TYPES.find((t) => t === url.searchParams.get("type"));
   const archived = url.searchParams.get("archived") === "1";
-  const [items, allItems, templates, taxRates] = await Promise.all([
-    listItems(ctx, { query, type, archived }),
-    listItems(ctx),
+  const limit = Math.max(ITEM_PAGE_SIZE, Number(url.searchParams.get("show")) || 0);
+  const [rows, totalItems, allItems, templates, taxRates] = await Promise.all([
+    listItems(ctx, { query, type, archived, limit: limit + 1 }),
+    countItems(ctx),
+    // Only the room-template editor needs every item.
+    view === "templates" ? listItems(ctx, { limit: 2000 }) : [],
     listTemplates(ctx),
     activeTaxRates(ctx),
   ]);
   const withPhotos = await Promise.all(
-    items.map(async (item) => ({
+    rows.slice(0, limit).map(async (item) => ({
       ...item,
       photoUrl: item.photoKey ? await signedFileUrl(ctx.env, item.photoKey) : null,
     })),
@@ -77,6 +82,8 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     type: type ?? null,
     archived,
     items: withPhotos,
+    hasMore: rows.length > limit,
+    limit,
     allItems: allItems.map((i) => ({
       id: i.id,
       name: i.name,
@@ -86,7 +93,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     })),
     templates,
     taxRates: taxRates.map((r) => ({ id: r.id, name: r.name, rateBp: r.rateBp, isDefault: r.isDefault })),
-    totalItems: allItems.length,
+    totalItems,
   };
 }
 
@@ -278,6 +285,8 @@ function ItemsView({
   type,
   archived,
   totalItems,
+  hasMore,
+  limit,
   params,
   onOpen,
 }: Route.ComponentProps["loaderData"] & { params: URLSearchParams; onOpen: (id: string) => void }) {
@@ -417,6 +426,15 @@ function ItemsView({
             </li>
           ))}
         </ul>
+      )}
+      {hasMore && (
+        <div className="mt-4 flex justify-center">
+          <Button asChild variant="secondary">
+            <Link to={filterLink({ show: String(limit + ITEM_PAGE_SIZE) })} preventScrollReset replace>
+              Show more
+            </Link>
+          </Button>
+        </div>
       )}
     </>
   );
