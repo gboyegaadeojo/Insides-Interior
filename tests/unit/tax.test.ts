@@ -9,7 +9,9 @@ import {
   type TaxRate,
 } from "~/domain/tax";
 
-// SPEC 10.2 golden fixtures: GST 5%, PST 7%, both on both lines.
+// Two-rate engine fixtures (5% and 7% on both lines): they exercise rounding
+// across several taxes and hold in any currency. The Nigerian fixtures F1–F3
+// (SPEC 10.2, VAT 7.5%) are below.
 const GST: TaxRate = { id: "tax_gst", name: "GST", rateBp: 500 };
 const PST: TaxRate = { id: "tax_pst", name: "PST", rateBp: 700 };
 const RATES = [GST, PST];
@@ -35,7 +37,7 @@ function taxOf(result: ReturnType<typeof computeDocument>, id: string) {
   return result.taxes.find((t) => t.rateId === id)?.taxCents;
 }
 
-describe("golden fixtures (SPEC 10.2)", () => {
+describe("two-rate engine fixtures", () => {
   const f1 = computeDocument({ lines: F1_LINES, taxRates: RATES });
 
   it("F1 quote: $477.38 + GST $23.87 + PST $33.42 = $534.67", () => {
@@ -67,6 +69,59 @@ describe("golden fixtures (SPEC 10.2)", () => {
   });
 
   it("F2 + F3 = F1 exactly; rounding differences land on the final invoice", () => {
+    expect(f2.totalCents + f3.totalCents).toBe(f1.totalCents);
+  });
+});
+
+// SPEC 10.2 golden fixtures, worked by hand: VAT 7.5% on both lines.
+describe("golden fixtures F1–F3 (SPEC 10.2, naira, VAT 7.5%)", () => {
+  const VAT: TaxRate = { id: "tax_vat", name: "VAT", rateBp: 750 };
+  const lines: DocumentLine[] = [
+    {
+      id: "l1",
+      description: "Design consultation",
+      qtyMilli: 3000,
+      unitPriceCents: 2_500_000,
+      taxRateIds: ["tax_vat"],
+    },
+    {
+      id: "l2",
+      description: "Drapery fabric",
+      qtyMilli: 4500,
+      unitPriceCents: 854_275,
+      taxRateIds: ["tax_vat"],
+    },
+  ];
+  const f1 = computeDocument({ lines, taxRates: [VAT] });
+
+  it("F1 quote: ₦113,442.38 + VAT ₦8,508.18 = ₦121,950.56", () => {
+    // 4.5 × ₦8,542.75 = ₦38,442.375 → ₦38,442.38; VAT per line ₦5,625.00 + ₦2,883.18.
+    expect(f1.lines.map((l) => l.amountCents)).toEqual([7_500_000, 3_844_238]);
+    expect(f1.subtotalCents).toBe(11_344_238);
+    expect(taxOf(f1, "tax_vat")).toBe(850_818);
+    expect(f1.totalCents).toBe(12_195_056);
+  });
+
+  const f2 = computeDocument({
+    lines: buildPortionLines(f1, { type: "percent", bp: 5000 }, "Deposit (50%)"),
+    taxRates: [VAT],
+  });
+
+  it("F2 deposit invoice (50% of F1): ₦56,721.19 + VAT ₦4,254.09 = ₦60,975.28", () => {
+    expect(f2.subtotalCents).toBe(5_672_119);
+    expect(taxOf(f2, "tax_vat")).toBe(425_409);
+    expect(f2.totalCents).toBe(6_097_528);
+  });
+
+  const f3 = computeDocument({
+    lines: buildFinalInvoiceLines(lines, [{ label: "Deposit invoice INV-1001", document: f2 }]),
+    taxRates: [VAT],
+  });
+
+  it("F3 final invoice (F1 less F2): ₦56,721.19 + VAT ₦4,254.09 = ₦60,975.28; F2 + F3 = F1", () => {
+    expect(f3.subtotalCents).toBe(5_672_119);
+    expect(taxOf(f3, "tax_vat")).toBe(425_409);
+    expect(f3.totalCents).toBe(6_097_528);
     expect(f2.totalCents + f3.totalCents).toBe(f1.totalCents);
   });
 });

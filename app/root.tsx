@@ -31,7 +31,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const { module } = useAppHandle();
   const colors = themeColors(module);
   return (
-    <html lang="en-CA" data-theme={theme}>
+    <html lang="en-NG" data-theme={theme}>
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />

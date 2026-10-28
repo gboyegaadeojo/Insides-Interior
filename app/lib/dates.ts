@@ -1,10 +1,13 @@
-// Business dates are America/Winnipeg calendar days (CLAUDE.md); stored as
+// Business dates are Africa/Lagos calendar days (CLAUDE.md); stored as
 // YYYY-MM-DD for dates and UTC ISO strings for instants.
 
-export const BUSINESS_TZ = "America/Winnipeg";
+import { BUSINESS_TZ, LOCALE } from "~/domain/locale";
 
-/** Today's date in Winnipeg as YYYY-MM-DD. */
+export { BUSINESS_TZ };
+
+/** Today's business date as YYYY-MM-DD. */
 export function businessToday(now = new Date()): string {
+  // en-CA is used only because it formats dates as YYYY-MM-DD.
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: BUSINESS_TZ,
     year: "numeric",
@@ -20,11 +23,11 @@ export function addDays(date: string, days: number): string {
   return utc.toISOString().slice(0, 10);
 }
 
-/** "Nov 12, 2026" for a YYYY-MM-DD date. */
+/** "12 Nov 2026" for a YYYY-MM-DD date. */
 export function formatDate(date: string | null | undefined): string {
   if (!date) return "";
   const [y, m, d] = date.split("-").map(Number) as [number, number, number];
-  return new Intl.DateTimeFormat("en-CA", {
+  return new Intl.DateTimeFormat(LOCALE, {
     month: "short",
     day: "numeric",
     year: "numeric",

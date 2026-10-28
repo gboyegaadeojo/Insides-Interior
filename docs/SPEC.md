@@ -134,7 +134,7 @@ The owner should be able to go from a site visit to a sent, client-approvable qu
 | Manual reminder emails written by the owner | zero |
 | Calculation or numbering defects found by the accountant | zero |
 | Owner rating of "looks and feels premium" (1–5) | 4.5 or higher |
-| Monthly running cost | under CAD $25 excluding the domain |
+| Monthly running cost | under US$25 excluding the domain |
 
 **Recommended stack in one line:** Cloudflare Workers (React Router v7 full-stack) + D1 (SQLite) via Drizzle ORM + R2 file storage + Better Auth + Resend + Cron Triggers, installable as a PWA, built and maintained with Claude Code from a private GitHub repo. Section 7 explains the choice.
 
@@ -237,7 +237,7 @@ The primary user is the owner, and every design decision is judged by whether sh
 | **Owner** (primary) | Runs Insides Interior Limited; designer first, bookkeeper second | iPad on site (landscape and portrait), phone in the car, laptop in the evening | Price a project room by room, send it, get approval, bill the deposit, chase nothing | "I sent the quote from the client's living room and the deposit was in by Friday." |
 | **Assistant / bookkeeper** (secondary, optional) | Family member or part-time helper | Laptop or tablet | Record payments, log expenses, prepare month-end exports | Can help without seeing or changing settings |
 | **Client / payer** (external) | Homeowner or small business | Phone, from an email; sometimes a tablet on the sofa | Understand the price, choose options, ask questions, approve, pay | Beautiful, clear, no login, obvious next step |
-| **Accountant** (external) | Year-end and GST filer | Laptop, receives files | Clean revenue, tax-collected and expense figures | One export per period, no questions back |
+| **Accountant** (external) | Year-end, VAT and WHT filer | Laptop, receives files | Clean revenue, tax-collected and expense figures | One export per period, no questions back |
 | **Developer** (you) | Builds and maintains with Claude Code | Laptop | Ship changes safely, restore data, rotate keys | Changes are small, typed, tested and reversible |
 
 **Jobs the owner hires this product for, in priority order**
@@ -247,7 +247,7 @@ The primary user is the owner, and every design decision is judged by whether sh
 3. When a quote is approved, I want the deposit invoice created and sent for me, so work can be scheduled.
 4. When a client questions a line, I want to discuss it and send a revised document in minutes.
 5. When money is owed, I want polite reminders to go out on their own.
-6. When my accountant asks, I want to hand over GST/PST collected, revenue and expenses for any period in one file.
+6. When my accountant asks, I want to hand over VAT collected, WHT credits, revenue and expenses for any period in one file.
 
 **Design constraints that follow:** touch-first (44 px minimum targets, 48 px for primary actions on tablet), no feature that only works with a keyboard or hover, readable at arm's length on site, works one-handed on a phone, and nothing irreversible without undo or confirmation.
 
@@ -273,13 +273,13 @@ Version 1 is a complete quote-to-cash loop for one business: clients, catalogue,
 | Module | Included |
 | --- | --- |
 | Access | Owner sign-in (magic link + passkey/Google), invite one assistant, no public sign-up |
-| Business settings | Legal name, logo, address, GST and PST numbers, taxes, numbering, payment instructions, email templates, brand colour, appearance (Light/Dark/System) |
+| Business settings | Legal name, logo, address, TIN and RC number, taxes, numbering, payment instructions, email templates, brand colour, appearance (Light/Dark/System) |
 | Clients | Contacts, billing and site addresses, notes, history, balance |
 | Catalogue | Services (hourly, fixed), products/materials with cost and markup, reusable room templates |
 | Projects | Light grouping of quotes, invoices and expenses per client job |
 | Quotes | Room/section structure, optional items, deposit terms, expiry, revisions, email send, client portal approve with typed name, conversation thread with line-level change requests |
 | Invoices | From quote (deposit, progress, final) or blank; sequential numbering; email send; client portal with conversation, change requests and revised invoices; PDF |
-| Payments | Record e-Transfer, cheque, cash, card; partial payments; receipt email |
+| Payments | Record bank transfer, POS, cash, card, cheque; partial payments; withholding tax; receipt email |
 | Reminders | Scheduled overdue reminders and quote follow-ups with owner-set cadence |
 | Expenses | Log with receipt photo, category, tax paid, link to project |
 | Reporting | Home KPIs, aged receivables, sales tax summary, CSV export for accountant |
@@ -326,11 +326,11 @@ Each requirement has an ID used by prompts, commits and tests.
 | ID | Requirement | Priority | Acceptance criteria |
 | --- | --- | --- | --- |
 | FR-SET-01 | Business profile: legal name, trading name, address, phone, email, website, logo (PNG/SVG, max 2 MB) | Must | Appears on every PDF, portal page and email |
-| FR-SET-02 | Tax registrations: GST/HST number, Manitoba PST/RST number | Must | Printed on invoices when set; invoices over CAD $30 cannot be sent without a GST number if GST is charged |
-| FR-SET-03 | Tax rates as a list (name, rate, applies-to: services/products/both, default on/off) | Must | Defaults seeded: GST 5%, MB PST 7%; add, edit, archive; archived rates stay on old documents |
+| FR-SET-02 | Tax registrations: TIN and RC (CAC) number | Must | Printed on quotes and invoices when set |
+| FR-SET-03 | Tax rates as a list (name, rate, applies-to: services/products/both, default on/off) | Must | Default seeded: VAT 7.5%, off by default (switch on per line, per item or as the default when VAT-registered); add, edit, archive; archived rates stay on old documents |
 | FR-SET-04 | Numbering: prefix and next number for quotes and invoices separately (e.g. `Q-1001`, `INV-1001`) | Must | Next number can only increase; preview shows the next number |
 | FR-SET-05 | Defaults: payment terms (days), quote validity (days), deposit %, notes, terms and conditions | Must | New documents prefill from defaults |
-| FR-SET-06 | Payment instructions: Interac e-Transfer email and auto-deposit note, cheque payee, mailing address | Must | Shown on invoice portal and PDF |
+| FR-SET-06 | Payment instructions: bank name, account name, 10-digit account number (NUBAN), payment note | Must | Shown on invoice portal and PDF |
 | FR-SET-07 | Email templates per event with merge fields (`{client.firstName}`, `{invoice.number}`, `{amount.due}`, `{link}`) | Must | Live preview; reset to default |
 | FR-SET-08 | Reminder cadence: days before/after due, maximum count, quiet hours | Must | Changes apply to future sends only |
 | FR-SET-09 | Brand colour for client-facing documents and portal (picked from the logo or entered as hex) | Should | Contrast checked against WCAG AA before saving; suggests the nearest accessible shade |
@@ -394,7 +394,7 @@ Each requirement has an ID used by prompts, commits and tests.
 | FR-INV-01 | Invoice types: standard, deposit, progress (% or amount of a quote), final (balance of a project) | Must | Final invoice lists prior deposits and progress invoices as credits |
 | FR-INV-02 | Sequential, gap-free numbering assigned at send time inside a database transaction | Must | 1,000 concurrent sends in a test produce 1,000 unique consecutive numbers |
 | FR-INV-03 | Issue date, due date (from terms), PO/reference, site address | Must | Due date recalculates when terms change on a draft |
-| FR-INV-04 | Taxes shown per tax (GST, PST) with registration numbers; rounding per line to the cent, half-up | Must | Matches the golden fixtures in section 10 |
+| FR-INV-04 | Taxes shown per tax (e.g. VAT) with TIN; rounding per line to the kobo, half-up | Must | Matches the golden fixtures in section 10 |
 | FR-INV-05 | Send by email with PDF and portal link | Must | As FR-QT-08 |
 | FR-INV-06 | Sent invoices are locked. Corrections: if no payment has been recorded, send a revision under the same number marked "Revised (rev N)"; if any payment exists, void and reissue (credit notes in phase 2) | Must | Void keeps the number, marks VOID on PDF, reason required; every prior revision and PDF stays in history |
 | FR-INV-07 | Status derived by the server: `draft`, `sent`, `viewed`, `changes_requested`, `partially_paid`, `paid`, `overdue`, `void` | Must | `overdue` set by a daily job using the business time zone, never by the browser |
@@ -405,17 +405,18 @@ Each requirement has an ID used by prompts, commits and tests.
 
 | ID | Requirement | Priority | Acceptance criteria |
 | --- | --- | --- | --- |
-| FR-PAY-01 | Record payment: amount, date, method (e-Transfer, cheque, cash, card, other), reference, note | Must | Payment and invoice balance update in one transaction; amount defaults to the balance |
+| FR-PAY-01 | Record payment: amount, date, method (bank transfer, POS, cash, card, cheque, other), reference, note | Must | Payment and invoice balance update in one transaction; amount defaults to the balance |
 | FR-PAY-02 | Overpayment is blocked unless owner confirms it becomes client credit | Must | Credit balance visible on client |
 | FR-PAY-03 | Send receipt email automatically (setting) | Must | Receipt shows amount, method, remaining balance |
 | FR-PAY-04 | Delete a payment (owner only) with reason; balance recomputes | Must | Logged in activity |
 | FR-PAY-05 | Payments ledger links each payment to its invoice and client | Must | Payment record and invoice status are visually distinct |
+| FR-PAY-06 | Record withholding tax deducted by the client when recording a payment: rate (5%, 10% or other), amount (computed from the pre-VAT amount, editable), WHT receipt or credit-note reference | Must | Cash + WHT settles the invoice (status Paid); WHT credits listed per period in reports and exports; deleting the payment removes its WHT |
 
 ### 5.9 Reminders and automation (AUTO)
 
 | ID | Requirement | Priority | Acceptance criteria |
 | --- | --- | --- | --- |
-| FR-AUTO-01 | Daily job at 08:00 America/Winnipeg marks overdue invoices and queues reminders per cadence | Must | Idempotent: running twice sends nothing twice |
+| FR-AUTO-01 | Daily job at 08:00 Africa/Lagos marks overdue invoices and queues reminders per cadence | Must | Idempotent: running twice sends nothing twice |
 | FR-AUTO-02 | Per-invoice "pause reminders" toggle | Must | Paused invoices are skipped and show a badge |
 | FR-AUTO-03 | Weekly digest email to owner: overdue, awaiting approval, open change requests, expiring this week | Should | Sent Monday 07:30 |
 
@@ -423,7 +424,7 @@ Each requirement has an ID used by prompts, commits and tests.
 
 | ID | Requirement | Priority | Acceptance criteria |
 | --- | --- | --- | --- |
-| FR-EXP-01 | Log expense: date, supplier, category, amount, GST paid, PST paid, project (optional), receipt photo | Must | Camera capture works on iPad, iPhone and Android; upload progress and failure are visible; success shown only after storage confirms |
+| FR-EXP-01 | Log expense: date, supplier, category, amount, VAT paid, project (optional), receipt photo | Must | Camera capture works on iPad, iPhone and Android; upload progress and failure are visible; success shown only after storage confirms |
 | FR-EXP-02 | Mark an expense as billable and add it to a project's next invoice at cost or with markup | Should | Line links back to the expense |
 | FR-EXP-03 | Receipt viewer: pinch-zoom, swipe between receipts, close with Escape or swipe down | Must | Keyboard and screen-reader accessible |
 
@@ -712,7 +713,7 @@ Motion makes the app feel alive and premium while explaining change. It never de
 1. **Quote on site (under 10 minutes, iPad).** + New → Quote → pick or create client → add room section → add items from catalogue or a room template → mark optional items → review sticky total → Send → email preview → Send. Draft autosaves throughout.
 2. **Client approves (phone).** Email → portal → toggle options → total updates → type name, tick "I agree to the terms" → Approve → confirmation with deposit next step. Owner gets email and in-app notification within 1 minute.
 3. **Deposit to final.** Notification → Create deposit invoice (prefilled) → Send. Later: Project → Create progress invoice (%) → Send. Finally: Create final invoice (auto-credits prior invoices) → Send.
-4. **Get paid.** e-Transfer arrives → Invoice → Record payment (prefilled to balance) → Save → receipt emails automatically.
+4. **Get paid.** Bank transfer arrives → Invoice → Record payment (prefilled to balance) → Save → receipt emails automatically.
 5. **Month end.** Reports → Sales tax → pick month → Export CSV + PDFs ZIP → send to accountant.
 6. **Payer asks for a change.** Payer opens the invoice → taps a line → Request a change → Remove this item + note → Send. Owner gets email and Inbox badge → opens thread → Accept → draft revision opens with the line removed and totals recalculated → Send revised invoice. Payer receives "Revised (rev 2)" with a What changed summary; reminders resume. Same flow on quotes before approval.
 
@@ -878,7 +879,7 @@ A normalised relational schema of about 30 tables (six owned by Better Auth) rep
 
 - Primary keys: `text` IDs generated server-side as prefixed ULIDs (`cli_…`, `qte_…`, `inv_…`).
 - Every business table has `business_id`, `created_at`, `updated_at` (UTC ISO strings) and `created_by`.
-- Money: `*_cents integer NOT NULL`, plus `currency text NOT NULL DEFAULT 'CAD'` on documents.
+- Money: `*_cents integer NOT NULL`, plus `currency text NOT NULL` on documents (NGN, written explicitly; the legacy column default is never relied on).
 - Rates: basis points as integers (5% = `500`). Quantities: thousandths as integers (`qty_milli`).
 - Soft delete via `archived_at` for clients, items and tax rates; hard delete only for drafts.
 - Sent documents are immutable: content lives in a `*_revision` row with a `content_hash`; the parent row points to the current revision.
@@ -887,11 +888,11 @@ A normalised relational schema of about 30 tables (six owned by Better Auth) rep
 
 | Table | Purpose | Key columns |
 | --- | --- | --- |
-| `business` | The one business | legal_name, trading_name, address, phone, email, logo_key, gst_number, pst_number, timezone, currency, brand_color |
+| `business` | The one business | legal_name, trading_name, address, phone, email, logo_key, tin, rc_number, timezone, currency, brand_color |
 | `user`, `session`, `account`, `verification`, `passkey` | Better Auth | `user.role` in (`owner`, `staff`) |
 | `user_preference` | Per-user UI settings | user_id, theme (`light`/`dark`/`system`), celebrations_enabled, density |
 | `settings` | Defaults and automation | payment_terms_days, quote_valid_days, default_deposit_bp, default_notes, default_terms, etransfer_email, reminder_cadence (JSON), auto_send_receipts |
-| `tax_rate` | GST, PST etc. | name, rate_bp, applies_to, is_default, archived_at |
+| `tax_rate` | VAT etc. | name, rate_bp, applies_to, is_default, archived_at |
 | `sequence` | Numbering | kind (`quote`/`invoice`), prefix, next_value |
 | `client` | A client of the business | display_name, company, email, phone, billing_address (JSON), notes, tags, email_bounced_at, archived_at |
 | `client_contact` | Extra people | client_id, name, email, phone, role, is_primary |
@@ -908,7 +909,7 @@ A normalised relational schema of about 30 tables (six owned by Better Auth) rep
 | `invoice_line_tax` | Tax per line per rate | invoice_line_id, tax_rate_id, rate_bp, taxable_cents, tax_cents |
 | `payment` | Money received | invoice_id, client_id, amount_cents, method, reference, received_on, note, deleted_at, delete_reason |
 | `client_credit` | Overpayments | client_id, amount_cents, source_payment_id, applied_to_invoice_id |
-| `expense` | Costs | date, supplier, category, amount_cents, gst_cents, pst_cents, project_id, billable, receipt_key, billed_invoice_line_id |
+| `expense` | Costs | date, supplier, category, amount_cents, vat_cents, project_id, billable, receipt_key, billed_invoice_line_id |
 | `conversation` | One thread per quote or invoice | entity_type, entity_id, last_message_at, owner_unread, client_unread |
 | `message` | Thread entries | conversation_id, author (`owner`/`staff:<id>`/`client`), client_name, body, revision_id, attachment_keys (JSON), hidden_at, created_at |
 | `change_request` | Structured payer asks | conversation_id, message_id, revision_id, line_ref, kind (`remove`/`quantity`/`question`/`other`), proposed_qty_milli, status (`open`/`accepted`/`declined`), resolution_note, resolved_in_revision_id |
@@ -939,7 +940,7 @@ Buy one domain, host its DNS on Cloudflare, serve the app from a subdomain, and 
 
 | Item | Recommendation | Notes |
 | --- | --- | --- |
-| Domain | A `.ca` matching the business, e.g. `insidesinterior.ca` (check availability) | Canadian-incorporated company qualifies; buy `.com` too if affordable and redirect |
+| Domain | A `.com.ng` or `.ng` matching the business (via a NiRA-accredited registrar), or a `.com` | Not bought yet; until then email only reaches the Resend account owner (section 9) |
 | DNS host | Cloudflare (free) | Required for Workers custom domains |
 | App | `app.<domain>` | Owner app and client portals |
 | Marketing site (optional) | `<domain>` root | Can be a single page later |
@@ -1001,7 +1002,7 @@ These engines are where invoicing apps earn or lose trust, so each is a small, p
 - All amounts are integer cents; quantities are integer thousandths (`qty_milli`), so 4.5 yards is `4500`.
 - Line amount = `round_half_up(qty_milli × unit_price_cents / 1000)`.
 - Rounding happens once per line per tax; document totals are sums of rounded values, so the PDF always adds up.
-- Display uses `Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' })`.
+- Display uses `Intl.NumberFormat('en-NG', { style: 'currency', currency: 'NGN' })` (₦121,950.56). `*_cents` columns hold kobo.
 - Disallowed: floats for money, `toFixed` for calculation, client-submitted totals.
 
 ### 10.2 Tax engine
@@ -1013,15 +1014,17 @@ tax(line, rate) = round_half_up((amount(line) − discount(line)) × rate)
 total           = Σ (amount − discount) + Σ tax(line, rate)
 ```
 
-**Golden fixtures (must pass exactly).** GST 5%, PST 7%, both on both lines.
+**Golden fixtures (must pass exactly).** Naira, VAT 7.5% on both lines (VAT is switched on for these lines; it is off by default).
 
-| Fixture | Lines | Subtotal | GST | PST | Total |
-| --- | --- | --- | --- | --- | --- |
-| F1 Quote | Design consultation 3 h × $95.00 = $285.00; Drapery fabric 4.5 yd × $42.75 = $192.38 | $477.38 | $23.87 | $33.42 | $534.67 |
-| F2 Deposit invoice (50% of F1) | 50% of each line pre-tax | $238.69 | $11.93 | $16.71 | $267.33 |
-| F3 Final invoice (F1 less F2) | Full lines minus deposit credit $238.69 and its taxes | $238.69 | $11.94 | $16.71 | $267.34 |
+| Fixture | Lines | Subtotal | VAT | Total |
+| --- | --- | --- | --- | --- |
+| F1 Quote | Design consultation 3 h × ₦25,000.00 = ₦75,000.00; Drapery fabric 4.5 m × ₦8,542.75 = ₦38,442.375 → ₦38,442.38 | ₦113,442.38 | ₦8,508.18 | ₦121,950.56 |
+| F2 Deposit invoice (50% of F1) | 50% of each line pre-tax | ₦56,721.19 | ₦4,254.09 | ₦60,975.28 |
+| F3 Final invoice (F1 less F2) | Full lines minus deposit credit ₦56,721.19 and its VAT | ₦56,721.19 | ₦4,254.09 | ₦60,975.28 |
 
-F2 + F3 = $534.67 exactly: rounding differences always land on the final invoice. Which services attract Manitoba PST/RST is for the accountant (section 15), which is why tax applicability is per item.
+F2 + F3 = ₦121,950.56 exactly: rounding differences always land on the final invoice. VAT is per line (₦5,625.00 + ₦2,883.18). The engine also keeps two-rate fixtures (5% and 7%) in its unit tests to prove rounding across several taxes. Which services attract VAT is for the accountant (section 15), which is why tax applicability is per item.
+
+**Withholding tax (WHT).** Corporate and government clients may deduct WHT (commonly 5% or 10%) before paying. WHT is not a tax the business charges, so it never changes a document's total: it is recorded against the invoice as a settlement alongside cash (FR-PAY-06), and the deducted amount is reported as a WHT credit for the accountant.
 
 ### 10.3 Numbering
 
@@ -1099,7 +1102,7 @@ Real records may live in two places: Firestore, and the `localStorage` of whiche
 2. **Export Firestore.** One-off Node script with the Firebase Admin SDK (service account run locally, never committed) dumps every collection to JSON.
 3. **Export browser data.** On each device she used, open the old app and run a provided console snippet that downloads all `invoiceos_demo_*` keys as JSON.
 4. **Merge and de-duplicate.** Union by document ID; keep the newer `updatedAt`. Drop records matching the seeded demo set (`inv_1`…, `item_1`…, seed customer names).
-5. **Transform.** Map statuses (12.2), convert to cents, map the single `taxRate` to GST/PST rate IDs (confirm with owner if ambiguous), structure addresses where possible, rebuild sent documents as revision 1.
+5. **Transform.** Map statuses (12.2), convert to cents, map the single `taxRate` to the VAT rate ID (confirm with owner if ambiguous), structure addresses where possible, rebuild sent documents as revision 1.
 6. **Renumber safely.** Keep original numbers on migrated sent documents; flag duplicates for owner review; start new sequences above the highest migrated number.
 7. **Load** through the service layer (not raw SQL) so validation runs.
 8. **Reconcile.** Counts, totals and outstanding balance per client must match the export; owner signs off the client balance list.
@@ -1191,7 +1194,7 @@ Resend + React Email, Tailwind 4 + shadcn/ui, Zod, Vitest, Playwright. TypeScrip
   writes: approve, post a message, raise a change request.
 - Every state change, message and email event writes to activity via server/audit.ts.
 - Secrets only via wrangler secret. Never commit .env or keys. Never log share tokens.
-- Timezone America/Winnipeg for business dates; store UTC.
+- Timezone Africa/Lagos for business dates; store UTC.
 
 ## Design rules (SPEC section 6)
 - Tablet and phone first: test iPad landscape, iPad portrait, iPhone and desktop for every screen.
@@ -1247,7 +1250,7 @@ Tests: Playwright screenshots of /design on all five device projects; axe with z
 
 ```text
 Read docs/SPEC.md sections 5.1, 5.2, 8, 10 and 11. Implement:
-1. The full Drizzle schema from 8.2 with migrations and a seed script creating the business, the owner from env OWNER_EMAIL, GST 5% and MB PST 7% tax rates, and quote/invoice sequences.
+1. The full Drizzle schema from 8.2 with migrations and a seed script creating the business, the owner from env OWNER_EMAIL, VAT 7.5% (off by default), and quote/invoice sequences.
 2. Better Auth with magic link (via Resend, template from 9.4), Google and passkey; allow-list; roles owner/staff; no registration route. Sign-in screen per 6.8.
 3. app/domain/money.ts, tax.ts, numbering.ts, lifecycle.ts (state machines in 5.13 including changes_requested). Tests first: fixtures F1, F2, F3 to the cent; fast-check property tests; every allowed and forbidden transition.
 4. Settings screens FR-SET-01 to FR-SET-11 using the design system, with logo upload to R2 and a live brand-colour preview on a sample document.
@@ -1268,7 +1271,7 @@ Read docs/SPEC.md sections 5.6 (FR-QT-01 to FR-QT-07), 6.7, 6.8 (builder), 6.9, 
 - The quote builder: room sections as coloured cards, drag handles plus Move up/down (dnd-kit), catalogue sheet with photos and room templates, Tiptap descriptions (bold, bullets), optional items, line and document discounts, deposit terms. Tablet landscape: editor 58% + sticky preview 42%. Tablet portrait and phone: Edit | Preview segmented control and sticky bottom total bar with breakdown sheet.
 - Truthful autosave every 2 s with version-conflict detection; leave-page confirmation.
 - Totals from app/domain on the server action; the client may show an optimistic estimate using the same functions.
-Tests: save and conflict services; Playwright builds F1 on iPad Pro 11 and iPhone 14 and verifies $534.67.
+Tests: save and conflict services; Playwright builds F1 on iPad Pro 11 and iPhone 14 and verifies ₦121,950.56.
 ```
 
 **Phase 5 — Send, client portal, approval, PDF**
@@ -1305,7 +1308,7 @@ Tests: portal can only post to its own document; two accepted requests yield one
 **Phase 8 — Automation and notifications**
 
 ```text
-Read docs/SPEC.md sections 5.9, 5.12 and 9. Implement the daily cron (08:00 America/Winnipeg; handle DST by scheduling at both candidate UTC hours and checking local time) that marks overdue invoices and queues reminders and quote follow-ups per the settings cadence, guarded by job_run; the weekly owner digest; in-app notifications with unread counts in the rail and tab bar; bounce handling that flags client emails; the command palette with records and actions. Tests: running the job twice sends nothing twice; paused invoices and open change requests are skipped.
+Read docs/SPEC.md sections 5.9, 5.12 and 9. Implement the daily cron (08:00 Africa/Lagos = 07:00 UTC; Nigeria has no DST) that marks overdue invoices and queues reminders and quote follow-ups per the settings cadence, guarded by job_run; the weekly owner digest; in-app notifications with unread counts in the rail and tab bar; bounce handling that flags client emails; the command palette with records and actions. Tests: running the job twice sends nothing twice; paused invoices and open change requests are skipped.
 ```
 
 **Phase 9 — Expenses, Home dashboard, reports, exports**
@@ -1347,7 +1350,7 @@ The biggest risk is not technical: it is building a polished tool around wrong a
 - [ ] How does she price today: hourly design fee, fixed packages, markup on furnishings, or a mix? Typical markup %?
 - [ ] Does she quote room by room? Does she offer options (good/better/best)?
 - [ ] Deposit practice: what %, and are there progress payments?
-- [ ] How do clients pay today: e-Transfer, cheque, card? Would she pay about 3% to accept cards online (phase 2)?
+- [ ] How do clients pay today: bank transfer, POS, cash? Would she pay about 3% to accept cards online (phase 2)?
 - [ ] Last quote and invoice numbers issued, and the numbering format going forward.
 - [ ] Which email address should client replies go to?
 - [ ] Will anyone else use the app (assistant, bookkeeper)?
@@ -1358,8 +1361,8 @@ The biggest risk is not technical: it is building a polished tool around wrong a
 
 **For the accountant**
 
-- [ ] GST registration and the GST and Manitoba RST numbers.
-- [ ] Which services are subject to Manitoba RST (design fees, installation, project management) and which only goods?
+- [ ] VAT registration status, TIN and RC number.
+- [ ] Which services attract VAT once registered, and which clients deduct WHT (and at what rate)?
 - [ ] Cash or accrual basis for sales tax reporting? Filing frequency?
 - [ ] Preferred export format, and whether a QuickBooks/Xero import file would help.
 - [x] Before any payment, may a corrected invoice keep its number as "Revised (rev N)"? **Decided: yes (Option A).** Confirm the accountant has no objection.
@@ -1382,6 +1385,7 @@ The biggest risk is not technical: it is building a polished tool around wrong a
 | Oct 22, 2026 | Unpaid invoices revised under the same number; paid ones voided and reissued | Simpler for owner and clients; full history kept |
 | Oct 22, 2026 | "Studio Colour" design language: generous, meaningful colour; tablet and phone first | Owner's request; app is part of a design business's brand and used mostly on iPad and phone |
 | Oct 22, 2026 | Fraunces display serif + Inter UI | Premium, editorial feel with highly legible UI and numbers |
+| Oct 28, 2026 | The business is in Nigeria: naira (en-NG), Africa/Lagos, VAT 7.5% off by default, TIN and RC number, bank-transfer payment details, withholding tax on payments, Lagos address defaults | Owner's correction; the original brief assumed Canada |
 
 ---
 

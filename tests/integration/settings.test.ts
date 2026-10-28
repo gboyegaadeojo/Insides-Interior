@@ -16,12 +16,10 @@ import { ownerContext, seed, testEnv } from "./helpers";
 beforeEach(seed);
 
 describe("seed (SPEC 14.4 phase 2)", () => {
-  it("creates the business, GST 5%, MB PST 7% and both sequences", async () => {
+  it("creates the business in naira, VAT 7.5% (off by default) and both sequences", async () => {
     const bundle = await loadSettings(ownerContext());
-    expect(bundle.taxRates.map((r) => [r.name, r.rateBp])).toEqual([
-      ["GST", 500],
-      ["PST (MB RST)", 700],
-    ]);
+    expect(bundle.taxRates.map((r) => [r.name, r.rateBp, r.isDefault])).toEqual([["VAT", 750, false]]);
+    expect(bundle.business).toMatchObject({ currency: "NGN", timezone: "Africa/Lagos" });
     expect(bundle.quoteSequence).toMatchObject({ prefix: "Q-", nextValue: 1001 });
     expect(bundle.invoiceSequence).toMatchObject({ prefix: "INV-", nextValue: 1001 });
   });
@@ -29,7 +27,7 @@ describe("seed (SPEC 14.4 phase 2)", () => {
   it("is idempotent", async () => {
     await seed();
     const rates = await ownerContext().db.select().from(schema.taxRate);
-    expect(rates).toHaveLength(2);
+    expect(rates).toHaveLength(1);
   });
 });
 

@@ -4,7 +4,7 @@ import { cn } from "~/lib/utils";
 import { controlClass, Field, type FieldProps } from "./field";
 
 // MoneyField and QuantityField hold integer values (cents, thousandths) and let
-// people type freely; the text is parsed on blur and re-formatted en-CA
+// people type freely; the text is parsed on blur and re-formatted en-NG
 // (DS-TCH-01, SPEC 10.1). A value that doesn't parse shows an error and keeps
 // what was typed (DS-TCH-06).
 

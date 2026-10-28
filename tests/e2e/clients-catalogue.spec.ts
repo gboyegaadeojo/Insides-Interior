@@ -21,8 +21,8 @@ test("create a client, add a site and find them by search", async ({ page }) => 
   const sheet = page.getByRole("dialog", { name: "New client" });
   await sheet.getByLabel("Name").fill(name);
   await sheet.getByLabel("Email").fill("amelia@example.com");
-  await sheet.getByLabel("Phone").fill("204-555-0142");
-  await sheet.getByLabel("Billing address").fill("100 Wolseley Ave");
+  await sheet.getByLabel("Phone").fill("0803 123 4567");
+  await sheet.getByLabel("Billing address").fill("12 Admiralty Way, Lekki");
   await page.getByRole("button", { name: "Save client" }).click();
 
   await expect(page).toHaveURL(/\/clients\/cli_/);
@@ -30,13 +30,13 @@ test("create a client, add a site and find them by search", async ({ page }) => 
 
   await page.getByRole("button", { name: "Add job address" }).click();
   await page.getByLabel("Address name").fill("Cottage");
-  await page.getByLabel("Street address").fill("12 Lakeshore Rd");
+  await page.getByLabel("Street address").fill("4 Bourdillon Rd, Ikoyi");
   await page.getByRole("button", { name: "Save address" }).click();
-  await expect(page.getByText("12 Lakeshore Rd")).toBeVisible();
+  await expect(page.getByText("4 Bourdillon Rd, Ikoyi")).toBeVisible();
   await shot(page, "client-profile");
 
   await page.goto("/clients");
-  await page.getByRole("searchbox", { name: "Search clients" }).fill("lakeshore");
+  await page.getByRole("searchbox", { name: "Search clients" }).fill("bourdillon");
   await expect(page.getByRole("list", { name: "Clients" }).getByText(name)).toBeVisible();
 });
 
@@ -59,7 +59,7 @@ test("create a catalogue item with cost and markup", async ({ page }) => {
   const card = page
     .getByRole("list", { name: "Catalogue items" })
     .getByRole("button", { name: new RegExp(name) });
-  await expect(card).toContainText("$42.75 / yard");
+  await expect(card).toContainText("₦42.75 / yard");
   await shot(page, "catalogue");
 });
 

@@ -18,7 +18,8 @@ Resend + React Email, Tailwind 4 + shadcn/ui, Zod, Vitest, Playwright. TypeScrip
   writes: approve, post a message, raise a change request.
 - Every state change, message and email event writes to activity via server/audit.ts.
 - Secrets only via wrangler secret. Never commit .env or keys. Never log share tokens.
-- Timezone America/Winnipeg for business dates; store UTC.
+- The business is in Nigeria: naira (en-NG, kobo in `*_cents`), Africa/Lagos for business dates
+  (store UTC), VAT 7.5% off by default. Country settings live in app/domain/locale.ts.
 
 ## Design rules (SPEC section 6)
 - Tablet and phone first: test iPad landscape, iPad portrait, iPhone and desktop for every screen.

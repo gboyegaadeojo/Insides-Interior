@@ -68,27 +68,28 @@ export default function TaxSettings({ loaderData }: Route.ComponentProps) {
     <div className="flex flex-col gap-6">
       <SectionHeader
         title="Tax and currency"
-        description="Amounts are in Canadian dollars. Rate changes never alter documents you've already sent."
+        description="Amounts are in Nigerian naira (₦). Rate changes never alter documents you've already sent."
       />
 
       <SettingsForm
         intent="registrations"
         title="Registration numbers"
-        description="Printed on invoices when set. Invoices over $30 that charge GST can't be sent without a GST number."
+        description="Printed on quotes and invoices when set. If you charge VAT, add your TIN."
       >
         <div className="grid gap-4 tablet:grid-cols-2">
           <TextField
-            label="GST/HST number"
-            name="gstNumber"
-            defaultValue={business.gstNumber ?? ""}
-            placeholder="e.g. 123456789 RT0001"
-            error={regErrors.gstNumber}
+            label="TIN (Tax Identification Number)"
+            name="tin"
+            defaultValue={business.tin ?? ""}
+            placeholder="e.g. 12345678-0001"
+            error={regErrors.tin}
           />
           <TextField
-            label="Manitoba PST/RST number"
-            name="pstNumber"
-            defaultValue={business.pstNumber ?? ""}
-            error={regErrors.pstNumber}
+            label="RC number (CAC registration)"
+            name="rcNumber"
+            defaultValue={business.rcNumber ?? ""}
+            placeholder="e.g. RC 1234567"
+            error={regErrors.rcNumber}
           />
         </div>
       </SettingsForm>
@@ -155,7 +156,7 @@ function RateForm({ rate }: { rate?: Route.ComponentProps["loaderData"]["taxRate
           label="Name"
           name="name"
           defaultValue={rate?.name ?? ""}
-          placeholder="e.g. GST"
+          placeholder="e.g. VAT"
           error={errors.name}
           required
         />

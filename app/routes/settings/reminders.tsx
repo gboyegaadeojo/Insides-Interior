@@ -40,7 +40,7 @@ export default function ReminderSettings({ loaderData }: Route.ComponentProps) {
     <div className="flex flex-col gap-6">
       <SectionHeader
         title="Reminders"
-        description="Payment reminders and quote follow-ups are sent automatically at 8 a.m. Winnipeg time. Changes apply to future sends only."
+        description="Payment reminders and quote follow-ups are sent automatically at 8 a.m. Lagos time. Changes apply to future sends only."
       />
       <SettingsForm intent="cadence" title="Schedule">
         <TextField

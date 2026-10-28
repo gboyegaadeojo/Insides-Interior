@@ -17,7 +17,7 @@ for (const theme of ["light", "dark"] as const) {
   });
 }
 
-test("money and quantity fields store integers and re-format en-CA", async ({ page }) => {
+test("money and quantity fields store integers and re-format en-NG", async ({ page }) => {
   await page.goto("/design?theme=light");
   // Tap, type, then move on with Tab, the way a person leaves the field.
   const price = page.getByLabel("Unit price");

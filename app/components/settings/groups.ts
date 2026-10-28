@@ -43,7 +43,7 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
   {
     path: "tax",
     label: "Tax and currency",
-    description: "GST/PST numbers and rates",
+    description: "TIN, RC number and VAT",
     icon: Percent,
     tone: "saffron",
     ownerOnly: true,

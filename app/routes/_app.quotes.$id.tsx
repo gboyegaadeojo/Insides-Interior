@@ -582,7 +582,7 @@ function DocumentDiscountField({
           segments={[
             { value: "none", label: "None" },
             { value: "percent", label: "%" },
-            { value: "amount", label: "$" },
+            { value: "amount", label: "₦" },
           ]}
         />
         {discount?.type === "percent" && (

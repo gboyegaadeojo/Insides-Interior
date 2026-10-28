@@ -69,7 +69,6 @@ export default function DocumentSettings({ loaderData }: Route.ComponentProps) {
   const [quoteNext, setQuoteNext] = React.useState(String(quoteSequence.nextValue));
   const [invoicePrefix, setInvoicePrefix] = React.useState(invoiceSequence.prefix);
   const [invoiceNext, setInvoiceNext] = React.useState(String(invoiceSequence.nextValue));
-  const mailing = settings.mailingAddress ?? {};
 
   return (
     <div className="flex flex-col gap-6">
@@ -183,43 +182,38 @@ export default function DocumentSettings({ loaderData }: Route.ComponentProps) {
       >
         <div className="grid gap-4 tablet:grid-cols-2">
           <TextField
-            label="Interac e-Transfer email"
-            name="etransferEmail"
-            type="email"
-            defaultValue={settings.etransferEmail ?? ""}
-            error={paymentErrors.etransferEmail}
-          />
-          <label className="flex min-h-11 items-center gap-3 self-end">
-            <input
-              type="checkbox"
-              name="etransferAutoDeposit"
-              defaultChecked={settings.etransferAutoDeposit}
-              className="size-5 accent-[var(--teal-base)]"
-            />
-            <span>Autodeposit is on (no security question)</span>
-          </label>
-          <TextField
-            label="e-Transfer note"
-            name="etransferNote"
-            defaultValue={settings.etransferNote ?? ""}
-            hint="e.g. Put the invoice number in the message"
-            fieldClassName="tablet:col-span-2"
+            label="Bank name"
+            name="bankName"
+            defaultValue={settings.bankName ?? ""}
+            placeholder="e.g. Zenith Bank"
+            error={paymentErrors.bankName}
           />
           <TextField
-            label="Cheques payable to"
-            name="chequePayee"
-            defaultValue={settings.chequePayee ?? ""}
-            fieldClassName="tablet:col-span-2"
+            label="Account number"
+            name="accountNumber"
+            inputMode="numeric"
+            autoComplete="off"
+            defaultValue={settings.accountNumber ?? ""}
+            hint="10 digits (NUBAN)"
+            error={paymentErrors.accountNumber}
+            className="tabular"
           />
           <TextField
-            label="Mailing address"
-            name="mailingLine1"
-            defaultValue={mailing.line1 ?? ""}
+            label="Account name"
+            name="accountName"
+            defaultValue={settings.accountName ?? ""}
+            placeholder="e.g. Insides Interior Limited"
             fieldClassName="tablet:col-span-2"
+            error={paymentErrors.accountName}
           />
-          <TextField label="City" name="mailingCity" defaultValue={mailing.city ?? ""} />
-          <TextField label="Province" name="mailingProvince" defaultValue={mailing.province ?? ""} />
-          <TextField label="Postal code" name="mailingPostalCode" defaultValue={mailing.postalCode ?? ""} />
+          <TextField
+            label="Payment note"
+            name="paymentNote"
+            defaultValue={settings.paymentNote ?? ""}
+            hint="e.g. Use the invoice number as the transfer narration"
+            fieldClassName="tablet:col-span-2"
+            error={paymentErrors.paymentNote}
+          />
         </div>
       </SettingsForm>
     </div>

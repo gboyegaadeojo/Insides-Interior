@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { paymentInstructionsSchema } from "~/features/settings/schema";
 import { accessibleBrandColor, normaliseHex } from "~/lib/brand";
 import { renderMergeFields, unknownMergeFields } from "~/lib/merge-fields";
 import { contrast } from "~/styles/tokens";
@@ -35,5 +36,29 @@ describe("merge fields (FR-SET-07)", () => {
 
   it("lists unknown fields", () => {
     expect(unknownMergeFields("{link} {client.lastName} {amount.due}")).toEqual(["client.lastName"]);
+  });
+});
+
+describe("bank transfer details (Nigeria)", () => {
+  // Forms post every field, empty ones as "".
+  const EMPTY = { bankName: "", accountName: "", accountNumber: "", paymentNote: "" };
+
+  it("accepts a 10-digit account number, ignoring spaces", () => {
+    const parsed = paymentInstructionsSchema.parse({
+      ...EMPTY,
+      bankName: "Zenith Bank",
+      accountNumber: "101 234 5678",
+    });
+    expect(parsed.accountNumber).toBe("1012345678");
+  });
+
+  it("rejects anything that isn't 10 digits", () => {
+    for (const accountNumber of ["123456789", "12345678901", "10123456AB"]) {
+      expect(paymentInstructionsSchema.safeParse({ ...EMPTY, accountNumber }).success).toBe(false);
+    }
+  });
+
+  it("leaves the account number optional", () => {
+    expect(paymentInstructionsSchema.parse(EMPTY).accountNumber).toBeNull();
   });
 });

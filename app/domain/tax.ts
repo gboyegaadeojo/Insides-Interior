@@ -183,7 +183,7 @@ function taxGroupKey(ids: string[]) {
 /**
  * Lines for a deposit or progress invoice billing a portion of `document`: one
  * line per distinct tax set, so tax is calculated once on each portion
- * (F2: 50% of $477.38 = $238.69, GST $11.93).
+ * (F2: 50% of ₦113,442.38 = ₦56,721.19, VAT ₦4,254.09).
  */
 export function buildPortionLines(
   document: ComputedDocument,

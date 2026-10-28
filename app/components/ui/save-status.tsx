@@ -1,4 +1,5 @@
 import { AlertTriangle, CloudCheck, LoaderCircle, PencilLine } from "lucide-react";
+import { LOCALE } from "~/domain/locale";
 import { cn } from "~/lib/utils";
 
 export type SaveState =
@@ -7,7 +8,7 @@ export type SaveState =
   | { state: "unsaved" }
   | { state: "error"; message?: string };
 
-const TIME = new Intl.DateTimeFormat("en-CA", { hour: "numeric", minute: "2-digit" });
+const TIME = new Intl.DateTimeFormat(LOCALE, { hour: "numeric", minute: "2-digit" });
 
 /**
  * Truthful autosave indicator (CLAUDE.md design rules): it only says "Saved"

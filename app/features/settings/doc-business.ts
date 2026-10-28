@@ -15,8 +15,8 @@ export async function loadDocBusiness(db: Db, businessId: string): Promise<DocBu
     email: b.email,
     website: b.website,
     logoUrl: b.logoKey ? `/brand/logo?v=${encodeURIComponent(b.logoKey)}` : null,
-    gstNumber: b.gstNumber,
-    pstNumber: b.pstNumber,
+    tin: b.tin,
+    rcNumber: b.rcNumber,
     brandColor: b.brandColor,
   };
 }

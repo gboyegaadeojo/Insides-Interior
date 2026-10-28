@@ -1,6 +1,6 @@
 import { expect, type Locator, type Page, test } from "@playwright/test";
 
-// SPEC 14.4 phase 4: build F1 in the builder and verify $534.67, on every
+// SPEC 14.4 phase 4: build F1 in the builder and verify ₦121,950.56, on every
 // device project (including iPad Pro 11 and iPhone 14).
 
 async function shot(page: Page, name: string) {
@@ -26,6 +26,12 @@ async function fillLine(
   await price.press("Tab");
 }
 
+/** VAT is off by default (Nigeria); F1 charges it on every line. */
+async function chargeVat(line: Locator, description: string) {
+  await line.getByRole("button", { name: `More options for ${description}` }).click();
+  await line.getByRole("checkbox", { name: /^VAT/ }).check();
+}
+
 async function addCustomLine(page: Page) {
   await page.getByRole("button", { name: "Add line" }).first().click();
   await page
@@ -34,7 +40,7 @@ async function addCustomLine(page: Page) {
     .click();
 }
 
-test("build fixture F1 and see $534.67, saved on the server", async ({ page }) => {
+test("build fixture F1 and see ₦121,950.56, saved on the server", async ({ page }) => {
   // The whole F1 build (inline client, two lines, autosave, reload) outruns the 30 s default.
   test.setTimeout(90_000);
   const client = `F1 Client ${Date.now().toString(36)}`;
@@ -57,26 +63,40 @@ test("build fixture F1 and see $534.67, saved on the server", async ({ page }) =
 
   await addCustomLine(page);
   const lines = page.getByRole("list", { name: "Lines in Living room" }).getByRole("listitem");
-  await fillLine(lines.nth(0), { description: "Design consultation", qty: "3", unit: "hour", price: "95" });
+  await fillLine(lines.nth(0), {
+    description: "Design consultation",
+    qty: "3",
+    unit: "hour",
+    price: "25000",
+  });
+  await chargeVat(lines.nth(0), "Design consultation");
   await addCustomLine(page);
-  await fillLine(lines.nth(1), { description: "Drapery fabric", qty: "4.5", unit: "yard", price: "42.75" });
+  await fillLine(lines.nth(1), {
+    description: "Drapery fabric",
+    qty: "4.5",
+    unit: "metre",
+    price: "8542.75",
+  });
+  await chargeVat(lines.nth(1), "Drapery fabric");
 
-  await expect(page.getByTestId("quote-total")).toHaveText("$534.67");
+  await expect(page.getByTestId("quote-total")).toHaveText("₦121,950.56");
   await expect(page.getByRole("status").filter({ hasText: /^Saved/ })).toBeVisible({ timeout: 15_000 });
   await shot(page, "builder-f1");
 
   // Phone and tablet portrait: the sticky total bar and the preview tab.
   if ((page.viewportSize()?.width ?? 1440) < 1024) {
-    await expect(page.getByRole("button", { name: "Show the totals breakdown" })).toContainText("$534.67");
+    await expect(page.getByRole("button", { name: "Show the totals breakdown" })).toContainText(
+      "₦121,950.56",
+    );
     await page.getByRole("radio", { name: "Preview" }).click();
   }
   const preview = page.getByRole("complementary", { name: "Live preview" });
-  await expect(preview.getByText("$534.67").first()).toBeVisible();
+  await expect(preview.getByText("₦121,950.56").first()).toBeVisible();
   await expect(preview.getByText("Drapery fabric")).toBeVisible();
 
   // The server kept it (and recomputed it the same way).
   await page.reload();
-  await expect(page.getByTestId("quote-total")).toHaveText("$534.67");
+  await expect(page.getByTestId("quote-total")).toHaveText("₦121,950.56");
 });
 
 test("optional items stay out of the total until selected (FR-QT-03)", async ({ page }) => {
@@ -89,12 +109,12 @@ test("optional items stay out of the total until selected (FR-QT-03)", async ({ 
     .filter({ has: page.getByLabel("Description") })
     .first();
   await fillLine(line, { description: "Blackout lining", qty: "1", unit: "each", price: "100" });
-  await expect(page.getByTestId("quote-total")).toHaveText("$112.00");
+  await expect(page.getByTestId("quote-total")).toHaveText("₦100.00");
   await line.getByRole("button", { name: /More options for Blackout lining/ }).click();
   await line.getByLabel(/Optional item/).check();
-  await expect(page.getByTestId("quote-total")).toHaveText("$0.00");
+  await expect(page.getByTestId("quote-total")).toHaveText("₦0.00");
   await line.getByLabel("Include it in the preview total").check();
-  await expect(page.getByTestId("quote-total")).toHaveText("$112.00");
+  await expect(page.getByTestId("quote-total")).toHaveText("₦100.00");
   await expect(page.getByText("Base total (no options)")).toBeVisible();
 });
 

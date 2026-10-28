@@ -126,7 +126,7 @@ export interface Address {
   line1?: string;
   line2?: string;
   city?: string;
-  province?: string;
+  state?: string;
   postalCode?: string;
   country?: string;
 }
@@ -140,8 +140,13 @@ export const business = sqliteTable("business", {
   email: text(),
   website: text(),
   logoKey: text(),
-  gstNumber: text(),
-  pstNumber: text(),
+  /** Tax Identification Number (FIRS). */
+  tin: text(),
+  /** CAC registration number. */
+  rcNumber: text(),
+  // Column defaults predate the move to Nigeria and are kept (changing a default
+  // means rebuilding a parent table, which D1 can't do safely). The seed and
+  // migration 0005 set NGN / Africa/Lagos; code never relies on these.
   timezone: text().notNull().default("America/Winnipeg"),
   currency: text().notNull().default("CAD"),
   brandColor: text().notNull().default("#0F766E"),
@@ -166,7 +171,7 @@ export interface ReminderCadence {
   /** Days relative to the due date: negative before, 0 on, positive after. */
   offsets: number[];
   maxCount: number;
-  /** Local hours (America/Winnipeg) when nothing is sent, e.g. 21 → 8. */
+  /** Local hours (Africa/Lagos) when nothing is sent, e.g. 21 → 8. */
   quietStartHour: number;
   quietEndHour: number;
   quoteFollowUpDays: number[];
@@ -186,11 +191,12 @@ export const settings = sqliteTable("settings", {
   defaultDepositBp: integer().notNull().default(5000),
   defaultNotes: text(),
   defaultTerms: text(),
-  etransferEmail: text(),
-  etransferAutoDeposit: integer({ mode: "boolean" }).notNull().default(false),
-  etransferNote: text(),
-  chequePayee: text(),
-  mailingAddress: text({ mode: "json" }).$type<Address>(),
+  /** Bank transfer details printed on invoices (Nigeria). */
+  bankName: text(),
+  accountName: text(),
+  /** 10-digit NUBAN. */
+  accountNumber: text(),
+  paymentNote: text(),
   reminderCadence: text({ mode: "json" })
     .$type<ReminderCadence>()
     .notNull()
@@ -430,6 +436,7 @@ export const quote = sqliteTable(
     depositType: text({ enum: ["percent", "amount"] }),
     depositValue: integer(),
     validUntil: text(),
+    /** Legacy default; always written explicitly from domain/locale CURRENCY. */
     currency: text().notNull().default("CAD"),
     shareTokenHash: text(),
     followUpPaused: integer({ mode: "boolean" }).notNull().default(false),
@@ -499,6 +506,7 @@ export const invoice = sqliteTable(
     currentRevisionId: text(),
     draftContent: text({ mode: "json" }).$type<DocumentContent>(),
     draftVersion: integer().notNull().default(0),
+    /** Legacy default; always written explicitly from domain/locale CURRENCY. */
     currency: text().notNull().default("CAD"),
     shareTokenHash: text(),
     remindersPaused: integer({ mode: "boolean" }).notNull().default(false),
@@ -587,7 +595,7 @@ export const payment = sqliteTable(
       .notNull()
       .references(() => client.id),
     amountCents: integer().notNull(),
-    method: text({ enum: ["etransfer", "cheque", "cash", "card", "bank", "other"] }).notNull(),
+    method: text({ enum: ["bank", "pos", "cash", "card", "cheque", "other"] }).notNull(),
     reference: text(),
     receivedOn: text().notNull(),
     note: text(),
@@ -624,8 +632,7 @@ export const expense = sqliteTable(
     supplier: text().notNull(),
     category: text().notNull(),
     amountCents: integer().notNull(),
-    gstCents: integer().notNull().default(0),
-    pstCents: integer().notNull().default(0),
+    vatCents: integer().notNull().default(0),
     projectId: text().references(() => project.id),
     billable: integer({ mode: "boolean" }).notNull().default(false),
     receiptKey: text(),

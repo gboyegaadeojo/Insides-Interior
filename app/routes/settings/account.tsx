@@ -7,14 +7,15 @@ import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/ca
 import { TextField } from "~/components/ui/field";
 import { toast } from "~/components/ui/toast";
 import { authClient } from "~/lib/auth-client";
+import { BUSINESS_TZ, LOCALE } from "~/domain/locale";
 import { createAuth } from "~/server/auth";
 import { assertSameOrigin, requireUser } from "~/server/session";
 import type { Route } from "./+types/account";
 
-const DATE = new Intl.DateTimeFormat("en-CA", {
+const DATE = new Intl.DateTimeFormat(LOCALE, {
   dateStyle: "medium",
   timeStyle: "short",
-  timeZone: "America/Winnipeg",
+  timeZone: BUSINESS_TZ,
 });
 
 function describeDevice(userAgent: string | null | undefined) {

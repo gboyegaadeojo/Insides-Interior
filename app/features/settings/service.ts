@@ -82,7 +82,7 @@ export async function updateBusinessProfile(
   ctx: RequestContext,
   input: z.output<typeof businessProfileSchema>,
 ) {
-  const { line1, line2, city, province, postalCode, ...rest } = input;
+  const { line1, line2, city, state, postalCode, ...rest } = input;
   await ctx.db.batch([
     ctx.db
       .update(schema.business)
@@ -92,9 +92,9 @@ export async function updateBusinessProfile(
           line1: line1 ?? undefined,
           line2: line2 ?? undefined,
           city: city ?? undefined,
-          province: province ?? undefined,
+          state: state ?? undefined,
           postalCode: postalCode ?? undefined,
-          country: "Canada",
+          country: "Nigeria",
         },
         updatedAt: nowIso(),
       })
@@ -224,20 +224,10 @@ export async function updatePaymentInstructions(
   ctx: RequestContext,
   input: z.output<typeof paymentInstructionsSchema>,
 ) {
-  const { mailingLine1, mailingCity, mailingProvince, mailingPostalCode, ...rest } = input;
   await ctx.db.batch([
     ctx.db
       .update(schema.settings)
-      .set({
-        ...rest,
-        mailingAddress: {
-          line1: mailingLine1 ?? undefined,
-          city: mailingCity ?? undefined,
-          province: mailingProvince ?? undefined,
-          postalCode: mailingPostalCode ?? undefined,
-        },
-        updatedAt: nowIso(),
-      })
+      .set({ ...input, updatedAt: nowIso() })
       .where(eq(schema.settings.businessId, ctx.user.businessId)),
     audit(ctx, "business", ctx.user.businessId, "settings.payment_instructions_updated"),
   ]);

@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import * as React from "react";
 import { data, Form, Link, useActionData, useNavigation, useSearchParams } from "react-router";
+import { DEFAULT_CITY, DEFAULT_STATE } from "~/domain/locale";
 import { RouteErrorBoundary } from "~/components/shell/route-error";
 import { Avatar } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
@@ -580,9 +581,9 @@ function SitesCard({
             autoFocus
           />
           <TextField label="Street address" name="line1" />
-          <TextField label="City" name="city" defaultValue="Winnipeg" />
-          <TextField label="Province" name="province" defaultValue="MB" />
-          <TextField label="Postal code" name="postalCode" error={errors.postalCode} />
+          <TextField label="City" name="city" defaultValue={DEFAULT_CITY} />
+          <TextField label="State" name="state" defaultValue={DEFAULT_STATE} />
+          <TextField label="Postcode (optional)" name="postalCode" error={errors.postalCode} />
           <div className="flex items-end justify-end gap-2">
             <Button type="button" variant="ghost" onClick={() => setAdding(false)}>
               Cancel

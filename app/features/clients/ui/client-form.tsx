@@ -1,3 +1,4 @@
+import { DEFAULT_CITY, DEFAULT_STATE } from "~/domain/locale";
 import type { FieldErrors } from "~/lib/form";
 import { TextField, Textarea } from "~/components/ui/field";
 import type { Address } from "~/server/db";
@@ -67,10 +68,10 @@ export function ClientFields({
         defaultValue={address.line2 ?? ""}
         fieldClassName="tablet:col-span-2"
       />
-      <TextField label="City" name="city" defaultValue={address.city ?? "Winnipeg"} />
-      <TextField label="Province" name="province" defaultValue={address.province ?? "MB"} />
+      <TextField label="City" name="city" defaultValue={address.city ?? DEFAULT_CITY} />
+      <TextField label="State" name="state" defaultValue={address.state ?? DEFAULT_STATE} />
       <TextField
-        label="Postal code"
+        label="Postcode (optional)"
         name="postalCode"
         defaultValue={address.postalCode ?? ""}
         error={errors.postalCode}
