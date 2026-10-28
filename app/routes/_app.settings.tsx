@@ -1,12 +1,11 @@
-import { Check, Monitor, Moon, PartyPopper, Sun } from "lucide-react";
-import { useFetcher, useLocation, useRouteLoaderData } from "react-router";
-import { ModuleHeader } from "~/components/shell/module-header";
-import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { ChevronRight } from "lucide-react";
+import { NavLink, Outlet, useLocation } from "react-router";
+import { groupsFor } from "~/components/settings/groups";
+import { SplitView } from "~/components/shell/split-view";
 import { IconChip } from "~/components/ui/icon-chip";
 import type { AppHandle } from "~/lib/route-handle";
-import { applyTheme, type ThemePreference, THEMES } from "~/lib/preferences";
 import { cn } from "~/lib/utils";
-import type { loader as rootLoader } from "../root";
+import { useCurrentUser } from "./_app";
 
 export const handle: AppHandle = { module: "settings", title: "Settings" };
 
@@ -14,128 +13,54 @@ export function meta() {
   return [{ title: "Settings · Insides Interior" }];
 }
 
-const THEME_LABEL: Record<ThemePreference, { label: string; icon: typeof Sun }> = {
-  light: { label: "Light", icon: Sun },
-  dark: { label: "Dark", icon: Moon },
-  system: { label: "System", icon: Monitor },
-};
-
-export default function Settings() {
-  const root = useRouteLoaderData<typeof rootLoader>("root");
-  const fetcher = useFetcher();
+/** SPEC 6.8 Settings: grouped list on the left (a list screen on phone), form on the right. */
+export default function SettingsLayout() {
+  const user = useCurrentUser();
   const { pathname } = useLocation();
-  const pendingTheme = fetcher.formData?.get("theme") as ThemePreference | undefined;
-  const theme = pendingTheme ?? root?.preferences.theme ?? "system";
-  const pendingCelebrate = fetcher.formData?.get("celebrations");
-  const celebrations = pendingCelebrate ? pendingCelebrate === "1" : (root?.preferences.celebrations ?? true);
+  const showDetail = pathname !== "/settings" && pathname !== "/settings/";
+  const groups = groupsFor(user.role);
 
   return (
-    <>
-      <ModuleHeader eyebrow="Settings" summary="Business details, taxes and sign-in arrive with accounts." />
-      <div className="grid gap-6 wide:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Appearance</CardTitle>
-            <CardDescription>Applies on this device.</CardDescription>
-          </CardHeader>
-          <fetcher.Form method="post" action="/api/preferences">
-            <input type="hidden" name="redirectTo" value={pathname} />
-            <fieldset>
-              <legend className="sr-only">Theme</legend>
-              <div className="grid grid-cols-3 gap-3">
-                {THEMES.map((value) => {
-                  const { label, icon } = THEME_LABEL[value];
-                  const selected = theme === value;
-                  return (
-                    <button
-                      key={value}
-                      type="submit"
-                      name="theme"
-                      value={value}
-                      aria-pressed={selected}
-                      onClick={() => applyTheme(value)}
-                      className={cn(
-                        "flex flex-col gap-2 rounded-card border-2 p-2 text-left transition-colors duration-standard",
-                        selected ? "border-teal-base" : "border-border hover:border-tertiary",
-                      )}
-                    >
-                      <ThemePreview theme={value} />
-                      <span className="flex min-h-8 items-center gap-1.5 px-1 font-semibold">
-                        <IconChip icon={icon} tone="teal" size="sm" filled={selected} />
-                        {label}
-                        {selected && <Check className="ml-auto size-4 text-teal-base" aria-hidden />}
+    <SplitView
+      showDetail={showDetail}
+      list={
+        <nav aria-label="Settings sections">
+          <ul className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface shadow-card">
+            {groups.map((group) => (
+              <li key={group.path}>
+                <NavLink
+                  to={`/settings/${group.path}`}
+                  className={({ isActive }) =>
+                    cn(
+                      "flex min-h-16 items-center gap-3 px-4 py-2 hover:bg-surface-2",
+                      isActive && "bg-surface-2",
+                    )
+                  }
+                >
+                  {({ isActive }) => (
+                    <>
+                      <IconChip icon={group.icon} tone={group.tone} filled={isActive} />
+                      <span className="min-w-0 flex-1">
+                        <span className="block font-semibold">{group.label}</span>
+                        <span className="block truncate text-label font-normal text-secondary">
+                          {group.description}
+                        </span>
                       </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </fieldset>
-          </fetcher.Form>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Celebrations</CardTitle>
-            <CardDescription>
-              A short stamp and confetti when a client approves a quote or an invoice is paid. Always skipped
-              when your device asks for reduced motion.
-            </CardDescription>
-          </CardHeader>
-          <fetcher.Form method="post" action="/api/preferences">
-            <input type="hidden" name="redirectTo" value={pathname} />
-            <button
-              type="submit"
-              name="celebrations"
-              value={celebrations ? "0" : "1"}
-              role="switch"
-              aria-checked={celebrations}
-              className="flex min-h-11 w-full items-center gap-3 rounded-control"
-            >
-              <IconChip icon={PartyPopper} tone="saffron" />
-              <span className="flex-1 text-left font-semibold">Show celebrations</span>
-              <span
-                aria-hidden
-                className={cn(
-                  "relative h-8 w-13 rounded-full transition-colors duration-standard",
-                  celebrations ? "bg-teal-base" : "bg-surface-3",
-                )}
-              >
-                <span
-                  className={cn(
-                    "absolute top-1 left-1 size-6 rounded-full bg-surface shadow-card transition-transform duration-standard ease-out",
-                    celebrations && "translate-x-5",
+                      <ChevronRight className="size-5 text-secondary wide:hidden" aria-hidden />
+                    </>
                   )}
-                />
-              </span>
-            </button>
-          </fetcher.Form>
-        </Card>
-      </div>
-    </>
-  );
-}
-
-/** Miniature app preview in the given theme (SPEC 6.8 Settings, Appearance). */
-function ThemePreview({ theme }: { theme: ThemePreference }) {
-  const pane = (mode: "light" | "dark", className?: string) => (
-    <div data-theme={mode} className={cn("flex h-full gap-1 bg-canvas p-1.5", className)}>
-      <div className="w-3 rounded-sm bg-surface" />
-      <div className="flex flex-1 flex-col gap-1">
-        <div className="h-3 rounded-sm bg-plum-tint" />
-        <div className="flex-1 rounded-sm bg-surface" />
-      </div>
-    </div>
-  );
-  return (
-    <div className="h-16 overflow-hidden rounded-control border border-border" aria-hidden>
-      {theme === "system" ? (
-        <div className="grid h-full grid-cols-2">
-          {pane("light")}
-          {pane("dark")}
+                </NavLink>
+              </li>
+            ))}
+          </ul>
+        </nav>
+      }
+      detail={<Outlet />}
+      emptyDetail={
+        <div className="flex h-full min-h-64 items-center justify-center rounded-card border border-dashed border-border p-8 text-center text-secondary">
+          Choose a section to change your settings.
         </div>
-      ) : (
-        pane(theme)
-      )}
-    </div>
+      }
+    />
   );
 }
