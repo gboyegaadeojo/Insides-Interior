@@ -45,7 +45,7 @@ export function layout(
     ? `<img src="${escape(brand.logoUrl)}" alt="${escape(brand.name)}" height="40" style="display:block;height:40px;border:0">`
     : `<span style="font-family:Georgia,serif;font-size:20px;font-weight:600;color:#1E1B18">${escape(brand.name)}</span>`;
   const html = `<!doctype html>
-<html lang="en-CA"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>${escape(opts.headline)}</title></head>
+<html lang="en-NG"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>${escape(opts.headline)}</title></head>
 <body style="margin:0;padding:0;background:#F8F6F2">
 <span style="display:none;max-height:0;overflow:hidden">${escape(opts.preheader)}</span>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#F8F6F2"><tr><td align="center" style="padding:24px 12px">

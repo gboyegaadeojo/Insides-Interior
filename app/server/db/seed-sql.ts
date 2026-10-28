@@ -4,8 +4,8 @@
 
 export const SEED_IDS = {
   business: "biz_main",
-  gst: "tax_gst",
-  pst: "tax_mb_pst",
+  /** VAT 7.5%. The id predates the move to Nigeria (migration 0005 renamed the row). */
+  vat: "tax_gst",
   quoteSeq: "seq_quote",
   invoiceSeq: "seq_invoice",
   owner: "usr_owner",
@@ -26,10 +26,9 @@ export function seedStatements(opts: {
   const iso = q(new Date(now).toISOString());
   const biz = q(SEED_IDS.business);
   const statements = [
-    `INSERT OR IGNORE INTO business (id, legal_name, trading_name, timezone, currency, brand_color, created_at, updated_at) VALUES (${biz}, ${q(opts.businessName ?? "Insides Interior Limited")}, 'Insides Interior', 'America/Winnipeg', 'CAD', '#0F766E', ${iso}, ${iso})`,
+    `INSERT OR IGNORE INTO business (id, legal_name, trading_name, timezone, currency, brand_color, created_at, updated_at) VALUES (${biz}, ${q(opts.businessName ?? "Insides Interior Limited")}, 'Insides Interior', 'Africa/Lagos', 'NGN', '#0F766E', ${iso}, ${iso})`,
     `INSERT OR IGNORE INTO settings (business_id, updated_at) VALUES (${biz}, ${iso})`,
-    `INSERT OR IGNORE INTO tax_rate (id, business_id, name, rate_bp, applies_to, is_default, position, created_at, updated_at) VALUES (${q(SEED_IDS.gst)}, ${biz}, 'GST', 500, 'both', 1, 0, ${iso}, ${iso})`,
-    `INSERT OR IGNORE INTO tax_rate (id, business_id, name, rate_bp, applies_to, is_default, position, created_at, updated_at) VALUES (${q(SEED_IDS.pst)}, ${biz}, 'PST (MB RST)', 700, 'both', 1, 1, ${iso}, ${iso})`,
+    `INSERT OR IGNORE INTO tax_rate (id, business_id, name, rate_bp, applies_to, is_default, position, created_at, updated_at) VALUES (${q(SEED_IDS.vat)}, ${biz}, 'VAT', 750, 'both', 0, 0, ${iso}, ${iso})`,
     `INSERT OR IGNORE INTO sequence (id, business_id, kind, prefix, next_value, created_at, updated_at) VALUES (${q(SEED_IDS.quoteSeq)}, ${biz}, 'quote', 'Q-', 1001, ${iso}, ${iso})`,
     `INSERT OR IGNORE INTO sequence (id, business_id, kind, prefix, next_value, created_at, updated_at) VALUES (${q(SEED_IDS.invoiceSeq)}, ${biz}, 'invoice', 'INV-', 1001, ${iso}, ${iso})`,
   ];

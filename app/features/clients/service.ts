@@ -30,14 +30,14 @@ function toAddress(input: {
   line1: string | null;
   line2?: string | null;
   city: string | null;
-  province: string | null;
+  state: string | null;
   postalCode: string | null;
 }): Address {
   return {
     line1: input.line1 ?? undefined,
     line2: input.line2 ?? undefined,
     city: input.city ?? undefined,
-    province: input.province ?? undefined,
+    state: input.state ?? undefined,
     postalCode: input.postalCode ?? undefined,
   };
 }
@@ -47,7 +47,7 @@ export function formatAddress(address: Address | null | undefined): string {
   return [
     address.line1,
     address.line2,
-    [address.city, address.province].filter(Boolean).join(", "),
+    [address.city, address.state].filter(Boolean).join(", "),
     address.postalCode,
   ]
     .filter(Boolean)
@@ -212,14 +212,14 @@ export type ClientDetail = NonNullable<Awaited<ReturnType<typeof getClient>>>;
 
 export async function createClient(ctx: RequestContext, input: z.output<typeof clientSchema>) {
   const id = newId("cli");
-  const { line1, line2, city, province, postalCode, ...rest } = input;
+  const { line1, line2, city, state, postalCode, ...rest } = input;
   await ctx.db.batch([
     ctx.db.insert(schema.client).values({
       id,
       businessId: ctx.user.businessId,
       createdBy: ctx.user.id,
       ...rest,
-      billingAddress: toAddress({ line1, line2, city, province, postalCode }),
+      billingAddress: toAddress({ line1, line2, city, state, postalCode }),
     }),
     audit(ctx, id, "client.created", { name: input.displayName }),
   ]);
@@ -249,13 +249,13 @@ async function requireClient(ctx: Ctx, id: string) {
 
 export async function updateClient(ctx: RequestContext, id: string, input: z.output<typeof clientSchema>) {
   await requireClient(ctx, id);
-  const { line1, line2, city, province, postalCode, ...rest } = input;
+  const { line1, line2, city, state, postalCode, ...rest } = input;
   await ctx.db.batch([
     ctx.db
       .update(schema.client)
       .set({
         ...rest,
-        billingAddress: toAddress({ line1, line2, city, province, postalCode }),
+        billingAddress: toAddress({ line1, line2, city, state, postalCode }),
         updatedAt: nowIso(),
       })
       .where(eq(schema.client.id, id)),

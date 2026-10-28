@@ -1,5 +1,5 @@
 // Seeds the one business (SPEC 14.4 phase 2): the business, settings, the owner
-// from OWNER_EMAIL, GST 5% and MB PST 7%, and quote/invoice sequences. Safe to
+// from OWNER_EMAIL, VAT 7.5% (off by default), and quote/invoice sequences. Safe to
 // re-run: every insert is INSERT OR IGNORE on fixed ids.
 //
 //   npm run db:seed:local  -- --owner-email you@example.ca --owner-name "Your Name"

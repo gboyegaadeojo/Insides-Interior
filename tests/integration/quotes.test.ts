@@ -19,7 +19,8 @@ import { ownerContext, seed } from "./helpers";
 
 beforeEach(seed);
 
-const TAXES = [SEED_IDS.gst, SEED_IDS.pst];
+// SPEC 10.2 fixture F1 (Nigeria): VAT 7.5% on both lines.
+const TAXES = [SEED_IDS.vat];
 
 function f1Draft(version: number, clientId: string | null): SaveDraftInput {
   return saveDraftSchema.parse({
@@ -43,7 +44,7 @@ function f1Draft(version: number, clientId: string | null): SaveDraftInput {
               description: "Design consultation",
               qtyMilli: 3000,
               unit: "hour",
-              unitPriceCents: 9500,
+              unitPriceCents: 2_500_000,
               taxRateIds: TAXES,
             },
             {
@@ -51,8 +52,8 @@ function f1Draft(version: number, clientId: string | null): SaveDraftInput {
               description: "Drapery fabric",
               details: "<p>Lined <strong>linen</strong><script>x</script></p>",
               qtyMilli: 4500,
-              unit: "yard",
-              unitPriceCents: 4275,
+              unit: "metre",
+              unitPriceCents: 854_275,
               taxRateIds: TAXES,
             },
           ],
@@ -70,6 +71,7 @@ describe("quote drafts (FR-QT-01…07)", () => {
     expect(detail!.quote).toMatchObject({
       status: "draft",
       number: null,
+      currency: "NGN",
       draftVersion: 1,
       depositType: "percent",
       depositValue: 5000,
@@ -78,20 +80,20 @@ describe("quote drafts (FR-QT-01…07)", () => {
     expect(detail!.content.taxRates.map((r) => r.id)).toEqual(TAXES);
   });
 
-  it("saves F1 and recomputes totals on the server: $534.67", async () => {
+  it("saves F1 and recomputes totals on the server: ₦121,950.56", async () => {
     const ctx = ownerContext();
     const clientId = await quickCreateClient(ctx, { displayName: "Amelia Chen", email: null, phone: null });
     const id = await createQuote(ctx, { clientId });
     const result = await saveDraft(ctx, id, f1Draft(1, clientId));
     expect(result.version).toBe(2);
     expect(result.totals).toMatchObject({
-      subtotalCents: 47738,
-      totalCents: 53467,
-      depositCents: 26734,
-      balanceCents: 26733,
+      subtotalCents: 11_344_238,
+      totalCents: 12_195_056,
+      depositCents: 6_097_528,
+      balanceCents: 6_097_528,
     });
     const detail = await getQuote(ctx, id);
-    expect(detail!.totals.computed.totalCents).toBe(53467);
+    expect(detail!.totals.computed.totalCents).toBe(12_195_056);
     // Rich text sanitised on the way in (SPEC 11.1).
     expect(detail!.content.sections[0]!.lines[1]!.details).toBe("<p>Lined <strong>linen</strong></p>");
   });
@@ -115,7 +117,7 @@ describe("quote drafts (FR-QT-01…07)", () => {
       line1: null,
       line2: null,
       city: null,
-      province: null,
+      state: null,
       postalCode: null,
     });
     const id = await createQuote(ctx, { clientId: a });
@@ -128,10 +130,10 @@ describe("quote drafts (FR-QT-01…07)", () => {
     const ctx = ownerContext();
     const id = await createQuote(ctx);
     const draft = f1Draft(1, null);
-    draft.content.sections[0]!.lines[0]!.taxRateIds = [SEED_IDS.gst, "tax_made_up"];
+    draft.content.sections[0]!.lines[0]!.taxRateIds = [SEED_IDS.vat, "tax_made_up"];
     await saveDraft(ctx, id, draft);
     const detail = await getQuote(ctx, id);
-    expect(detail!.content.sections[0]!.lines[0]!.taxRateIds).toEqual([SEED_IDS.gst]);
+    expect(detail!.content.sections[0]!.lines[0]!.taxRateIds).toEqual([SEED_IDS.vat]);
   });
 
   it("won't edit a sent quote", async () => {
@@ -150,7 +152,7 @@ describe("listing, duplicating, deleting", () => {
     await saveDraft(ctx, id, f1Draft(1, clientId));
     const { quotes, counts } = await listQuotes(ctx, { filter: "draft" });
     const row = quotes.find((q) => q.id === id)!;
-    expect(row).toMatchObject({ clientName: "Kwame Mensah", totalCents: 53467, number: null });
+    expect(row).toMatchObject({ clientName: "Kwame Mensah", totalCents: 12_195_056, number: null });
     expect(counts.draft).toBeGreaterThanOrEqual(1);
     expect((await listQuotes(ctx, { query: "kwame" })).quotes.map((q) => q.id)).toContain(id);
   });
@@ -163,7 +165,7 @@ describe("listing, duplicating, deleting", () => {
     const copy = await getQuote(ctx, copyId);
     expect(copy!.quote.title).toBe("Living room drapery (copy)");
     expect(copy!.content.sections[0]!.lines.map((l) => l.id)).not.toContain("a");
-    expect(copy!.totals.computed.totalCents).toBe(53467);
+    expect(copy!.totals.computed.totalCents).toBe(12_195_056);
 
     await deleteDraft(ctx, copyId);
     expect(await getQuote(ctx, copyId)).toBeNull();
@@ -178,9 +180,9 @@ describe("list performance (Workers Free CPU budget)", () => {
     const id = await createQuote(ctx);
     await saveDraft(ctx, id, f1Draft(1, null));
     const [row] = await ctx.db.select().from(schema.quote).where(eq(schema.quote.id, id));
-    expect(row!.draftTotalCents).toBe(53467);
+    expect(row!.draftTotalCents).toBe(12_195_056);
     const listed = (await listQuotes(ctx, { filter: "draft" })).quotes.find((q) => q.id === id);
-    expect(listed!.totalCents).toBe(53467);
+    expect(listed!.totalCents).toBe(12_195_056);
   });
 
   it("still totals drafts saved before totals were stored", async () => {
@@ -189,7 +191,7 @@ describe("list performance (Workers Free CPU budget)", () => {
     await saveDraft(ctx, id, f1Draft(1, null));
     await ctx.db.update(schema.quote).set({ draftTotalCents: null }).where(eq(schema.quote.id, id));
     const listed = (await listQuotes(ctx)).quotes.find((q) => q.id === id);
-    expect(listed!.totalCents).toBe(53467);
+    expect(listed!.totalCents).toBe(12_195_056);
   });
 
   it("pages in SQL and counts every quote", async () => {

@@ -1,6 +1,8 @@
 // Money and quantity parsing/formatting (SPEC 10.1). Integer cents and integer
 // thousandths only; strings are parsed digit by digit, never through floats.
 
+import { CURRENCY, LOCALE } from "./locale";
+
 /**
  * `numerator / denominator` rounded half away from zero, exactly (BigInt), so
  * $192.375 → $192.38 and −$0.165 → −$0.17. The one rounding primitive.
@@ -28,15 +30,12 @@ export function applyBp(cents: number, bp: number): number {
   return roundHalfUpDiv(cents * bp, 10_000);
 }
 
-const CAD = new Intl.NumberFormat("en-CA", { style: "currency", currency: "CAD" });
-const GROUPED = new Intl.NumberFormat("en-CA", { useGrouping: true });
+const CURRENCY_FORMAT = new Intl.NumberFormat(LOCALE, { style: "currency", currency: CURRENCY });
+const GROUPED = new Intl.NumberFormat(LOCALE, { useGrouping: true });
 
-/** Splits a typed decimal ("$1,234.5") into sign, integer digits and fraction digits. */
+/** Splits a typed decimal ("₦1,234.5") into sign, integer digits and fraction digits. */
 function splitDecimal(input: string): { negative: boolean; whole: string; fraction: string } | null {
-  const cleaned = input
-    .trim()
-    .replace(/^\$/, "")
-    .replace(/^(-)\$/, "$1");
+  const cleaned = input.trim().replace(/^(-)?\s*(?:[$₦]|NGN)\s*/i, "$1");
   const match = /^(-)?(\d{1,3}(?:,\d{3})+|\d*)(?:\.(\d*))?$/.exec(cleaned);
   if (!match) return null;
   const whole = (match[2] ?? "").replaceAll(",", "");
@@ -65,9 +64,9 @@ export function parseQuantityToMilli(input: string): number | null {
   return parts.negative ? -milli : milli;
 }
 
-/** 53467 → "$534.67" (en-CA, CAD). */
+/** 12195056 → "₦121,950.56" (en-NG, NGN). */
 export function formatCents(cents: number): string {
-  return CAD.format(cents / 100);
+  return CURRENCY_FORMAT.format(cents / 100);
 }
 
 /** 123456 → "1,234.56": for editable fields, no currency symbol. */

@@ -1,5 +1,6 @@
 import { ImageUp, Trash2 } from "lucide-react";
 import { Form, useNavigation } from "react-router";
+import { DEFAULT_CITY, DEFAULT_STATE } from "~/domain/locale";
 import { SectionHeader } from "~/components/settings/section-header";
 import { SettingsForm, useIntentErrors } from "~/components/settings/settings-form";
 import { Button } from "~/components/ui/button";
@@ -101,17 +102,17 @@ export default function BusinessSettings({ loaderData }: Route.ComponentProps) {
           <TextField
             label="City"
             name="city"
-            defaultValue={address.city ?? ""}
+            defaultValue={address.city ?? DEFAULT_CITY}
             autoComplete="address-level2"
           />
           <TextField
-            label="Province"
-            name="province"
-            defaultValue={address.province ?? "MB"}
+            label="State"
+            name="state"
+            defaultValue={address.state ?? DEFAULT_STATE}
             autoComplete="address-level1"
           />
           <TextField
-            label="Postal code"
+            label="Postcode (optional)"
             name="postalCode"
             defaultValue={address.postalCode ?? ""}
             autoComplete="postal-code"

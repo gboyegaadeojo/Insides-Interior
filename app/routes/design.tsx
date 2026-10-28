@@ -218,7 +218,7 @@ function Showcase() {
             <div key={name} className="flex flex-wrap items-baseline gap-x-4">
               <span className="w-20 text-micro text-secondary">{name}</span>
               <span className={TYPE_CLASS[name]}>
-                {name === "kpi" ? "$18,420.00" : "Walnut & linen, room by room"}
+                {name === "kpi" ? "₦18,420,000.00" : "Walnut & linen, room by room"}
               </span>
             </div>
           ))}
@@ -390,10 +390,16 @@ function Showcase() {
 
       <Section title="KPI cards">
         <div className="grid gap-3 tablet:grid-cols-2">
-          <KpiCard label="Outstanding" value="$18,420.00" detail="9 invoices" tone="indigo" icon={Receipt} />
-          <KpiCard label="Quotes awaiting" value="4" detail="$12,980.00" tone="plum" icon={FileText} />
-          <KpiCard label="Paid this month" value="$6,310.00" tone="sage" icon={Banknote} />
-          <KpiCard label="Overdue" value="$2,140.00" detail="2 invoices" tone="danger" icon={BellRing} />
+          <KpiCard
+            label="Outstanding"
+            value="₦18,420,000.00"
+            detail="9 invoices"
+            tone="indigo"
+            icon={Receipt}
+          />
+          <KpiCard label="Quotes awaiting" value="4" detail="₦12,980,000.00" tone="plum" icon={FileText} />
+          <KpiCard label="Paid this month" value="₦6,310,000.00" tone="sage" icon={Banknote} />
+          <KpiCard label="Overdue" value="₦2,140,000.00" detail="2 invoices" tone="danger" icon={BellRing} />
         </div>
       </Section>
 

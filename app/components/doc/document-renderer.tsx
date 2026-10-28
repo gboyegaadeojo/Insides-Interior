@@ -20,8 +20,8 @@ export interface DocBusiness {
   email?: string | null;
   website?: string | null;
   logoUrl?: string | null;
-  gstNumber?: string | null;
-  pstNumber?: string | null;
+  tin?: string | null;
+  rcNumber?: string | null;
   brandColor: string;
 }
 
@@ -343,11 +343,11 @@ export function DocumentRenderer(props: DocumentRendererProps) {
             </>
           )}
         </dl>
-        {(business.gstNumber || business.pstNumber) && (
+        {(business.tin || business.rcNumber) && (
           <p className="doc-registrations">
-            {business.gstNumber && `GST/HST ${business.gstNumber}`}
-            {business.gstNumber && business.pstNumber && " · "}
-            {business.pstNumber && `PST/RST ${business.pstNumber}`}
+            {business.tin && `TIN ${business.tin}`}
+            {business.tin && business.rcNumber && " · "}
+            {business.rcNumber && `RC ${business.rcNumber.replace(/^RC\s*/i, "")}`}
           </p>
         )}
       </section>

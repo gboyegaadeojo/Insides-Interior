@@ -36,12 +36,12 @@ test("settings lists every group for the owner (FR-SET-11)", async ({ page }) =>
 test("business details save and show inline errors", async ({ page }) => {
   await openSection(page, "Business");
   // Server-side validation shows next to the field (DS-TCH-06) and keeps what was typed.
-  const postal = page.getByLabel("Postal code");
-  await postal.fill("R3C 0A1 EXTRA");
+  const postal = page.getByLabel("Postcode (optional)");
+  await postal.fill("101233 LEKKI 1");
   await page.getByRole("button", { name: "Save" }).first().click();
   await expect(page.getByText("Use 12 characters or fewer")).toBeVisible();
-  await expect(postal).toHaveValue("R3C 0A1 EXTRA");
-  await postal.fill("R3C 0A1");
+  await expect(postal).toHaveValue("101233 LEKKI 1");
+  await postal.fill("101233");
   await page.getByRole("button", { name: "Save" }).first().click();
   await expect(page.getByText("Business details saved")).toBeVisible();
 });

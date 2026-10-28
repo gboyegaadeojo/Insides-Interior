@@ -177,7 +177,7 @@ export function LineEditor({
               segments={[
                 { value: "none", label: "No discount" },
                 { value: "percent", label: "%" },
-                { value: "amount", label: "$" },
+                { value: "amount", label: "₦" },
               ]}
             />
             {line.discount?.type === "percent" && (

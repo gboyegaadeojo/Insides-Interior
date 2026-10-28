@@ -1,4 +1,5 @@
 import { Building2, FileText, Sparkles, UserPlus } from "lucide-react";
+import { BUSINESS_TZ, LOCALE } from "~/domain/locale";
 import { Link } from "react-router";
 import { IconChip } from "~/components/ui/icon-chip";
 import type { AppHandle } from "~/lib/route-handle";
@@ -15,20 +16,18 @@ export function meta() {
   ];
 }
 
-const TZ = "America/Winnipeg";
-
 export async function loader({ request, context }: Route.LoaderArgs) {
   await requireUser(context.cloudflare.env, request);
   const now = new Date();
   const hour = Number(
-    new Intl.DateTimeFormat("en-CA", { hour: "numeric", hourCycle: "h23", timeZone: TZ }).format(now),
+    new Intl.DateTimeFormat(LOCALE, { hour: "numeric", hourCycle: "h23", timeZone: BUSINESS_TZ }).format(now),
   );
   const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  const date = new Intl.DateTimeFormat("en-CA", {
+  const date = new Intl.DateTimeFormat(LOCALE, {
     weekday: "long",
     month: "long",
     day: "numeric",
-    timeZone: TZ,
+    timeZone: BUSINESS_TZ,
   }).format(now);
   return { greeting, date };
 }

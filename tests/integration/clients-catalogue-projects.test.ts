@@ -27,7 +27,7 @@ import { ownerContext, seed } from "./helpers";
 
 beforeEach(seed);
 
-const blankAddress = { line1: null, line2: null, city: null, province: null, postalCode: null };
+const blankAddress = { line1: null, line2: null, city: null, state: null, postalCode: null };
 
 describe("clients (SPEC 5.3)", () => {
   it("quick-creates with three fields and appears in the picker (FR-CLI-01)", async () => {
@@ -56,7 +56,7 @@ describe("clients (SPEC 5.3)", () => {
       line1: "12 Lakeshore Rd",
       line2: null,
       city: "Gimli",
-      province: "MB",
+      state: "Lagos",
       postalCode: null,
     });
     for (const q of ["kwame", "KWAME@EX", "2045550199", "lakeshore", "gimli"]) {
@@ -124,7 +124,7 @@ describe("clients (SPEC 5.3)", () => {
         invoiceId,
         clientId,
         amountCents: 20000,
-        method: "etransfer",
+        method: "bank",
         receivedOn: "2026-10-28",
       }),
       ctx.db.insert(schema.payment).values({
@@ -157,10 +157,10 @@ describe("catalogue (SPEC 5.4)", () => {
       costCents: 2850,
       supplier: "Kravet",
       sku: "KR-101",
-      taxIds: [SEED_IDS.gst, "tax_not_real"],
+      taxIds: [SEED_IDS.vat, "tax_not_real"],
     });
     let [item] = await listItems(ctx, { query: "kr-101" });
-    expect(item).toMatchObject({ id, markupBp: 5000, defaultTaxIds: [SEED_IDS.gst] });
+    expect(item).toMatchObject({ id, markupBp: 5000, defaultTaxIds: [SEED_IDS.vat] });
 
     await updateItem(ctx, id, {
       ...item!,

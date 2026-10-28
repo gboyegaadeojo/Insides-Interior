@@ -22,7 +22,7 @@ const phone = z
   .trim()
   .optional()
   .transform((v) => (v ? v : null))
-  .refine((v) => v === null || /^[+\d\s().-]{7,25}$/.test(v), "Enter a phone number like 204-555-0142");
+  .refine((v) => v === null || /^[+\d\s().-]{7,25}$/.test(v), "Enter a phone number like 0803 123 4567");
 
 const name = z.string().trim().min(1, "Enter a name").max(120, "Use 120 characters or fewer");
 
@@ -30,7 +30,7 @@ export const addressFields = {
   line1: text(120),
   line2: text(120),
   city: text(60),
-  province: text(40),
+  state: text(40),
   postalCode: text(12),
 };
 

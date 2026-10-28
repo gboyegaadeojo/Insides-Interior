@@ -16,6 +16,9 @@ describe("parseMoneyToCents", () => {
     [".5", 50],
     ["1,234.56", 123456],
     ["$1,234.56", 123456],
+    ["₦1,234.56", 123456],
+    ["NGN 25,000", 2_500_000],
+    ["-₦12.30", -1230],
     [" 95 ", 9500],
     ["-12.30", -1230],
     ["1234567.89", 123456789],
@@ -36,11 +39,11 @@ describe("parseMoneyToCents", () => {
 });
 
 describe("formatCents", () => {
-  it("formats en-CA CAD", () => {
-    expect(formatCents(53467)).toBe("$534.67");
-    expect(formatCents(123456789)).toBe("$1,234,567.89");
-    expect(formatCents(-1230)).toBe("-$12.30");
-    expect(formatCents(0)).toBe("$0.00");
+  it("formats en-NG naira", () => {
+    expect(formatCents(12_195_056)).toBe("₦121,950.56");
+    expect(formatCents(123456789)).toBe("₦1,234,567.89");
+    expect(formatCents(-1230)).toBe("-₦12.30");
+    expect(formatCents(0)).toBe("₦0.00");
   });
 
   it("formats plain values for editing", () => {

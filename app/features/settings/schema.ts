@@ -47,7 +47,7 @@ export const businessProfileSchema = z.object({
   line1: optionalText(120),
   line2: optionalText(120),
   city: optionalText(60),
-  province: optionalText(40),
+  state: optionalText(40),
   postalCode: optionalText(12),
   phone: optionalText(30),
   email: optionalEmail,
@@ -55,13 +55,13 @@ export const businessProfileSchema = z.object({
 });
 
 export const taxRegistrationSchema = z.object({
-  gstNumber: optionalText(30),
-  pstNumber: optionalText(30),
+  tin: optionalText(30),
+  rcNumber: optionalText(30),
 });
 
 export const taxRateSchema = z.object({
   id: z.string().optional(),
-  name: z.string().trim().min(1, "Name the tax, e.g. GST").max(40),
+  name: z.string().trim().min(1, "Name the tax, e.g. VAT").max(40),
   rateBp: percentToBp("Rate", 30),
   appliesTo: z.enum(["services", "products", "both"]),
   isDefault: z
@@ -91,18 +91,17 @@ export const documentDefaultsSchema = z.object({
   defaultTerms: optionalText(5000),
 });
 
+/** Bank transfer details (Nigeria): account numbers are 10-digit NUBANs. */
 export const paymentInstructionsSchema = z.object({
-  etransferEmail: optionalEmail,
-  etransferAutoDeposit: z
+  bankName: optionalText(80),
+  accountName: optionalText(120),
+  accountNumber: z
     .string()
+    .trim()
     .optional()
-    .transform((v) => v === "on"),
-  etransferNote: optionalText(300),
-  chequePayee: optionalText(120),
-  mailingLine1: optionalText(120),
-  mailingCity: optionalText(60),
-  mailingProvince: optionalText(40),
-  mailingPostalCode: optionalText(12),
+    .transform((v) => (v ? v.replace(/\s+/g, "") : null))
+    .refine((v) => v === null || /^\d{10}$/.test(v), "Enter the 10-digit account number"),
+  paymentNote: optionalText(300),
 });
 
 export const brandColorSchema = z.object({

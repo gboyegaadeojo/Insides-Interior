@@ -1,5 +1,7 @@
 // Human wording for activity rows (timelines on client, project and document pages).
 
+import { BUSINESS_TZ, LOCALE } from "~/domain/locale";
+
 const LABELS: Record<string, string> = {
   "client.created": "Client added",
   "client.updated": "Details updated",
@@ -25,12 +27,12 @@ export function activityLabel(action: string, data?: Record<string, unknown> | n
   return detail ? `${base}: ${detail}` : base;
 }
 
-const RELATIVE = new Intl.RelativeTimeFormat("en-CA", { numeric: "auto" });
-const DATE = new Intl.DateTimeFormat("en-CA", {
+const RELATIVE = new Intl.RelativeTimeFormat(LOCALE, { numeric: "auto" });
+const DATE = new Intl.DateTimeFormat(LOCALE, {
   month: "short",
   day: "numeric",
   year: "numeric",
-  timeZone: "America/Winnipeg",
+  timeZone: BUSINESS_TZ,
 });
 
 /** "2 hours ago", "yesterday", or a date for anything older than a week. */

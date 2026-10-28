@@ -4,6 +4,7 @@
 
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import { computeContent, depositFrom } from "~/domain/document";
+import { CURRENCY } from "~/domain/locale";
 import { ServiceError } from "~/features/settings/service";
 import { addDays, businessToday } from "~/lib/dates";
 import { newId } from "~/lib/ids";
@@ -76,6 +77,7 @@ export async function createQuote(
       createdBy: ctx.user.id,
       clientId: opts.clientId ?? null,
       projectId: opts.projectId ?? null,
+      currency: CURRENCY,
       status: "draft",
       draftContent: content,
       draftTotalCents: 0,
@@ -371,6 +373,7 @@ export async function duplicateQuote(ctx: RequestContext, id: string) {
       clientId: quote.clientId,
       siteId: quote.siteId,
       projectId: quote.projectId,
+      currency: CURRENCY,
       title: quote.title ? `${quote.title} (copy)` : null,
       status: "draft",
       draftContent: copy,
