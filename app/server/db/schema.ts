@@ -10,7 +10,7 @@
 // expected shape: timestamps as integer milliseconds, booleans as integers.
 
 import { sql } from "drizzle-orm";
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, sqliteTable, sqliteView, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const now = sql`(strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))`;
 
@@ -791,3 +791,24 @@ export const jobRun = sqliteTable(
   },
   (t) => [uniqueIndex("job_run_key_uq").on(t.job, t.runKey)],
 );
+
+// ---------- Views (migration 0002_views.sql; SPEC 8.3 derived values) ----------
+
+export const clientBalance = sqliteView("client_balance", {
+  clientId: text("client_id").notNull(),
+  businessId: text("business_id").notNull(),
+  billedCents: integer("billed_cents").notNull(),
+  paidCents: integer("paid_cents").notNull(),
+  creditsAppliedCents: integer("credits_applied_cents").notNull(),
+  creditAvailableCents: integer("credit_available_cents").notNull(),
+  lastActivityAt: text("last_activity_at"),
+}).existing();
+
+export const projectFinancials = sqliteView("project_financials", {
+  projectId: text("project_id").notNull(),
+  businessId: text("business_id").notNull(),
+  contractCents: integer("contract_cents").notNull(),
+  invoicedCents: integer("invoiced_cents").notNull(),
+  paidCents: integer("paid_cents").notNull(),
+  expensesCents: integer("expenses_cents").notNull(),
+}).existing();

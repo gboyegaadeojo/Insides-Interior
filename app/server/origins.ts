@@ -1,6 +1,6 @@
 /** Origins allowed to serve the app and sign in: APP_URL plus TRUSTED_ORIGINS (comma list, `*` wildcards). */
 export function allowedOrigins(env: Pick<Env, "APP_URL" | "TRUSTED_ORIGINS">): string[] {
-  return [env.APP_URL, ...env.TRUSTED_ORIGINS.split(",")].map((o) => o.trim()).filter(Boolean);
+  return [env.APP_URL, ...(env.TRUSTED_ORIGINS ?? "").split(",")].map((o) => o.trim()).filter(Boolean);
 }
 
 export function originMatches(origin: string, pattern: string): boolean {
