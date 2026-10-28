@@ -1,6 +1,6 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { inviteStaff, setMemberDisabled } from "~/features/team/service";
+import { inviteMember, setMemberDisabled } from "~/features/team/service";
 import { createAuth } from "~/server/auth";
 import { getDb, schema } from "~/server/db";
 import { E2E_OWNER_EMAIL } from "~/server/db/seed-sql";
@@ -67,7 +67,11 @@ describe("magic link sign-in (FR-AUTH-01/03)", () => {
 describe("staff (FR-AUTH-04)", () => {
   it("an invited person can sign in as staff; turning access off signs them out", async () => {
     const ctx = ownerContext();
-    await inviteStaff(ctx, appRequest("/settings/team"), { name: "Sam Helper", email: "sam@example.com" });
+    await inviteMember(ctx, appRequest("/settings/team"), {
+      name: "Sam Helper",
+      email: "sam@example.com",
+      role: "staff",
+    });
     const { response } = await signInWith("sam@example.com");
     const cookie = sessionCookie(response!);
     const staff = await getUser(testEnv, appRequest("/", { headers: { cookie } }));
@@ -79,11 +83,32 @@ describe("staff (FR-AUTH-04)", () => {
     expect(retry.response?.headers.get("location") ?? "error=").toMatch(/error=/);
   });
 
-  it("can't invite someone twice or disable the owner", async () => {
+  it("can't invite someone twice or turn off your own access", async () => {
     const ctx = ownerContext();
-    await expect(inviteStaff(ctx, appRequest("/"), { name: "Dup", email: E2E_OWNER_EMAIL })).rejects.toThrow(
-      /already/,
-    );
-    await expect(setMemberDisabled(ctx, ctx.user.id, true)).rejects.toThrow(/owner/);
+    await expect(
+      inviteMember(ctx, appRequest("/"), { name: "Dup", email: E2E_OWNER_EMAIL, role: "staff" }),
+    ).rejects.toThrow(/already/);
+    await expect(setMemberDisabled(ctx, ctx.user.id, true)).rejects.toThrow(/your own/);
+  });
+});
+
+describe("a second owner (handover)", () => {
+  it("an invited owner gets full access and can turn off the first owner", async () => {
+    const first = ownerContext();
+    await inviteMember(first, appRequest("/settings/team"), {
+      name: "New Owner",
+      email: "new.owner@example.com",
+      role: "owner",
+    });
+    const { response } = await signInWith("new.owner@example.com");
+    const cookie = sessionCookie(response!);
+    const second = await getUser(testEnv, appRequest("/", { headers: { cookie } }));
+    expect(second).toMatchObject({ role: "owner", name: "New Owner" });
+
+    const secondCtx = { ...first, user: second! };
+    await setMemberDisabled(secondCtx, first.user.id, true);
+    const [row] = await getDb(testEnv).select().from(schema.user).where(eq(schema.user.id, first.user.id));
+    expect(row!.disabledAt).not.toBeNull();
+    await expect(setMemberDisabled(secondCtx, second!.id, true)).rejects.toThrow(/your own/);
   });
 });

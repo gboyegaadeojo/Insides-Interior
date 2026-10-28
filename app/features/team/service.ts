@@ -1,6 +1,7 @@
-// Team (FR-AUTH-03/04): the owner invites staff; there is no registration.
-// An invitation creates the user row (the sign-in allow-list) and emails a
-// magic link.
+// Team (FR-AUTH-03/04): an owner invites staff or another owner; there is no
+// registration. An invitation creates the user row (the sign-in allow-list)
+// and emails a magic link. Owners can turn off anyone's access but their own,
+// so the business always keeps at least one active owner.
 
 import { and, asc, eq } from "drizzle-orm";
 import type { z } from "zod";
@@ -32,7 +33,7 @@ async function sendSignInLink(ctx: RequestContext, request: Request, email: stri
   await auth.api.signInMagicLink({ body: { email, callbackURL: "/" }, headers: request.headers });
 }
 
-export async function inviteStaff(
+export async function inviteMember(
   ctx: RequestContext,
   request: Request,
   input: z.output<typeof inviteSchema>,
@@ -46,7 +47,7 @@ export async function inviteStaff(
       id,
       name: input.name,
       email: input.email,
-      role: "staff",
+      role: input.role,
       businessId: ctx.user.businessId,
       emailVerified: false,
       createdAt: now,
@@ -58,7 +59,7 @@ export async function inviteStaff(
       entityType: "user",
       entityId: id,
       action: "team.invited",
-      data: { email: input.email },
+      data: { email: input.email, role: input.role },
     }),
   ]);
   await sendSignInLink(ctx, request, input.email, input.name);
@@ -73,8 +74,8 @@ export async function resendInvite(ctx: RequestContext, request: Request, userId
 
 /** Disabling signs the person out everywhere; history is kept. */
 export async function setMemberDisabled(ctx: RequestContext, userId: string, disabled: boolean) {
-  const member = await teamMember(ctx, userId);
-  if (member.role === "owner") throw new ServiceError("The owner's access can't be turned off");
+  if (userId === ctx.user.id) throw new ServiceError("You can't turn off your own access");
+  await teamMember(ctx, userId);
   await ctx.db.batch([
     ctx.db
       .update(schema.user)

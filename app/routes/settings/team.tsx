@@ -1,4 +1,5 @@
 import { Send, UserCheck, UserPlus, UserX } from "lucide-react";
+import * as React from "react";
 import { Form, useNavigation } from "react-router";
 import { SectionHeader } from "~/components/settings/section-header";
 import { SettingsForm, useIntentErrors } from "~/components/settings/settings-form";
@@ -6,9 +7,10 @@ import { Avatar } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { TextField } from "~/components/ui/field";
+import { SegmentedControl } from "~/components/ui/segmented-control";
 import { runIntent, runService } from "~/features/settings/action";
 import { inviteSchema } from "~/features/settings/schema";
-import { inviteStaff, listTeam, resendInvite, setMemberDisabled } from "~/features/team/service";
+import { inviteMember, listTeam, resendInvite, setMemberDisabled } from "~/features/team/service";
 import { cn } from "~/lib/utils";
 import { assertSameOrigin, requireOwner } from "~/server/session";
 import type { Route } from "./+types/team";
@@ -28,7 +30,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       intent,
       inviteSchema,
       form,
-      (input) => inviteStaff(ctx, request, input),
+      (input) => inviteMember(ctx, request, input),
       "Invitation sent",
     );
   }
@@ -46,12 +48,13 @@ export default function TeamSettings({ loaderData }: Route.ComponentProps) {
   const errors = useIntentErrors("invite");
   const navigation = useNavigation();
   const pendingIntent = navigation.formData?.get("intent");
+  const [role, setRole] = React.useState<"staff" | "owner">("staff");
 
   return (
     <div className="flex flex-col gap-6">
       <SectionHeader
         title="Team"
-        description="Staff can quote, invoice and record payments. They can't change settings, void invoices or delete payments."
+        description="Owners have full access. Staff can quote, invoice and record payments; they can't change settings, void invoices or delete payments."
       />
       <Card>
         <CardHeader>
@@ -76,7 +79,7 @@ export default function TeamSettings({ loaderData }: Route.ComponentProps) {
                       : ""}
                 </p>
               </div>
-              {member.role === "staff" && (
+              {member.id !== loaderData.me && (
                 <div className="flex gap-2">
                   {!member.disabledAt && (
                     <Form method="post">
@@ -109,7 +112,20 @@ export default function TeamSettings({ loaderData }: Route.ComponentProps) {
         </ul>
       </Card>
 
-      <SettingsForm intent="invite" title="Invite staff" submitLabel="Send invitation">
+      <SettingsForm intent="invite" title="Invite someone" submitLabel="Send invitation">
+        <div className="flex flex-col gap-2">
+          <span className="text-label font-semibold">Access</span>
+          <SegmentedControl
+            label="Access"
+            value={role}
+            onValueChange={setRole}
+            segments={[
+              { value: "staff", label: "Staff" },
+              { value: "owner", label: "Owner (full access)" },
+            ]}
+          />
+          <input type="hidden" name="role" value={role} />
+        </div>
         <div className="grid gap-4 tablet:grid-cols-2">
           <TextField label="Name" name="name" autoComplete="off" error={errors.name} required />
           <TextField
