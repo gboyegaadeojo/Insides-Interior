@@ -41,6 +41,7 @@ import {
   updateClient,
 } from "~/features/clients/service";
 import { ClientFields } from "~/features/clients/ui/client-form";
+import { NewQuoteButton } from "~/features/quotes/ui/new-quote-button";
 import { ServiceError } from "~/features/settings/service";
 import { activityLabel, relativeTime } from "~/lib/activity-label";
 import { type FieldErrors, parseForm } from "~/lib/form";
@@ -203,6 +204,7 @@ export default function ClientProfile({ loaderData }: Route.ComponentProps) {
       </Card>
 
       <div className="flex flex-wrap gap-2">
+        {!client.archivedAt && <NewQuoteButton clientId={client.id} size="md" variant="primary" />}
         <Button variant="secondary" onClick={() => edit.show()}>
           <Pencil aria-hidden />
           Edit
@@ -299,6 +301,7 @@ export default function ClientProfile({ loaderData }: Route.ComponentProps) {
             tone="plum"
             title="No quotes or invoices yet"
             description="Quotes and invoices for this client will be listed here."
+            action={client.archivedAt ? undefined : <NewQuoteButton clientId={client.id} size="md" />}
           />
         ) : (
           <Card padding="compact">
@@ -307,11 +310,21 @@ export default function ClientProfile({ loaderData }: Route.ComponentProps) {
                 ...quotes.map((q) => ({ ...q, kind: "Quote" })),
                 ...invoices.map((i) => ({ ...i, title: null, kind: "Invoice" })),
               ].map((doc) => (
-                <li key={doc.id} className="flex items-center gap-3 py-2">
-                  <span className="flex-1">
-                    {doc.kind} {doc.number ?? "draft"}
-                    {doc.title && <span className="text-secondary"> · {doc.title}</span>}
-                  </span>
+                <li key={doc.id} className="flex min-h-11 items-center gap-3 py-2">
+                  {doc.kind === "Quote" ? (
+                    <Link
+                      to={`/quotes/${doc.id}`}
+                      className="flex-1 font-semibold text-plum-ink underline-offset-2 hover:underline"
+                    >
+                      {doc.kind} {doc.number ?? "draft"}
+                      {doc.title && <span className="font-normal text-secondary"> · {doc.title}</span>}
+                    </Link>
+                  ) : (
+                    <span className="flex-1">
+                      {doc.kind} {doc.number ?? "draft"}
+                      {doc.title && <span className="text-secondary"> · {doc.title}</span>}
+                    </span>
+                  )}
                   <StatusBadge status={doc.status} size="sm" />
                 </li>
               ))}

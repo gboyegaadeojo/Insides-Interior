@@ -31,7 +31,8 @@ export function ClientCombobox({
 }: {
   name?: string;
   defaultValue?: string | null;
-  onChange?: (clientId: string | null) => void;
+  /** Called with the client id and its display name. */
+  onChange?: (clientId: string | null, name: string | null) => void;
   error?: string;
   label?: string;
 }) {
@@ -46,9 +47,13 @@ export function ClientCombobox({
     if (list.state === "idle" && !list.data) list.load("/api/clients");
   }, [list]);
 
-  function select(next: string | null) {
+  function select(next: string | null, name?: string) {
     setValue(next);
-    onChange?.(next);
+    const known = [
+      ...((list.data && "options" in list.data ? list.data.options : undefined) ?? []),
+      ...created,
+    ];
+    onChange?.(next, name ?? known.find((o) => o.value === next)?.label ?? null);
   }
 
   async function createClient(event: React.FormEvent<HTMLFormElement>) {
@@ -67,7 +72,7 @@ export function ClientCombobox({
         return;
       }
       setCreated((c) => [...c, result.client]);
-      select(result.client.value);
+      select(result.client.value, result.client.label);
       setDraft(null);
     } catch {
       setCreateErrors({ form: "Couldn't save the client. Check your connection and try again." });
@@ -89,7 +94,7 @@ export function ClientCombobox({
         label={label}
         options={options}
         value={value}
-        onValueChange={select}
+        onValueChange={(next) => select(next)}
         placeholder={list.state === "loading" && !list.data ? "Loading clients…" : "Choose a client"}
         searchPlaceholder="Search clients"
         emptyText="No clients match"

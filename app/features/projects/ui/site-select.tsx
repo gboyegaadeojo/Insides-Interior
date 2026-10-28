@@ -3,14 +3,27 @@ import { useFetcher } from "react-router";
 import { Select } from "~/components/ui/field";
 import type { loader as clientsLoader } from "~/routes/api.clients";
 
-/** Site picker that loads the chosen client's job addresses (FR-CLI-02). */
+export interface SiteOption {
+  id: string;
+  label: string;
+  address: string;
+}
+
+/**
+ * Site picker that loads the chosen client's job addresses (FR-CLI-02).
+ * Uncontrolled inside forms (posts `siteId`), or controlled via value/onChange.
+ */
 export function SiteSelect({
   clientId,
   defaultValue,
+  value,
+  onChange,
   error,
 }: {
   clientId: string | null;
   defaultValue?: string | null;
+  value?: string | null;
+  onChange?: (site: SiteOption | null) => void;
   error?: string;
 }) {
   const fetcher = useFetcher<typeof clientsLoader>();
@@ -18,13 +31,16 @@ export function SiteSelect({
     if (clientId) fetcher.load(`/api/clients?sites=${encodeURIComponent(clientId)}`);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reload only when the client changes
   }, [clientId]);
-  const sites = (fetcher.data && "sites" in fetcher.data ? fetcher.data.sites : undefined) ?? [];
+  const sites: SiteOption[] =
+    (fetcher.data && "sites" in fetcher.data ? fetcher.data.sites : undefined) ?? [];
+  const controlled = value !== undefined;
   return (
     <Select
       label="Site"
       name="siteId"
-      defaultValue={defaultValue ?? ""}
-      key={`${clientId}:${sites.length}`}
+      {...(controlled ? { value: value ?? "" } : { defaultValue: defaultValue ?? "" })}
+      onChange={(e) => onChange?.(sites.find((s) => s.id === e.target.value) ?? null)}
+      key={controlled ? clientId : `${clientId}:${sites.length}`}
       disabled={!clientId || fetcher.state === "loading"}
       hint={
         clientId && sites.length === 0 && fetcher.state === "idle"

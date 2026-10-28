@@ -1,0 +1,339 @@
+/* DocumentRenderer (SPEC 6.10 DS-DOC). Paper is always light; the business
+   brand colour comes in as --doc-brand / --doc-on-brand. US Letter in print. */
+
+.doc {
+  position: relative;
+  box-sizing: border-box;
+  width: 8.5in;
+  min-height: 11in;
+  padding: 0.6in 0.6in 0.7in;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family:
+    "Inter Variable",
+    Inter,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  font-size: 10pt;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+}
+
+.doc p {
+  margin: 0;
+}
+
+.doc-header {
+  display: flex;
+  justify-content: space-between;
+  gap: 24pt;
+}
+
+.doc-logo {
+  display: block;
+  max-height: 0.7in;
+  max-width: 2.6in;
+  object-fit: contain;
+  margin-bottom: 8pt;
+}
+
+.doc-business-name {
+  font-family: "Fraunces Variable", Fraunces, Georgia, serif;
+  font-size: 16pt;
+  font-weight: 600;
+  margin-bottom: 6pt !important;
+}
+
+.doc-business p {
+  color: var(--text-secondary);
+}
+
+.doc-title-block {
+  text-align: right;
+}
+
+.doc-title {
+  margin: 0;
+  font-family: "Fraunces Variable", Fraunces, Georgia, serif;
+  font-size: 26pt;
+  font-weight: 600;
+  line-height: 1.1;
+  color: var(--doc-brand);
+}
+
+.doc-number {
+  font-weight: 600;
+  margin-top: 2pt !important;
+}
+
+.doc-dates {
+  display: grid;
+  grid-template-columns: auto auto;
+  justify-content: end;
+  gap: 1pt 10pt;
+  margin: 6pt 0 0;
+  color: var(--text-secondary);
+}
+
+.doc-dates dd {
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.doc-rule {
+  height: 3pt;
+  border-radius: 2pt;
+  background: var(--doc-brand);
+  margin: 14pt 0 16pt;
+}
+
+.doc-parties {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12pt 36pt;
+  margin-bottom: 14pt;
+}
+
+.doc-label {
+  margin: 0 0 3pt;
+  font-size: 8pt;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.doc-muted {
+  color: var(--text-secondary);
+}
+
+.doc-empty {
+  padding: 24pt 0;
+  text-align: center;
+}
+
+.doc-section {
+  margin-top: 14pt;
+}
+
+.doc-section-title {
+  margin: 0 0 4pt;
+  font-family: "Fraunces Variable", Fraunces, Georgia, serif;
+  font-size: 13pt;
+  font-weight: 600;
+  color: var(--doc-brand);
+  break-after: avoid;
+}
+
+.doc-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.doc-table thead {
+  display: table-header-group;
+}
+
+.doc-table th {
+  padding: 4pt 4pt;
+  border-bottom: 1pt solid var(--border);
+  text-align: left;
+  font-size: 8pt;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.doc-table td {
+  padding: 5pt 4pt;
+  border-bottom: 0.5pt solid var(--border);
+  vertical-align: top;
+}
+
+.doc-table tr {
+  break-inside: avoid;
+}
+
+.doc-table .num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.doc-table th:first-child,
+.doc-table td:first-child {
+  width: 52%;
+  padding-left: 0;
+}
+
+.doc-table th:last-child,
+.doc-table td:last-child {
+  padding-right: 0;
+}
+
+.doc-line-title {
+  font-weight: 600;
+}
+
+.doc-details {
+  margin-top: 2pt;
+  color: var(--text-secondary);
+}
+
+.doc-details ul {
+  margin: 2pt 0;
+  padding-left: 14pt;
+  list-style: disc;
+}
+
+.doc-details strong {
+  color: var(--text-primary);
+}
+
+.doc-meta {
+  display: block;
+  margin-top: 2pt;
+  font-size: 8pt;
+  color: var(--text-secondary);
+}
+
+.doc-options {
+  margin-top: 8pt;
+  padding: 6pt 8pt;
+  border: 1pt dashed var(--border);
+  border-radius: 6pt;
+}
+
+.doc-excluded td {
+  color: var(--text-secondary);
+}
+
+.doc-totals {
+  margin-top: 18pt;
+  margin-left: auto;
+  width: 3.4in;
+  break-inside: avoid;
+}
+
+.doc-totals dl {
+  margin: 0;
+}
+
+.doc-totals dl > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 12pt;
+  padding: 3pt 0;
+}
+
+.doc-totals dt {
+  color: var(--text-secondary);
+}
+
+.doc-totals dd {
+  margin: 0;
+  text-align: right;
+  white-space: nowrap;
+}
+
+.doc-totals .doc-total {
+  margin: 4pt 0;
+  padding: 6pt 8pt;
+  border-radius: 6pt;
+  background: var(--doc-brand);
+  color: var(--doc-on-brand);
+  font-size: 12pt;
+  font-weight: 700;
+}
+
+.doc-totals .doc-total dt {
+  color: inherit;
+}
+
+.doc-registrations {
+  margin-top: 6pt !important;
+  font-size: 8pt;
+  color: var(--text-secondary);
+  text-align: right;
+}
+
+.doc-block {
+  margin-top: 16pt;
+  break-inside: avoid;
+}
+
+.doc-prewrap {
+  white-space: pre-line;
+}
+
+.doc-terms {
+  font-size: 8.5pt;
+  color: var(--text-secondary);
+}
+
+.doc-footer {
+  margin-top: 24pt;
+  padding-top: 8pt;
+  border-top: 0.5pt solid var(--border);
+  font-size: 8pt;
+  color: var(--text-secondary);
+}
+
+/* Status stamps (DS-DOC): a tasteful diagonal stamp. */
+.doc-stamp {
+  position: absolute;
+  top: 1.6in;
+  right: 0.7in;
+  padding: 4pt 14pt;
+  border: 3pt solid currentColor;
+  border-radius: 6pt;
+  font-family: "Fraunces Variable", Fraunces, Georgia, serif;
+  font-size: 24pt;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  transform: rotate(-12deg);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+.doc-stamp-paid,
+.doc-stamp-approved {
+  color: var(--sage-base);
+}
+
+.doc-stamp-void {
+  color: var(--danger-base);
+}
+
+.doc-stamp-revised {
+  color: var(--indigo-base);
+}
+
+@page {
+  size: Letter;
+  margin: 0.5in 0.5in 0.6in;
+
+  @bottom-right {
+    content: "Page " counter(page) " of " counter(pages);
+    font-family: Inter, sans-serif;
+    font-size: 8pt;
+    color: #5c554d;
+  }
+}
+
+@media print {
+  html,
+  body {
+    background: white !important;
+  }
+
+  .doc {
+    width: auto;
+    min-height: 0;
+    padding: 0;
+  }
+}

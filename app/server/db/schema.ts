@@ -414,9 +414,8 @@ export const quote = sqliteTable(
   {
     id: text().primaryKey(),
     ...owned,
-    clientId: text()
-      .notNull()
-      .references(() => client.id),
+    /** Null only while a draft has no client yet; required to send. */
+    clientId: text().references(() => client.id),
     projectId: text().references(() => project.id),
     siteId: text().references(() => site.id),
     title: text(),
@@ -484,9 +483,8 @@ export const invoice = sqliteTable(
   {
     id: text().primaryKey(),
     ...owned,
-    clientId: text()
-      .notNull()
-      .references(() => client.id),
+    /** Null only while a draft has no client yet; required to send. */
+    clientId: text().references(() => client.id),
     projectId: text().references(() => project.id),
     quoteId: text().references(() => quote.id),
     kind: text({ enum: ["standard", "deposit", "progress", "final"] })
