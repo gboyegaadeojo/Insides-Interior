@@ -100,7 +100,7 @@ export function MoneyField({
             required={rest.required}
             aria-describedby={describedBy}
             aria-invalid={invalid || undefined}
-            className={cn(controlClass, "h-11 pl-7 text-right tabular", className)}
+            className={cn(controlClass, "h-11 pl-7 text-right tabular pointer-fine:h-10", className)}
             value={input.text}
             onFocus={input.onFocus}
             onChange={input.onChange}
@@ -144,7 +144,7 @@ export function QuantityField({
             required={rest.required}
             aria-describedby={describedBy}
             aria-invalid={invalid || undefined}
-            className={cn(controlClass, "h-11 text-right tabular", className)}
+            className={cn(controlClass, "h-11 text-right tabular pointer-fine:h-10", className)}
             value={input.text}
             onFocus={input.onFocus}
             onChange={input.onChange}

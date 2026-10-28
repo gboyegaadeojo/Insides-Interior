@@ -1,3 +1,4 @@
+import { ChevronDown } from "lucide-react";
 import * as React from "react";
 import { cn } from "~/lib/utils";
 
@@ -62,7 +63,7 @@ export const TextField = React.forwardRef<HTMLInputElement, InputBase>(
           required={required}
           aria-describedby={describedBy}
           aria-invalid={invalid || undefined}
-          className={cn(controlClass, "h-11", className)}
+          className={cn(controlClass, "h-11 pointer-fine:h-10", className)}
           {...props}
         />
       )}
@@ -104,17 +105,23 @@ export const Select = React.forwardRef<
 >(({ label, hint, error, required, fieldClassName, className, children, ...props }, ref) => (
   <Field label={label} hint={hint} error={error} required={required} className={fieldClassName}>
     {({ id, describedBy, invalid }) => (
-      <select
-        ref={ref}
-        id={id}
-        required={required}
-        aria-describedby={describedBy}
-        aria-invalid={invalid || undefined}
-        className={cn(controlClass, "h-11 appearance-auto pr-8", className)}
-        {...props}
-      >
-        {children}
-      </select>
+      <div className="relative">
+        <select
+          ref={ref}
+          id={id}
+          required={required}
+          aria-describedby={describedBy}
+          aria-invalid={invalid || undefined}
+          className={cn(controlClass, "h-11 appearance-none truncate pr-10 pointer-fine:h-10", className)}
+          {...props}
+        >
+          {children}
+        </select>
+        <ChevronDown
+          className="pointer-events-none absolute top-1/2 right-3.5 size-4 -translate-y-1/2 text-secondary"
+          aria-hidden
+        />
+      </div>
     )}
   </Field>
 ));

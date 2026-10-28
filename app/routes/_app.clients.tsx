@@ -208,15 +208,18 @@ function ClientList({ clients, query, archived, totalActive }: Route.ComponentPr
           />
         )
       ) : (
-        <ul className="flex flex-col gap-2" aria-label="Clients">
+        <ul
+          className="divide-y divide-border overflow-hidden rounded-card border border-border bg-surface shadow-card"
+          aria-label="Clients"
+        >
           {clients.map((client) => (
             <li key={client.id}>
               <NavLink
                 to={`/clients/${client.id}${params.toString() ? `?${params}` : ""}`}
                 className={({ isActive }) =>
                   cn(
-                    "flex min-h-16 items-center gap-3 rounded-card border bg-surface px-3 py-2.5 transition-colors duration-fast hover:bg-surface-2",
-                    isActive ? "border-terracotta-base bg-terracotta-tint/40" : "border-border",
+                    "flex min-h-16 items-center gap-3 px-4 py-3 transition-colors duration-fast hover:bg-surface-2",
+                    isActive && "bg-terracotta-tint shadow-[inset_3px_0_0_var(--terracotta-base)]",
                   )
                 }
               >

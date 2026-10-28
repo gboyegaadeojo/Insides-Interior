@@ -144,12 +144,15 @@ export default function Quotes({ loaderData }: Route.ComponentProps) {
           />
         )
       ) : (
-        <ul className="@container flex flex-col gap-2" aria-label="Quotes">
+        <ul
+          className="@container divide-y divide-border overflow-hidden rounded-card border border-border bg-surface shadow-card"
+          aria-label="Quotes"
+        >
           {quotes.map((q) => (
             <li key={q.id}>
               <Link
                 to={`/quotes/${q.id}`}
-                className="grid min-h-16 grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 rounded-card border border-border bg-surface px-3 py-2.5 transition-colors duration-fast hover:bg-surface-2 @2xl:grid-cols-[auto_minmax(0,2fr)_minmax(0,1fr)_8rem_9rem]"
+                className="grid min-h-16 grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 px-4 py-3 transition-colors duration-fast hover:bg-surface-2 @2xl:grid-cols-[auto_minmax(0,2fr)_minmax(0,1fr)_8rem_9rem]"
               >
                 {q.clientName ? (
                   <Avatar name={q.clientName} />

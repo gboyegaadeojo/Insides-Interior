@@ -46,7 +46,10 @@ export function SegmentedControl<T extends string>({
     <div
       role="radiogroup"
       aria-label={label}
-      className={cn("inline-flex max-w-full gap-1 overflow-x-auto rounded-full bg-surface-2 p-1", className)}
+      className={cn(
+        "inline-flex w-fit max-w-full gap-0.5 self-start overflow-x-auto rounded-full border border-border bg-surface-2 p-0.5",
+        className,
+      )}
     >
       {segments.map((segment, index) => {
         const selected = segment.value === value;
@@ -63,7 +66,7 @@ export function SegmentedControl<T extends string>({
             onClick={() => onValueChange(segment.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full px-4 font-semibold whitespace-nowrap transition-colors duration-standard",
+              "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full px-4 font-semibold whitespace-nowrap transition-colors duration-standard pointer-fine:h-9 pointer-fine:px-3.5",
               selected ? "bg-surface text-primary shadow-card" : "text-secondary hover:text-primary",
             )}
           >

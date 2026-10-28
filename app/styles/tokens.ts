@@ -61,17 +61,20 @@ const DARK_TINT_OPACITY = 0.16;
 // Light-mode tints for the non-hue status colours.
 const LIGHT_EXTRA_TINT_OPACITY = 0.1;
 
-/** SPEC 6.4 type scale: [phone, tablet+] sizes in px, line height, weight. */
+/**
+ * Type scale: [phone, tablet+] sizes in px, line height, weight. Two steps
+ * below SPEC 6.4 at the owner's request (docs/decisions.md); text inputs stay
+ * 16px on touch screens so iOS Safari doesn't zoom on focus (app.css).
+ */
 export const TYPE_SCALE = {
-  display: { phone: 28, tablet: 34, lineHeight: 1.15, weight: 600, font: "display" },
-  title: { phone: 24, tablet: 28, lineHeight: 1.2, weight: 600, font: "display" },
-  section: { phone: 18, tablet: 19, lineHeight: 1.3, weight: 600, font: "sans" },
-  body: { phone: 16, tablet: 16, lineHeight: 1.5, weight: 400, font: "sans" },
-  // Compact body is desktop-only at 14px; touch devices keep 15px.
-  compact: { phone: 15, tablet: 15, desktop: 14, lineHeight: 1.45, weight: 400, font: "sans" },
-  label: { phone: 13, tablet: 13, lineHeight: 1.4, weight: 600, font: "sans" },
-  kpi: { phone: 28, tablet: 32, lineHeight: 1.1, weight: 650, font: "sans" },
-  micro: { phone: 12, tablet: 12, lineHeight: 1.4, weight: 500, font: "sans" },
+  display: { phone: 24, tablet: 28, lineHeight: 1.15, weight: 500, font: "display" },
+  title: { phone: 21, tablet: 24, lineHeight: 1.2, weight: 500, font: "display" },
+  section: { phone: 16, tablet: 16, lineHeight: 1.35, weight: 600, font: "sans" },
+  body: { phone: 15, tablet: 14, lineHeight: 1.5, weight: 400, font: "sans" },
+  compact: { phone: 14, tablet: 14, desktop: 13, lineHeight: 1.45, weight: 400, font: "sans" },
+  label: { phone: 12, tablet: 12, lineHeight: 1.4, weight: 600, font: "sans" },
+  kpi: { phone: 24, tablet: 28, lineHeight: 1.1, weight: 650, font: "sans" },
+  micro: { phone: 11, tablet: 11, lineHeight: 1.4, weight: 500, font: "sans" },
 } as const;
 
 /** SPEC 6.6 motion durations in ms. */

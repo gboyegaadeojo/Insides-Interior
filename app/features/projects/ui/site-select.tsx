@@ -36,7 +36,7 @@ export function SiteSelect({
   const controlled = value !== undefined;
   return (
     <Select
-      label="Site"
+      label="Job address"
       name="siteId"
       {...(controlled ? { value: value ?? "" } : { defaultValue: defaultValue ?? "" })}
       onChange={(e) => onChange?.(sites.find((s) => s.id === e.target.value) ?? null)}
@@ -44,12 +44,12 @@ export function SiteSelect({
       disabled={!clientId || fetcher.state === "loading"}
       hint={
         clientId && sites.length === 0 && fetcher.state === "idle"
-          ? "No sites yet; add them on the client's profile"
+          ? "Where the work happens. Add addresses on the client's profile."
           : undefined
       }
       error={error}
     >
-      <option value="">{clientId ? "No specific site" : "Choose a client first"}</option>
+      <option value="">{clientId ? "Same as the client's address" : "Choose a client first"}</option>
       {sites.map((s) => (
         <option key={s.id} value={s.id}>
           {s.label}

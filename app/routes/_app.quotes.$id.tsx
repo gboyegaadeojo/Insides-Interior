@@ -328,7 +328,7 @@ function Builder({ data }: { data: LoaderData }) {
     <div className="flex flex-col gap-4 pb-24 wide:pb-0">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
         <BackLink />
-        <span className="font-display text-section">{data.quote.number ?? "Draft"}</span>
+        {data.quote.number && <span className="font-display text-section">{data.quote.number}</span>}
         <StatusBadge status="draft" />
         <SaveStatus status={status} className="min-h-11" />
         {status.state === "error" && !conflict && (
