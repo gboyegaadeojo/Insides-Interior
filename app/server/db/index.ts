@@ -7,3 +7,4 @@ export function getDb(env: Pick<Env, "DB">) {
 
 export type Db = ReturnType<typeof getDb>;
 export { schema };
+export type { Address, DocumentContent } from "./schema";
