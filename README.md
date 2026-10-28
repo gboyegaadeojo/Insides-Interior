@@ -1,4 +1,4 @@
-﻿# Insides Interior â€” Quotes & Invoicing
+# Insides Interior — Quotes & Invoicing
 
 Rebuild of the Insides Interior Limited quotes and invoicing app. The spec is [docs/SPEC.md](docs/SPEC.md);
 rules for Claude Code are in [CLAUDE.md](CLAUDE.md); build decisions are in [docs/decisions.md](docs/decisions.md).

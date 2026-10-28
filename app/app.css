@@ -1,17 +1,181 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-@import "@fontsource/inter/latin-400.css";
-@import "@fontsource/inter/latin-600.css";
-@import "@fontsource/fraunces/latin-600.css";
+@import "@fontsource-variable/inter/wght.css";
+@import "@fontsource-variable/fraunces/wght.css";
+@import "./styles/tokens.css";
 
-/* Phase 0 placeholder theme. The full token set (SPEC 6.3–6.6) lands in phase 1
-   in app/styles/tokens.css. */
-@theme {
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
-  --font-display: "Fraunces", ui-serif, Georgia, serif;
+/* Tailwind theme wired to tokens (SPEC 6.3–6.6). The default palette is removed
+   so only token colours exist as utilities (DS-COL-01). */
+@theme inline {
+  --color-*: initial;
+  --color-transparent: transparent;
+  --color-current: currentColor;
+
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-border: var(--border);
+  --color-primary: var(--text-primary);
+  --color-secondary: var(--text-secondary);
+  --color-tertiary: var(--text-tertiary);
+  --color-backdrop: var(--backdrop);
+
+  --color-teal-tint: var(--teal-tint);
+  --color-teal-base: var(--teal-base);
+  --color-teal-ink: var(--teal-ink);
+  --color-teal-on: var(--teal-on);
+  --color-plum-tint: var(--plum-tint);
+  --color-plum-base: var(--plum-base);
+  --color-plum-ink: var(--plum-ink);
+  --color-plum-on: var(--plum-on);
+  --color-indigo-tint: var(--indigo-tint);
+  --color-indigo-base: var(--indigo-base);
+  --color-indigo-ink: var(--indigo-ink);
+  --color-indigo-on: var(--indigo-on);
+  --color-terracotta-tint: var(--terracotta-tint);
+  --color-terracotta-base: var(--terracotta-base);
+  --color-terracotta-ink: var(--terracotta-ink);
+  --color-terracotta-on: var(--terracotta-on);
+  --color-saffron-tint: var(--saffron-tint);
+  --color-saffron-base: var(--saffron-base);
+  --color-saffron-ink: var(--saffron-ink);
+  --color-saffron-on: var(--saffron-on);
+  --color-sage-tint: var(--sage-tint);
+  --color-sage-base: var(--sage-base);
+  --color-sage-ink: var(--sage-ink);
+  --color-sage-on: var(--sage-on);
+  --color-roseclay-tint: var(--roseclay-tint);
+  --color-roseclay-base: var(--roseclay-base);
+  --color-roseclay-ink: var(--roseclay-ink);
+  --color-roseclay-on: var(--roseclay-on);
+  --color-ocean-tint: var(--ocean-tint);
+  --color-ocean-base: var(--ocean-base);
+  --color-ocean-ink: var(--ocean-ink);
+  --color-ocean-on: var(--ocean-on);
+  --color-slate-tint: var(--slate-tint);
+  --color-slate-base: var(--slate-base);
+  --color-slate-ink: var(--slate-ink);
+  --color-slate-on: var(--slate-on);
+  --color-danger-tint: var(--danger-tint);
+  --color-danger-base: var(--danger-base);
+  --color-danger-ink: var(--danger-ink);
+  --color-danger-on: var(--danger-on);
+
+  /* The current module's hue, set by [data-module] (ModuleHeader, rail, tiles). */
+  --color-mod-tint: var(--mod-tint);
+  --color-mod-base: var(--mod-base);
+  --color-mod-ink: var(--mod-ink);
+  --color-mod-on: var(--mod-on);
+
+  --font-sans: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-display: "Fraunces Variable", Fraunces, Georgia, serif;
+
+  --text-display: var(--fs-display);
+  --text-display--line-height: var(--lh-display);
+  --text-title: var(--fs-title);
+  --text-title--line-height: var(--lh-title);
+  --text-section: var(--fs-section);
+  --text-section--line-height: var(--lh-section);
+  --text-body: var(--fs-body);
+  --text-body--line-height: var(--lh-body);
+  --text-compact: var(--fs-compact);
+  --text-compact--line-height: var(--lh-compact);
+  --text-label: var(--fs-label);
+  --text-label--line-height: var(--lh-label);
+  --text-kpi: var(--fs-kpi);
+  --text-kpi--line-height: var(--lh-kpi);
+  --text-micro: var(--fs-micro);
+  --text-micro--line-height: var(--lh-micro);
+
+  --radius-control: var(--rad-control);
+  --radius-card: var(--rad-card);
+  --radius-sheet: var(--rad-sheet);
+
+  --shadow-card: var(--elev-card);
+  --shadow-sheet: var(--elev-sheet);
+
+  --ease-out: var(--easing-out);
+  --ease-in-out: var(--easing-in-out);
+
+  --breakpoint-tablet: 744px;
+  --breakpoint-wide: 1024px;
+  --breakpoint-desktop: 1280px;
 }
 
-html,
-body {
-  font-family: var(--font-sans);
+@layer base {
+  html {
+    background-color: var(--canvas);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Set on body as well: WebKit doesn't re-resolve inherited `color` when the
+     colour scheme changes after load. */
+  body {
+    background-color: var(--canvas);
+    color: var(--text-primary);
+    min-height: 100dvh;
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+  }
+
+  /* DS-A11Y: 2px Teal ring with 2px offset, always visible on keyboard focus. */
+  :focus-visible {
+    outline: 2px solid var(--teal-base);
+    outline-offset: 2px;
+  }
+
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  a[href] {
+    cursor: pointer;
+  }
+}
+
+@utility tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+@utility duration-fast {
+  transition-duration: var(--duration-fast);
+}
+@utility duration-standard {
+  transition-duration: var(--duration-standard);
+}
+@utility duration-panel {
+  transition-duration: var(--duration-panel);
+}
+
+@utility pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+@utility pt-safe {
+  padding-top: env(safe-area-inset-top);
+}
+@utility pl-safe {
+  padding-left: env(safe-area-inset-left);
+}
+
+/* Skeleton shimmer in the module tint (DS-MOT-06); static under reduced motion. */
+@keyframes shimmer {
+  from {
+    background-position: 200% 0;
+  }
+  to {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

@@ -1,4 +1,4 @@
-﻿name: CI
+name: CI
 
 on:
   pull_request:
@@ -51,8 +51,9 @@ jobs:
         env:
           E2E_BASE_URL: ${{ steps.upload.outputs.url }}
         run: npm run test:e2e
+      # Always uploaded: it carries the /design screenshots for review (SPEC 13).
       - uses: actions/upload-artifact@v4
-        if: failure()
+        if: always()
         with:
           name: playwright-report
           path: playwright-report/

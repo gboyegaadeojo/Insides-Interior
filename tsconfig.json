@@ -3,6 +3,7 @@
     "app/**/*",
     "workers/**/*",
     "tests/**/*",
+    "scripts/**/*",
     "*.ts",
     ".react-router/types/**/*",
     "worker-configuration.d.ts"
@@ -21,6 +22,7 @@
     "rootDirs": [".", "./.react-router/types"],
     "paths": { "~/*": ["./app/*"] },
     "verbatimModuleSyntax": true,
+    "allowImportingTsExtensions": true,
     "isolatedModules": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
