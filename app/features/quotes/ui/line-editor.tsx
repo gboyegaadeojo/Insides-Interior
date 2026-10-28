@@ -6,13 +6,19 @@ import { Button } from "~/components/ui/button";
 import { TextField } from "~/components/ui/field";
 import { ItemTypeChip } from "~/components/ui/item-type-chip";
 import { MoneyField, QuantityField } from "~/components/ui/number-fields";
-import { RichTextField } from "~/components/ui/rich-text-field";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { Skeleton } from "~/components/ui/states";
 import { MoneyText } from "~/components/ui/text";
 import { formatBp, parseMoneyToCents } from "~/domain/money";
 import type { ComputedLine } from "~/domain/tax";
 import { cn } from "~/lib/utils";
 import type { DraftAction, DraftLine } from "./use-draft";
+
+// Tiptap only runs in the browser and only once a line's options are open, so
+// it loads on demand and stays out of the Worker bundle (CPU limit, error 1102).
+const RichTextField = React.lazy(() =>
+  import("~/components/ui/rich-text-field").then((m) => ({ default: m.RichTextField })),
+);
 
 export function LineEditor({
   line,
@@ -114,12 +120,21 @@ export function LineEditor({
 
       {open && (
         <div className="flex flex-col gap-4 border-t border-border p-3">
-          <RichTextField
-            label="Details"
-            value={line.details ?? ""}
-            onChange={(html) => update({ details: html || undefined })}
-            placeholder="Fabric, finish, lining…"
-          />
+          <React.Suspense
+            fallback={
+              <div className="flex flex-col gap-1.5">
+                <span className="text-label font-semibold">Details</span>
+                <Skeleton className="h-30" />
+              </div>
+            }
+          >
+            <RichTextField
+              label="Details"
+              value={line.details ?? ""}
+              onChange={(html) => update({ details: html || undefined })}
+              placeholder="Fabric, finish, lining…"
+            />
+          </React.Suspense>
           <fieldset>
             <legend className="mb-1.5 text-label font-semibold">Taxes</legend>
             <div className="flex flex-wrap gap-2">
