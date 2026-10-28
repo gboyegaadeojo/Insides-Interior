@@ -1,4 +1,4 @@
-﻿import puppeteer from "@cloudflare/puppeteer";
+﻿import puppeteer, { type Browser } from "@cloudflare/puppeteer";
 import type { Route } from "./+types/spike.pdf";
 
 // Phase 0 PDF spike (SPEC 10.4): print /spike/pdf-sample with Browser Rendering,
@@ -17,7 +17,18 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   }
 
   const started = Date.now();
-  const browser = await puppeteer.launch(env.BROWSER);
+  let browser: Browser;
+  let reused: boolean;
+  try {
+    ({ browser, reused } = await getBrowser(env.BROWSER));
+  } catch (error) {
+    // Workers Free limits how often a new browser can start; say so plainly.
+    console.error("browser launch failed", error);
+    return Response.json(
+      { error: "Browser Rendering is busy or rate limited; retry in a minute." },
+      { status: 429, headers: { "Retry-After": "60" } },
+    );
+  }
   const launched = Date.now();
   let pdf: Uint8Array<ArrayBuffer>;
   let fonts: string[];
@@ -37,8 +48,10 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       await page.pdf({ format: "letter", printBackground: true, preferCSSPageSize: true }),
     );
     pageCount = countPdfPages(pdf);
+    await page.close();
   } finally {
-    await browser.close();
+    // Disconnect rather than close so the next render can reuse the warm browser.
+    await browser.disconnect();
   }
   const printed = Date.now();
 
@@ -57,7 +70,7 @@ export async function loader({ request, context }: Route.LoaderArgs) {
   };
 
   if (url.searchParams.get("format") === "json") {
-    return Response.json({ timings, pages: pageCount, bytes: pdf.byteLength, fonts, r2Key });
+    return Response.json({ timings, reused, pages: pageCount, bytes: pdf.byteLength, fonts, r2Key });
   }
   return new Response(pdf, {
     headers: {
@@ -69,6 +82,20 @@ export async function loader({ request, context }: Route.LoaderArgs) {
       "Cache-Control": "no-store",
     },
   });
+}
+
+// Reconnect to an idle browser session when there is one; otherwise start a new
+// browser that stays alive for 10 minutes after the last disconnect.
+async function getBrowser(endpoint: Env["BROWSER"]) {
+  const idle = (await puppeteer.sessions(endpoint)).filter((s) => !s.connectionId);
+  for (const session of idle) {
+    try {
+      return { browser: await puppeteer.connect(endpoint, session.sessionId), reused: true };
+    } catch {
+      // Session closed between listing and connecting; try the next one.
+    }
+  }
+  return { browser: await puppeteer.launch(endpoint, { keep_alive: 600_000 }), reused: false };
 }
 
 function countPdfPages(pdf: Uint8Array) {

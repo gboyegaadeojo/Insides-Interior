@@ -9,11 +9,11 @@ export function meta(_: Route.MetaArgs) {
 }
 
 const rooms = [
-  { name: "Living room", lines: 14 },
-  { name: "Primary bedroom", lines: 12 },
-  { name: "Dining room", lines: 10 },
-  { name: "Kitchen", lines: 12 },
-  { name: "Guest bedroom", lines: 10 },
+  { name: "Living room", lines: 9 },
+  { name: "Primary bedroom", lines: 8 },
+  { name: "Dining room", lines: 9 },
+  { name: "Kitchen", lines: 8 },
+  { name: "Guest bedroom", lines: 12 },
 ];
 
 function money(cents: number) {

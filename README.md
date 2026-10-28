@@ -1,4 +1,4 @@
-# Insides Interior — Quotes & Invoicing
+﻿# Insides Interior â€” Quotes & Invoicing
 
 Rebuild of the Insides Interior Limited quotes and invoicing app. The spec is [docs/SPEC.md](docs/SPEC.md);
 rules for Claude Code are in [CLAUDE.md](CLAUDE.md); build decisions are in [docs/decisions.md](docs/decisions.md).
@@ -32,6 +32,6 @@ locally through Miniflare; nothing touches Cloudflare. Emails print to the termi
 ## Deploys
 
 - Pull requests: CI runs `npm run check`, uploads a preview version at
-  `https://pr-<number>-insides-interior.<subdomain>.workers.dev` and runs Playwright against it.
-- `main`: CI runs `npm run check`, applies D1 migrations and deploys to `https://insides-interior.<subdomain>.workers.dev`.
+  `https://pr-<number>-insides-interior.insides-interior.workers.dev` and runs Playwright against it.
+- `main`: CI runs `npm run check`, applies D1 migrations and deploys to https://insides-interior.insides-interior.workers.dev.
 - Needs repository secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
