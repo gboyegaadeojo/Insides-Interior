@@ -52,6 +52,16 @@ build-level calls (salvage map calls under SPEC 2.5, vendor deviations, spike re
 | 2026-10-28 | **Contacts are hard-deleted; clients, sites, items and templates are archived.**                                                                                | Contacts are never referenced by documents; sites are (quotes keep their address).                                                                    |
 | 2026-10-28 | **"New quote for this client" on the client profile arrives with the quote builder (phase 4).**                                                                 | No dead links (SPEC 6.14).                                                                                                                            |
 
+### Phase 4 (quote builder and document renderer)
+
+| Date       | Decision                                                                                                                                                                     | Rationale                                                                                                                                         |
+| ---------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 2026-10-28 | **`quote.client_id` and `invoice.client_id` are nullable** (migration 0003); a client is required only to send.                                                              | "+ New quote" opens the builder straight away, before a client is picked (FR-QT-01).                                                              |
+| 2026-10-28 | **Autosave posts JSON to `/api/quotes/:id/draft`** with the draft version it was based on; the service updates only `WHERE draft_version = ?` and answers 409 on a mismatch. | FR-QT-06: a second tab gets "newer version" instead of silently overwriting. One request in flight; "Saved" shows only after the server confirms. |
+| 2026-10-28 | **Line descriptions are stored as sanitised HTML** (p, strong, ul, li, br only, no attributes), cleaned on save and again on render.                                         | Tiptap's bold and bullets (SPEC 7.1) with nothing that can carry script (SPEC 11.1); plain text is derived for emails and search.                 |
+| 2026-10-28 | **The builder recomputes totals in the browser with the same `app/domain/document` functions** the server uses on save; the server's figures are the ones stored.            | Live totals without trusting the client (CLAUDE.md).                                                                                              |
+| 2026-10-28 | **One `DocumentRenderer` tree** serves the builder preview, the read-only sent view and (from phase 5) the portal and PDF.                                                   | SPEC 6.9: what the owner previews is what the client gets.                                                                                        |
+
 ## PDF spike (SPEC 10.4)
 
 **Setup.** `/spike/pdf-sample` renders a static 3-page quote (Letter, five rooms, 46 lines, Fraunces

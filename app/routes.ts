@@ -3,7 +3,7 @@ import { index, layout, route, type RouteConfig } from "@react-router/dev/routes
 export default [
   layout("routes/_app.tsx", [
     index("routes/_app._index.tsx"),
-    route("quotes", "routes/_app.quotes.tsx"),
+    route("quotes", "routes/_app.quotes.tsx", [route(":id", "routes/_app.quotes.$id.tsx")]),
     route("invoices", "routes/_app.invoices.tsx"),
     route("clients", "routes/_app.clients.tsx", [
       index("routes/_app.clients._index.tsx"),
@@ -37,6 +37,7 @@ export default [
   route("brand/logo", "routes/brand.logo.ts"),
   route("files/*", "routes/files.$.ts"),
   route("api/clients", "routes/api.clients.ts"),
+  route("api/quotes/:id/draft", "routes/api.quotes.$id.draft.ts"),
   route("api/auth/*", "routes/api.auth.$.ts"),
   route("api/preferences", "routes/api.preferences.ts"),
   route("api/test/sign-in", "routes/api.test.sign-in.ts"),
