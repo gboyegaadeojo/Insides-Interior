@@ -20,10 +20,18 @@ import { formatBp, formatCents } from "~/domain/money";
 import { listTemplates } from "~/features/catalogue/service";
 import { ClientCombobox } from "~/features/clients/ui/client-combobox";
 import { formatAddress } from "~/features/clients/service";
+import { ownerThread, threadPanelData } from "~/features/conversations/service";
+import {
+  ConversationButton,
+  ConversationSheet,
+  RevisionRequests,
+} from "~/features/conversations/ui/conversation-sheet";
+import { ThreadPanel } from "~/features/conversations/ui/thread-panel";
 import { BuilderWorkspace } from "~/features/documents/ui/builder-workspace";
 import type { BuilderItem } from "~/features/documents/ui/catalogue-sheet";
 import { ClientLinkCard, HistoryCard } from "~/features/documents/ui/history-card";
 import { SendSheet } from "~/features/documents/ui/send-sheet";
+import { SentDocumentLayout } from "~/features/documents/ui/sent-layout";
 import {
   type Draft,
   type DraftAction,
@@ -58,6 +66,7 @@ import { activeTaxRates, ServiceError } from "~/features/settings/service";
 import { relativeTime } from "~/lib/activity-label";
 import { addDays, businessToday, formatDate } from "~/lib/dates";
 import type { AppHandle } from "~/lib/route-handle";
+import { useNotice } from "~/lib/use-notice";
 import { signedFileUrl } from "~/server/files";
 import { assertSameOrigin, requireUser } from "~/server/session";
 import type { Route } from "./+types/_app.invoices.$id";
@@ -73,16 +82,20 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const detail = await getInvoice(ctx, params.id);
   if (!detail) throw new Response("Not found", { status: 404 });
   const isDraft = detail.invoice.status === "draft";
-  const [business, items, templates, rates, history, setup, shareUrl, instructions] = await Promise.all([
-    loadDocBusiness(ctx.db, ctx.user.businessId),
-    isDraft ? builderCatalogue(ctx) : [],
-    isDraft ? listTemplates(ctx) : [],
-    isDraft ? activeTaxRates(ctx) : [],
-    detail.invoice.number ? invoiceHistory(ctx, params.id) : null,
-    isDraft ? invoiceSendSetup(ctx) : null,
-    detail.invoice.shareTokenSalt ? invoiceShareUrl(ctx.env, params.id, detail.invoice.shareTokenSalt) : null,
-    paymentInstructions(ctx),
-  ]);
+  const [business, items, templates, rates, history, setup, shareUrl, instructions, thread] =
+    await Promise.all([
+      loadDocBusiness(ctx.db, ctx.user.businessId),
+      isDraft ? builderCatalogue(ctx) : [],
+      isDraft ? listTemplates(ctx) : [],
+      isDraft ? activeTaxRates(ctx) : [],
+      detail.invoice.number ? invoiceHistory(ctx, params.id) : null,
+      isDraft ? invoiceSendSetup(ctx) : null,
+      detail.invoice.shareTokenSalt
+        ? invoiceShareUrl(ctx.env, params.id, detail.invoice.shareTokenSalt)
+        : null,
+      paymentInstructions(ctx),
+      detail.invoice.number ? ownerThread(ctx, "invoice", params.id) : null,
+    ]);
   const builderItems: BuilderItem[] = await Promise.all(
     items.map(async (i) => ({
       id: i.id,
@@ -147,6 +160,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     defaultTaxIds: rates.filter((r) => r.isDefault).map((r) => r.id),
     today: businessToday(),
     isOwner: ctx.user.role === "owner",
+    thread: thread && threadPanelData(thread),
   };
 }
 
@@ -232,6 +246,7 @@ type LoaderData = Route.ComponentProps["loaderData"];
 
 export default function InvoiceScreen({ loaderData }: Route.ComponentProps) {
   const actionData = useActionData<typeof action>();
+  useNotice();
   const [celebrate, setCelebrate] = React.useState(false);
   const [seen, setSeen] = React.useState(actionData);
   // Paid in full: the stamp and confetti (DS-MOT-04). State derived from a new result.
@@ -251,7 +266,8 @@ export default function InvoiceScreen({ loaderData }: Route.ComponentProps) {
     <>
       {loaderData.invoice.status === "draft" ? (
         <InvoiceBuilder
-          key={`${loaderData.invoice.id}-${loaderData.revising?.revisionNo ?? 0}`}
+          // Accepting a change request rewrites the draft on the server: start the editor afresh.
+          key={`${loaderData.invoice.id}-${loaderData.revising?.revisionNo ?? 0}-${loaderData.thread?.acceptedPending ?? 0}`}
           data={loaderData}
         />
       ) : (
@@ -396,21 +412,43 @@ function SentInvoice({ data }: { data: LoaderData }) {
         </div>
       )}
 
-      <div className="flex flex-col gap-4 wide:grid wide:grid-cols-[minmax(0,1fr)_22rem] wide:items-start wide:gap-6">
-        <div className="order-2 wide:order-1">
+      <SentDocumentLayout
+        document={
           <Paper className="mx-auto max-w-[816px]">
-            <DocumentRenderer {...props} />
+            <DocumentRenderer {...props} flaggedLines={data.thread?.openLines} />
           </Paper>
-        </div>
-        <div className="order-1 flex flex-col gap-4 wide:order-2">
-          <BalanceCard data={data} total={total} />
-          <PaymentsCard data={data} />
-          {data.shareUrl && status !== "void" && (
-            <ClientLinkCard url={data.shareUrl} busy={busy("rotate_link")} noun="invoice" />
-          )}
-          {data.history && <HistoryCard history={data.history} retrying={busy("retry_email")} />}
-        </div>
-      </div>
+        }
+        cards={
+          <>
+            <BalanceCard data={data} total={total} />
+            <PaymentsCard data={data} />
+          </>
+        }
+        thread={
+          data.thread && (
+            <ThreadPanel
+              entity="invoice"
+              entityId={data.invoice.id}
+              thread={data.thread}
+              clientName={data.client?.name ?? null}
+              canReply
+              canHide={data.isOwner}
+              hasPayments={data.settledCents > 0}
+              heading
+            />
+          )
+        }
+        threadCount={(data.thread?.openRequests ?? 0) + (data.thread?.unreadBefore ?? 0)}
+        attention={!!data.thread && (data.thread.openRequests > 0 || data.thread.unreadBefore > 0)}
+        moreCards={
+          <>
+            {data.shareUrl && status !== "void" && (
+              <ClientLinkCard url={data.shareUrl} busy={busy("rotate_link")} noun="invoice" />
+            )}
+            {data.history && <HistoryCard history={data.history} retrying={busy("retry_email")} />}
+          </>
+        }
+      />
 
       {canPay && data.invoice.number && (
         <RecordPaymentSheet
@@ -663,6 +701,7 @@ function InvoiceBuilder({ data }: { data: LoaderData }) {
   );
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [sending, setSending] = React.useState(false);
+  const [talking, setTalking] = React.useState(false);
   const revalidator = useRevalidator();
   const actionData = useActionData<typeof action>();
   const props = invoiceDocProps(data, draft, client, site);
@@ -708,17 +747,33 @@ function InvoiceBuilder({ data }: { data: LoaderData }) {
       {data.revising && (
         <div
           role="status"
-          className="flex items-start gap-3 rounded-card border border-indigo-base bg-indigo-tint p-4 text-indigo-ink"
+          className="flex flex-wrap items-start gap-3 rounded-card border border-indigo-base bg-indigo-tint p-4 text-indigo-ink"
         >
           <PencilLine className="mt-0.5 size-5 shrink-0" aria-hidden />
-          <p>
-            <span className="font-semibold">
-              Revising {data.invoice.number} (rev {revision}).
-            </span>{" "}
-            It goes out again under the same number as "Revised (rev {revision})"; the client sees rev{" "}
-            {data.revising.revisionNo} until then.
-          </p>
+          <div className="min-w-0 flex-1 basis-64">
+            <p>
+              <span className="font-semibold">
+                Revising {data.invoice.number} (rev {revision}).
+              </span>{" "}
+              It goes out again under the same number as "Revised (rev {revision})"; the client sees rev{" "}
+              {data.revising.revisionNo} until then.
+            </p>
+            <RevisionRequests thread={data.thread} noun="invoice" />
+          </div>
+          {data.thread && <ConversationButton thread={data.thread} onOpen={() => setTalking(true)} />}
         </div>
+      )}
+      {data.thread && (
+        <ConversationSheet
+          open={talking}
+          onOpenChange={setTalking}
+          entity="invoice"
+          entityId={data.invoice.id}
+          thread={data.thread}
+          clientName={data.client?.name ?? null}
+          canHide={data.isOwner}
+          dirty={dirty}
+        />
       )}
       {generated && !data.revising && (
         <div
@@ -775,6 +830,7 @@ function InvoiceBuilder({ data }: { data: LoaderData }) {
       <SendSheet
         open={sending}
         onOpenChange={setSending}
+        openRequests={data.thread?.openRequests ?? 0}
         noun="invoice"
         revision={revision}
         number={data.invoice.number}

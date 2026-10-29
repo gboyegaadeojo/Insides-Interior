@@ -1,7 +1,10 @@
-import { ArrowRight, Building2, FileText, Sparkles, UserPlus } from "lucide-react";
+import { ArrowRight, Building2, FileText, MessageSquareText, Sparkles, UserPlus } from "lucide-react";
 import { BUSINESS_TZ, LOCALE } from "~/domain/locale";
 import { Link } from "react-router";
+import { Avatar } from "~/components/ui/avatar";
+import { Button } from "~/components/ui/button";
 import { IconChip } from "~/components/ui/icon-chip";
+import { listThreads } from "~/features/conversations/service";
 import type { AppHandle } from "~/lib/route-handle";
 import { requireUser } from "~/server/session";
 import type { Route } from "./+types/_app._index";
@@ -16,7 +19,9 @@ export function meta() {
 }
 
 export async function loader({ request, context }: Route.LoaderArgs) {
-  await requireUser(context.cloudflare.env, request);
+  const ctx = await requireUser(context.cloudflare.env, request);
+  // FR-MSG-09: open change requests and unread messages lead "Needs you". Phase 9 adds the rest.
+  const needs = await listThreads(ctx, { filter: "open", limit: 6 });
   const now = new Date();
   const hour = Number(
     new Intl.DateTimeFormat(LOCALE, { hour: "numeric", hourCycle: "h23", timeZone: BUSINESS_TZ }).format(now),
@@ -28,7 +33,20 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     day: "numeric",
     timeZone: BUSINESS_TZ,
   }).format(now);
-  return { greeting, date };
+  return {
+    greeting,
+    date,
+    needs: needs.map((t) => ({
+      id: t.id,
+      noun: t.entityType === "quote" ? "Quote" : "Invoice",
+      number: t.number,
+      clientName: t.clientName ?? "Client",
+      openRequests: t.openRequests,
+      unread: t.ownerUnread,
+      preview: t.lastBody,
+      at: t.lastMessageAt,
+    })),
+  };
 }
 
 const STEPS = [
@@ -58,6 +76,57 @@ const STEPS = [
   },
 ] as const;
 
+function NeedsYou({ items }: { items: Route.ComponentProps["loaderData"]["needs"] }) {
+  return (
+    <section
+      aria-labelledby="needs-heading"
+      className="rounded-sheet border border-border bg-surface shadow-card"
+    >
+      <div className="flex items-center gap-3 border-b border-border px-5 py-4 tablet:px-6">
+        <MessageSquareText className="size-4.5 text-ocean-ink" aria-hidden />
+        <h2 id="needs-heading" className="font-display text-title">
+          Needs you
+        </h2>
+        <Link
+          to="/inbox"
+          className="ml-auto inline-flex min-h-11 items-center gap-1 rounded-control px-2 font-semibold text-ocean-ink hover:bg-ocean-tint"
+        >
+          Inbox
+          <ArrowRight className="size-4" aria-hidden />
+        </Link>
+      </div>
+      <ul className="divide-y divide-border">
+        {items.map((item) => (
+          <li key={item.id} className="flex items-center gap-3 px-5 py-3 tablet:px-6">
+            <Avatar name={item.clientName} />
+            <div className="min-w-0 flex-1">
+              <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                <span className="font-semibold">{item.clientName}</span>
+                {item.openRequests > 0 ? (
+                  <span className="inline-flex h-6 items-center rounded-full bg-saffron-tint px-2 text-micro font-semibold text-saffron-ink">
+                    {item.openRequests} change request{item.openRequests === 1 ? "" : "s"}
+                  </span>
+                ) : (
+                  <span className="inline-flex h-6 items-center rounded-full bg-ocean-tint px-2 text-micro font-semibold text-ocean-ink">
+                    New message
+                  </span>
+                )}
+              </p>
+              <p className="truncate text-label text-secondary">
+                {item.noun} {item.number}
+                {item.preview && ` · ${item.preview}`}
+              </p>
+            </div>
+            <Button asChild variant="secondary" className="shrink-0">
+              <Link to={`/inbox/${item.id}`}>{item.openRequests > 0 ? "Review" : "Reply"}</Link>
+            </Button>
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
+
 export default function Home({ loaderData }: Route.ComponentProps) {
   return (
     <div className="flex flex-col gap-6">
@@ -70,6 +139,8 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           Welcome to your new studio app. Three quick steps and you're ready to send your first quote.
         </p>
       </section>
+
+      {loaderData.needs.length > 0 && <NeedsYou items={loaderData.needs} />}
 
       <section
         aria-labelledby="setup-heading"

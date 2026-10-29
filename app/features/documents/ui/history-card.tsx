@@ -97,9 +97,13 @@ const EMAIL_LABEL: Record<string, string> = {
   quote_approved_client: "Approval receipt to client",
   quote_approved_owner: "Approval notice",
   quote_changes_requested_owner: "Change request notice",
+  quote_message_owner: "New message notice",
+  quote_owner_reply: "Reply to client",
   invoice_sent: "Invoice sent",
   invoice_revised: "Revision sent",
   invoice_changes_requested_owner: "Change request notice",
+  invoice_message_owner: "New message notice",
+  invoice_owner_reply: "Reply to client",
   payment_receipt: "Payment receipt",
 };
 

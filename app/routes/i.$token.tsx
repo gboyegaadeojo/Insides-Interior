@@ -1,23 +1,30 @@
 import { Ban, Check, ClipboardCopy, Download, Link2Off, MessageSquareText, PencilLine } from "lucide-react";
 import * as React from "react";
-import { data, Form, useActionData, useNavigation, useParams } from "react-router";
+import { data, useActionData, useParams } from "react-router";
 import { DocumentRenderer } from "~/components/doc/document-renderer";
 import { Button } from "~/components/ui/button";
-import { TextField, Textarea } from "~/components/ui/field";
-import { Sheet, SheetContent } from "~/components/ui/sheet";
 import { MoneyText } from "~/components/ui/text";
 import { toast } from "~/components/ui/toast";
 import { computeContent } from "~/domain/document";
 import { formatCents } from "~/domain/money";
+import { WHOLE_DOCUMENT } from "~/domain/change-requests";
 import { formatAddress } from "~/features/clients/service";
+import { openLineRefs } from "~/features/conversations/requests";
 import { PAYMENT_METHOD_LABEL } from "~/features/invoices/constants";
-import { requestChangesSchema } from "~/features/portal/schema";
+import { conversationAction } from "~/features/portal/action";
 import {
   loadPortalInvoice,
-  PortalError,
+  portalThread,
+  portalWhatChanged,
   recordInvoiceView,
-  requestInvoiceChanges,
 } from "~/features/portal/service";
+import {
+  ChangeRequestSheet,
+  lineActionFor,
+  type PortalResult,
+  PortalThread,
+  WhatChanged,
+} from "~/features/portal/ui/portal-conversation";
 import { loadDocBusiness } from "~/features/settings/doc-business";
 import { businessToday, formatDate } from "~/lib/dates";
 import { cn } from "~/lib/utils";
@@ -56,9 +63,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   }
   const { invoice, revision, client, site, payments } = portal;
   const db = getDb(env);
-  const [business, [settings]] = await Promise.all([
+  const [business, [settings], thread, whatChanged] = await Promise.all([
     loadDocBusiness(db, invoice.businessId),
     db.select().from(schema.settings).where(eq(schema.settings.businessId, invoice.businessId)),
+    print ? [] : portalThread(env, "invoice", invoice.id),
+    print ? null : portalWhatChanged(env, "invoice", invoice.id, revision),
   ]);
   const bank = {
     bankName: settings?.bankName ?? null,
@@ -115,6 +124,25 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
         receivedOn: p.receivedOn,
         method: p.method,
       })),
+      thread: thread.map((m) => ({
+        id: m.id,
+        from: m.from,
+        authorName: m.authorName,
+        body: m.body,
+        createdAt: m.createdAt,
+        hidden: false,
+        request: m.request && {
+          id: m.request.id,
+          kind: m.request.kind,
+          lineRef: m.request.lineRef,
+          lineLabel: m.request.lineLabel,
+          proposedQtyMilli: m.request.proposedQtyMilli,
+          status: m.request.status,
+          resolutionNote: m.request.resolutionNote,
+        },
+      })),
+      flaggedLines: openLineRefs(thread).filter((ref) => ref !== WHOLE_DOCUMENT),
+      whatChanged,
     },
     { headers: PORTAL_HEADERS },
   );
@@ -125,28 +153,10 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   const env = context.cloudflare.env;
   await limitPortal(env, request);
   const form = await request.formData();
-  // CLAUDE.md: a payer can only post a message or change request here.
-  if (form.get("intent") !== "request_changes") throw new Response("Not allowed", { status: 400 });
-  const parsed = requestChangesSchema.safeParse({
-    intent: "request_changes",
-    revisionId: form.get("revisionId"),
-    name: form.get("name") ?? "",
-    message: form.get("message") ?? "",
-  });
-  if (!parsed.success) {
-    const fieldErrors: Record<string, string> = {};
-    for (const issue of parsed.error.issues) fieldErrors[String(issue.path[0])] ??= issue.message;
-    return data({ ok: false as const, fieldErrors, error: null }, { status: 400 });
-  }
-  try {
-    await requestInvoiceChanges(env, params.token, parsed.data, visitorMeta(request));
-    return data({ ok: true as const, fieldErrors: {}, error: null });
-  } catch (error) {
-    if (error instanceof PortalError) {
-      return data({ ok: false as const, fieldErrors: {}, error: error.message }, { status: 409 });
-    }
-    throw error;
-  }
+  // CLAUDE.md: a payer can only post a message or a change request here.
+  const intent = form.get("intent");
+  if (intent !== "message" && intent !== "change_request") throw new Response("Not allowed", { status: 400 });
+  return conversationAction(env, "invoice", params.token, form, visitorMeta(request));
 }
 
 type LoaderData = Exclude<Route.ComponentProps["loaderData"], { state: "invalid" }>;
@@ -192,16 +202,32 @@ function docProps(d: LoaderData) {
 function Portal({ d }: { d: LoaderData }) {
   const { token } = useParams();
   const [asking, setAsking] = React.useState(false);
-  const actionData = useActionData<typeof action>();
-  const canMessage = d.state === "open" || d.state === "changes_requested";
+  const [lineRef, setLineRef] = React.useState<string>(WHOLE_DOCUMENT);
+  const actionData = useActionData<typeof action>() as PortalResult | undefined;
+  const canRequest = d.state === "open" || d.state === "changes_requested";
+  const canMessage = d.state !== "void";
+  const requestable = d.sections.flatMap((s) =>
+    s.lines.map((l) => ({
+      id: l.id,
+      description: l.description,
+      room: s.title,
+      qtyMilli: l.qtyMilli,
+      unit: l.unit,
+      locked: l.locked,
+    })),
+  );
+  const requestChange = (ref: string) => {
+    setLineRef(ref);
+    setAsking(true);
+  };
   const [handled, setHandled] = React.useState(actionData);
   if (actionData !== handled) {
     setHandled(actionData);
-    if (actionData?.ok) setAsking(false);
+    if (actionData?.ok && actionData.intent === "change_request") setAsking(false);
   }
   React.useEffect(() => {
     if (actionData?.ok)
-      toast("Your message was sent", {
+      toast(actionData.intent === "change_request" ? "Your request was sent" : "Message sent", {
         tone: "success",
         description: `${d.business.name} will reply by email.`,
       });
@@ -230,7 +256,7 @@ function Portal({ d }: { d: LoaderData }) {
         </div>
       </header>
 
-      <main className={cn("mx-auto max-w-[8.5in] px-4 pt-6 tablet:px-6", canMessage ? "pb-36" : "pb-12")}>
+      <main className={cn("mx-auto max-w-[8.5in] px-4 pt-6 tablet:px-6", canRequest ? "pb-36" : "pb-12")}>
         <p className="text-micro font-semibold tracking-[0.12em] text-secondary uppercase">
           Invoice {d.number}
           {d.revisionNo > 1 && ` · Revised (rev ${d.revisionNo})`}
@@ -241,6 +267,8 @@ function Portal({ d }: { d: LoaderData }) {
         <p className="mt-2 text-secondary">For {d.client.name}</p>
 
         <StatusBanner d={d} />
+
+        {d.whatChanged && <WhatChanged data={d.whatChanged} revisionNo={d.revisionNo} />}
 
         {d.state !== "void" && d.state !== "revising" && (
           <section
@@ -296,11 +324,28 @@ function Portal({ d }: { d: LoaderData }) {
         )}
 
         <div className="mt-6 overflow-hidden rounded-card border border-border shadow-card">
-          <DocumentRenderer {...docProps(d)} titleAs="h2" className="doc-fluid" />
+          <DocumentRenderer
+            {...docProps(d)}
+            titleAs="h2"
+            className="doc-fluid"
+            lineAction={lineActionFor(requestChange, canRequest)}
+            flaggedLines={d.flaggedLines}
+          />
         </div>
+
+        <PortalThread
+          noun="invoice"
+          businessName={d.business.name}
+          clientName={d.client.name}
+          messages={d.thread}
+          revisionId={d.revisionId}
+          canMessage={canMessage}
+          closedReason={`This invoice has been cancelled. Contact ${d.business.name} if you have questions.`}
+          result={actionData}
+        />
       </main>
 
-      {canMessage && (
+      {canRequest && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-sheet">
           <div className="mx-auto flex max-w-[8.5in] items-center gap-3 px-4 tablet:px-6">
             <div className="min-w-0 flex-1">
@@ -309,19 +354,25 @@ function Portal({ d }: { d: LoaderData }) {
               </p>
               <MoneyText cents={Math.max(0, d.balanceCents)} className="font-display text-title" />
             </div>
-            <Button type="button" variant="secondary" size="lg" onClick={() => setAsking(true)}>
+            <Button type="button" variant="secondary" size="lg" onClick={() => requestChange(WHOLE_DOCUMENT)}>
               <MessageSquareText aria-hidden />
-              Ask a question
+              Request a change
             </Button>
           </div>
         </div>
       )}
 
-      <AskSheet
-        open={asking && canMessage}
+      <ChangeRequestSheet
+        open={asking && canRequest}
         onOpenChange={setAsking}
-        d={d}
-        result={actionData && !actionData.ok ? actionData : undefined}
+        noun="invoice"
+        businessName={d.business.name}
+        clientName={d.client.name}
+        lines={requestable}
+        lineRef={lineRef}
+        onLineRef={setLineRef}
+        revisionId={d.revisionId}
+        result={actionData}
       />
     </div>
   );
@@ -408,96 +459,12 @@ function StatusBanner({ d }: { d: LoaderData }) {
       return banner(
         "border-saffron-base bg-saffron-tint text-saffron-ink",
         MessageSquareText,
-        "We've got your message",
+        "We've got your request",
         `${d.business.name} will reply by email and send a revised invoice if needed.`,
       );
     default:
       return null;
   }
-}
-
-const NAME_KEY = "insides.portal.name";
-const noSubscribe = () => () => {};
-
-function readRememberedName() {
-  try {
-    return localStorage.getItem(NAME_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function AskSheet({
-  open,
-  onOpenChange,
-  d,
-  result,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  d: LoaderData;
-  result?: { fieldErrors: Record<string, string>; error: string | null };
-}) {
-  const navigation = useNavigation();
-  const submitting = navigation.state !== "idle" && navigation.formData?.get("intent") === "request_changes";
-  const formId = React.useId();
-  // FR-MSG-02: the name is asked once and remembered on this device.
-  const remembered = React.useSyncExternalStore(noSubscribe, readRememberedName, () => null);
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        title="Ask about this invoice"
-        description={`A question, or a change you'd like. ${d.business.name} replies by email.`}
-        footer={
-          <Button type="submit" form={formId} size="lg" className="w-full" loading={submitting}>
-            Send
-          </Button>
-        }
-      >
-        <Form
-          method="post"
-          id={formId}
-          className="flex flex-col gap-5"
-          preventScrollReset
-          onSubmit={(e) => {
-            try {
-              localStorage.setItem(NAME_KEY, String(new FormData(e.currentTarget).get("name") ?? ""));
-            } catch {
-              // Private browsing: nothing to remember.
-            }
-          }}
-        >
-          <input type="hidden" name="intent" value="request_changes" />
-          <input type="hidden" name="revisionId" value={d.revisionId} />
-          {result?.error && (
-            <p
-              role="alert"
-              className="rounded-card border border-danger-base bg-danger-tint p-3 font-semibold text-danger-ink"
-            >
-              {result.error}
-            </p>
-          )}
-          <TextField
-            label="Your name"
-            name="name"
-            autoComplete="name"
-            required
-            key={remembered ?? "client"}
-            defaultValue={remembered || d.client.name}
-            error={result?.fieldErrors.name}
-          />
-          <Textarea
-            label="Your message"
-            name="message"
-            required
-            maxLength={2000}
-            className="min-h-36"
-            error={result?.fieldErrors.message}
-          />
-        </Form>
-      </SheetContent>
-    </Sheet>
-  );
 }
 
 function InvalidLink() {

@@ -29,6 +29,7 @@ export function SendSheet({
   saving,
   blocked,
   error,
+  openRequests = 0,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -48,6 +49,8 @@ export function SendSheet({
   saving: boolean;
   blocked: string | null;
   error: { error: string | null; field: string | null } | null;
+  /** Change requests still open on a revision being sent (FR-MSG-05/07). */
+  openRequests?: number;
 }) {
   const navigation = useNavigation();
   const sendingNow = navigation.state !== "idle" && navigation.formData?.get("intent") === "send";
@@ -146,6 +149,25 @@ export function SendSheet({
             maxLength={2000}
             hint={`Shown in the email above the ${noun} details`}
           />
+          {openRequests > 0 && (
+            <label className="flex min-h-11 cursor-pointer items-start gap-3 rounded-card border border-saffron-base bg-saffron-tint p-3 text-saffron-ink">
+              <input
+                type="checkbox"
+                name="resolveOpen"
+                defaultChecked
+                className="mt-0.5 size-6 shrink-0 accent-[var(--teal-base)]"
+              />
+              <span>
+                <span className="font-semibold">
+                  This revision deals with the {openRequests} open request{openRequests === 1 ? "" : "s"}
+                </span>
+                <span className="block text-label">
+                  Untick to keep {openRequests === 1 ? "it" : "them"} open: the {noun} then stays in Changes
+                  requested{noun === "quote" ? " and can't be approved" : ""}.
+                </span>
+              </span>
+            </label>
+          )}
           {wording && (
             <section
               aria-label="Email preview"

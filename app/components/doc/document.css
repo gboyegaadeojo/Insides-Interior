@@ -211,6 +211,52 @@
   color: var(--text-secondary);
 }
 
+/* A line with an open change request (FR-MSG-03): a saffron rule and a label,
+   never colour alone. */
+.doc-line-flagged td:first-child {
+  box-shadow: inset 3pt 0 0 var(--saffron-base);
+  padding-left: 9pt;
+}
+
+.doc-flag {
+  display: inline-block;
+  margin-left: 6pt;
+  padding: 0 6pt;
+  border-radius: 999px;
+  background: var(--saffron-tint);
+  color: var(--saffron-ink);
+  font-size: 8pt;
+  font-weight: 600;
+  line-height: 1.6;
+  vertical-align: 1pt;
+}
+
+/* Portal only: "Request a change" under a line. 44px tall to touch, quiet to the eye. */
+.doc-line-action {
+  display: flex;
+  width: fit-content;
+  align-items: center;
+  gap: 4pt;
+  min-height: 44px;
+  margin: -6pt 0 -10pt;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--doc-brand);
+  font: inherit;
+  font-size: 9pt;
+  font-weight: 600;
+  text-decoration: underline;
+  text-underline-offset: 2pt;
+  cursor: pointer;
+}
+
+.doc-line-action:focus-visible {
+  outline: 2px solid var(--doc-brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
 .doc-options {
   margin-top: 10pt;
   padding: 8pt 10pt;
@@ -434,6 +480,16 @@
     padding: 6pt 10pt;
   }
 
+  /* Stacked rows drop cell padding: the open-request rule moves to the row. */
+  .doc-fluid .doc-line-flagged {
+    padding-left: 9pt;
+    box-shadow: inset 3pt 0 0 var(--saffron-base);
+  }
+
+  .doc-fluid .doc-line-flagged td:first-child {
+    box-shadow: none;
+  }
+
   .doc-fluid .doc-totals {
     width: 100%;
   }
@@ -470,5 +526,9 @@
     width: auto;
     min-height: 0;
     padding: 0;
+  }
+
+  .doc-line-action {
+    display: none;
   }
 }

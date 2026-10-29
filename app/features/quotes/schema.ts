@@ -91,8 +91,16 @@ export const sendQuoteSchema = z.object({
   cc: emailList,
   bcc: emailList,
   note: z.string().trim().max(2000).optional(),
+  /** A revision that deals with the open change requests closes them (FR-MSG-05). */
+  resolveOpen: z
+    .literal("on")
+    .optional()
+    .transform((v) => v === "on"),
 });
 
-export type SendQuoteInput = z.output<typeof sendQuoteSchema>;
+/** `resolveOpen` is optional for callers other than the form (tests, retries). */
+export type SendQuoteInput = Omit<z.output<typeof sendQuoteSchema>, "resolveOpen"> & {
+  resolveOpen?: boolean;
+};
 export type DraftContentInput = z.output<typeof draftContentSchema>;
 export type DraftLine = z.output<typeof lineSchema>;

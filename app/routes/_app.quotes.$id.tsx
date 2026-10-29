@@ -54,9 +54,17 @@ import {
   sendQuote,
   sendSetup,
 } from "~/features/quotes/service";
+import { ownerThread, threadPanelData } from "~/features/conversations/service";
+import {
+  ConversationButton,
+  ConversationSheet,
+  RevisionRequests,
+} from "~/features/conversations/ui/conversation-sheet";
+import { ThreadPanel } from "~/features/conversations/ui/thread-panel";
 import { BuilderWorkspace } from "~/features/documents/ui/builder-workspace";
 import { ClientLinkCard, HistoryCard } from "~/features/documents/ui/history-card";
 import { SendSheet } from "~/features/documents/ui/send-sheet";
+import { SentDocumentLayout } from "~/features/documents/ui/sent-layout";
 import type { BuilderItem } from "~/features/documents/ui/catalogue-sheet";
 import { type Draft, type DraftAction, useDraft } from "~/features/documents/ui/use-draft";
 import { loadDocBusiness } from "~/features/settings/doc-business";
@@ -64,6 +72,7 @@ import { activeTaxRates, ServiceError } from "~/features/settings/service";
 import { relativeTime } from "~/lib/activity-label";
 import { businessToday, formatDate } from "~/lib/dates";
 import type { AppHandle } from "~/lib/route-handle";
+import { useNotice } from "~/lib/use-notice";
 import { signedFileUrl } from "~/server/files";
 import { assertSameOrigin, requireUser } from "~/server/session";
 import type { Route } from "./+types/_app.quotes.$id";
@@ -79,7 +88,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const detail = await getQuote(ctx, params.id);
   if (!detail) throw new Response("Not found", { status: 404 });
   const isDraft = detail.quote.status === "draft";
-  const [business, items, templates, rates, history, setup, shareUrl, invoices] = await Promise.all([
+  const [business, items, templates, rates, history, setup, shareUrl, invoices, thread] = await Promise.all([
     loadDocBusiness(ctx.db, ctx.user.businessId),
     isDraft ? builderCatalogue(ctx) : [],
     isDraft ? listTemplates(ctx) : [],
@@ -88,6 +97,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     isDraft ? sendSetup(ctx) : null,
     detail.quote.shareTokenSalt ? quoteShareUrl(ctx.env, params.id, detail.quote.shareTokenSalt) : null,
     detail.quote.status === "approved" ? invoicesForQuote(ctx, params.id) : [],
+    detail.quote.number ? ownerThread(ctx, "quote", params.id) : null,
   ]);
   const builderItems: BuilderItem[] = await Promise.all(
     items.map(async (i) => ({
@@ -134,6 +144,8 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     })),
     defaultTaxIds: rates.filter((r) => r.isDefault).map((r) => r.id),
     today: businessToday(),
+    thread: thread && threadPanelData(thread),
+    isOwner: ctx.user.role === "owner",
   };
 }
 
@@ -221,6 +233,7 @@ type LoaderData = Route.ComponentProps["loaderData"];
 
 export default function QuoteScreen({ loaderData }: Route.ComponentProps) {
   const actionData = useActionData<typeof action>();
+  useNotice();
   // One toast per action result (sent, revised, extended…).
   React.useEffect(() => {
     if (!actionData) return;
@@ -228,7 +241,11 @@ export default function QuoteScreen({ loaderData }: Route.ComponentProps) {
     else if (actionData.intent !== "send") toast(actionData.error ?? "That didn't work", { tone: "error" });
   }, [actionData]);
   return loaderData.quote.status === "draft" ? (
-    <Builder key={`${loaderData.quote.id}-${loaderData.revising?.revisionNo ?? 0}`} data={loaderData} />
+    <Builder
+      // Accepting a change request rewrites the draft on the server: start the editor afresh.
+      key={`${loaderData.quote.id}-${loaderData.revising?.revisionNo ?? 0}-${loaderData.thread?.acceptedPending ?? 0}`}
+      data={loaderData}
+    />
   ) : (
     <SentQuote data={loaderData} />
   );
@@ -355,19 +372,40 @@ function SentQuote({ data }: { data: LoaderData }) {
         </div>
       </div>
 
-      <div className="flex flex-col gap-4 wide:grid wide:grid-cols-[minmax(0,1fr)_22rem] wide:items-start wide:gap-6">
-        <div className="order-2 wide:order-1">
+      <SentDocumentLayout
+        document={
           <Paper className="mx-auto max-w-[816px]">
-            <DocumentRenderer {...props} />
+            <DocumentRenderer {...props} flaggedLines={data.thread?.openLines} />
           </Paper>
-        </div>
-        <div className="order-1 flex flex-col gap-4 wide:order-2">
-          {acceptance && <ApprovalCard acceptance={acceptance} projectId={data.quote.projectId} />}
-          {status === "approved" && <QuoteInvoicesCard data={data} />}
-          {data.shareUrl && <ClientLinkCard url={data.shareUrl} busy={busy("rotate_link")} noun="quote" />}
-          {data.history && <HistoryCard history={data.history} retrying={busy("retry_email")} />}
-        </div>
-      </div>
+        }
+        cards={
+          <>
+            {acceptance && <ApprovalCard acceptance={acceptance} projectId={data.quote.projectId} />}
+            {status === "approved" && <QuoteInvoicesCard data={data} />}
+          </>
+        }
+        thread={
+          data.thread && (
+            <ThreadPanel
+              entity="quote"
+              entityId={data.quote.id}
+              thread={data.thread}
+              clientName={data.client?.name ?? null}
+              canReply
+              canHide={data.isOwner}
+              heading
+            />
+          )
+        }
+        threadCount={(data.thread?.openRequests ?? 0) + (data.thread?.unreadBefore ?? 0)}
+        attention={!!data.thread && (data.thread.openRequests > 0 || data.thread.unreadBefore > 0)}
+        moreCards={
+          <>
+            {data.shareUrl && <ClientLinkCard url={data.shareUrl} busy={busy("rotate_link")} noun="quote" />}
+            {data.history && <HistoryCard history={data.history} retrying={busy("retry_email")} />}
+          </>
+        }
+      />
     </div>
   );
 }
@@ -572,6 +610,7 @@ function Builder({ data }: { data: LoaderData }) {
   );
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [sending, setSending] = React.useState(false);
+  const [talking, setTalking] = React.useState(false);
   const navigation = useNavigation();
   const revalidator = useRevalidator();
 
@@ -646,17 +685,33 @@ function Builder({ data }: { data: LoaderData }) {
       {data.revising && (
         <div
           role="status"
-          className="flex items-start gap-3 rounded-card border border-indigo-base bg-indigo-tint p-4 text-indigo-ink"
+          className="flex flex-wrap items-start gap-3 rounded-card border border-indigo-base bg-indigo-tint p-4 text-indigo-ink"
         >
           <PencilLine className="mt-0.5 size-5 shrink-0" aria-hidden />
-          <p>
-            <span className="font-semibold">
-              Revising {data.quote.number} (rev {data.revising.revisionNo + 1}).
-            </span>{" "}
-            The client still sees rev {data.revising.revisionNo} and can't approve it until you send this
-            revision or discard your changes.
-          </p>
+          <div className="min-w-0 flex-1 basis-64">
+            <p>
+              <span className="font-semibold">
+                Revising {data.quote.number} (rev {data.revising.revisionNo + 1}).
+              </span>{" "}
+              The client still sees rev {data.revising.revisionNo} and can't approve it until you send this
+              revision or discard your changes.
+            </p>
+            <RevisionRequests thread={data.thread} noun="quote" />
+          </div>
+          {data.thread && <ConversationButton thread={data.thread} onOpen={() => setTalking(true)} />}
         </div>
+      )}
+      {data.thread && (
+        <ConversationSheet
+          open={talking}
+          onOpenChange={setTalking}
+          entity="quote"
+          entityId={data.quote.id}
+          thread={data.thread}
+          clientName={data.client?.name ?? null}
+          canHide={data.isOwner}
+          dirty={dirty}
+        />
       )}
 
       <BuilderWorkspace
@@ -680,6 +735,7 @@ function Builder({ data }: { data: LoaderData }) {
       <SendSheet
         open={sending}
         onOpenChange={setSending}
+        openRequests={data.thread?.openRequests ?? 0}
         noun="quote"
         revision={data.revising ? data.revising.revisionNo + 1 : 1}
         number={data.quote.number}

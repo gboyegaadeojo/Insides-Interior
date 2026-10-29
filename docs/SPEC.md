@@ -501,7 +501,7 @@ Every quote and every invoice has one conversation thread shared by the owner (i
 
 | ID | Requirement | Priority | Acceptance criteria |
 | --- | --- | --- | --- |
-| FR-MSG-01 | One thread per quote and per invoice, shown below the document in the portal and beside it in the app | Must | Both sides see the same messages in order, timestamps in America/Winnipeg |
+| FR-MSG-01 | One thread per quote and per invoice, shown below the document in the portal and beside it in the app | Must | Both sides see the same messages in order, timestamps in Africa/Lagos |
 | FR-MSG-02 | Payer posts a general message from the portal (plain text, up to 2,000 characters); name asked once and remembered on that device | Must | Owner gets an in-app and email notification within 1 minute |
 | FR-MSG-03 | Line-level change request: on any line the payer taps "Request a change" and picks Remove this item, Change quantity, Ask a question or Other, with a note | Must | Tied to that line and revision; shows as a card in the thread and a coloured marker on the line |
 | FR-MSG-04 | Owner replies from the app; the payer receives the reply by email with a link back to the thread | Must | Reply appears in the portal and the email is logged |

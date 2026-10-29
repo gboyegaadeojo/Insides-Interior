@@ -7,14 +7,15 @@ import {
   processEmailJob,
   type EmailJob,
 } from "~/features/email/service";
-import { approveSchema, portalActionSchema } from "~/features/portal/schema";
+import { approveSchema, changeRequestSchema, portalActionSchema } from "~/features/portal/schema";
 import {
   approveQuote,
   loadPortalQuote,
   MESSAGES_PER_HOUR,
   PortalError,
+  postClientMessage,
+  raiseChangeRequest,
   recordQuoteView,
-  requestQuoteChanges,
 } from "~/features/portal/service";
 import { saveDraftSchema } from "~/features/quotes/schema";
 import {
@@ -404,11 +405,15 @@ describe("portal writes are limited to approve, message, change request (CLAUDE.
     }
     expect(
       portalActionSchema.safeParse({
-        intent: "request_changes",
+        intent: "message",
         revisionId: "x",
         name: "Amaka",
         message: "x".repeat(2001),
       }).success,
+    ).toBe(false);
+    expect(
+      portalActionSchema.safeParse({ intent: "request_changes", revisionId: "x", name: "A", message: "x" })
+        .success,
     ).toBe(false);
     expect(
       portalActionSchema.safeParse({
@@ -426,21 +431,35 @@ describe("portal writes are limited to approve, message, change request (CLAUDE.
     await send(id);
     const token = await tokenOf(id);
     const revisionId = (await loadPortalQuote(testEnv, token))!.revision.id;
-    const ask = (message: string) =>
-      requestQuoteChanges(
-        testEnv,
-        token,
-        { intent: "request_changes", revisionId, name: "Amaka", message },
-        META,
-      );
-    await ask("Please remove the cushions.");
+    await raiseChangeRequest(
+      testEnv,
+      "quote",
+      token,
+      changeRequestSchema.parse({
+        intent: "change_request",
+        revisionId,
+        name: "Amaka",
+        lineRef: "cushions",
+        kind: "remove",
+        note: "Please remove the cushions.",
+      }),
+      META,
+    );
     expect((await getQuote(ownerContext(), id))!.quote.status).toBe("changes_requested");
     const [message] = await ownerContext().db.select().from(schema.message);
     expect(message).toMatchObject({ author: "client", clientName: "Amaka", revisionId });
     expect((await emailsFor(id)).map((e) => e.template)).toContain("quote_changes_requested_owner");
 
-    for (let i = 1; i < MESSAGES_PER_HOUR; i++) await ask(`Note ${i}`);
-    await expect(ask("one too many")).rejects.toMatchObject({ code: "limit" });
+    const say = (message: string) =>
+      postClientMessage(
+        testEnv,
+        "quote",
+        token,
+        { intent: "message", revisionId, name: "Amaka", message },
+        META,
+      );
+    for (let i = 1; i < MESSAGES_PER_HOUR; i++) await say(`Note ${i}`);
+    await expect(say("one too many")).rejects.toMatchObject({ code: "limit" });
   });
 });
 

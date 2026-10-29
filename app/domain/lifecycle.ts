@@ -25,6 +25,9 @@ export const QUOTE_EVENTS = [
   "revise",
   // Owner extends the valid-until date of an expired quote (FR-QT-11).
   "extend",
+  // The owner declined or answered the last open change request without
+  // revising (FR-MSG-05): the quote is open for approval again.
+  "resolve",
 ] as const;
 export type QuoteEvent = (typeof QUOTE_EVENTS)[number];
 
@@ -52,6 +55,10 @@ export const INVOICE_EVENTS = [
   // Owner reopens an unpaid invoice as a draft; it goes out again under the
   // same number as "Revised (rev N)" (FR-INV-06). The service checks "unpaid".
   "revise",
+  // The last open change request was declined or answered (FR-MSG-05). The
+  // service then derives the status from the money (deriveInvoiceStatus), as
+  // payments do: viewed, partly paid or overdue.
+  "resolve",
 ] as const;
 export type InvoiceEvent = (typeof INVOICE_EVENTS)[number];
 
@@ -69,7 +76,12 @@ export const QUOTE_MACHINE: Machine<QuoteStatus, QuoteEvent> = {
     expire: "expired",
     revise: "draft",
   },
-  changes_requested: { send_revision: "sent", request_changes: "changes_requested", revise: "draft" },
+  changes_requested: {
+    send_revision: "sent",
+    request_changes: "changes_requested",
+    revise: "draft",
+    resolve: "viewed",
+  },
   expired: { extend: "sent", revise: "draft" },
 };
 
@@ -105,17 +117,22 @@ export const INVOICE_MACHINE: Machine<InvoiceStatus, InvoiceEvent> = {
     partial_payment: "changes_requested",
     full_payment: "paid",
     revise: "draft",
+    resolve: "viewed",
   },
   partially_paid: {
     partial_payment: "partially_paid",
     full_payment: "paid",
     mark_overdue: "overdue",
+    // FR-MSG-07: the status shows an open request, payments or not; the
+    // correction is still void and reissue (docs/decisions.md, phase 7).
+    request_changes: "changes_requested",
     // "Invoices with payments are voided and reissued" (SPEC 0.2, CLAUDE.md).
     void: "void",
   },
   overdue: {
     partial_payment: "overdue",
     full_payment: "paid",
+    request_changes: "changes_requested",
     void: "void",
     revise: "draft",
   },

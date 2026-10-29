@@ -29,6 +29,8 @@ const QUOTE_ALLOWED: Record<string, string> = {
   "changes_requested:revise": "draft",
   "expired:revise": "draft",
   "expired:extend": "sent",
+  // FR-MSG-05: the last open request declined or answered (phase 7).
+  "changes_requested:resolve": "viewed",
 };
 
 const INVOICE_ALLOWED: Record<string, string> = {
@@ -63,6 +65,10 @@ const INVOICE_ALLOWED: Record<string, string> = {
   "viewed:revise": "draft",
   "changes_requested:revise": "draft",
   "overdue:revise": "draft",
+  // FR-MSG-07: an open request shows whatever has been paid (phase 7).
+  "partially_paid:request_changes": "changes_requested",
+  "overdue:request_changes": "changes_requested",
+  "changes_requested:resolve": "viewed",
 };
 
 describe("quote lifecycle (SPEC 5.13)", () => {
@@ -108,6 +114,6 @@ describe("invoice lifecycle (SPEC 5.13)", () => {
 
   it("an invoice with payments can't be revised in place", () => {
     expect(() => invoiceTransition("partially_paid", "send_revision")).toThrow();
-    expect(() => invoiceTransition("partially_paid", "request_changes")).toThrow();
+    expect(() => invoiceTransition("partially_paid", "revise")).toThrow();
   });
 });

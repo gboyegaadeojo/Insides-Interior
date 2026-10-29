@@ -80,17 +80,28 @@ export interface DocumentRendererProps {
   titleAs?: "h1" | "h2";
   /** Optional footer content such as the approval block (portal). */
   children?: React.ReactNode;
+  /** Portal: "Request a change" on each line (FR-MSG-03). Never in the PDF. */
+  lineAction?: (line: DocLine) => React.ReactNode;
+  /** Lines with an open change request get a labelled marker (FR-MSG-03). */
+  flaggedLines?: string[];
   className?: string;
+}
+
+interface LineExtras {
+  lineAction?: DocumentRendererProps["lineAction"];
+  flagged: Set<string>;
 }
 
 function LineTable({
   lines,
   byLine,
   taxNames,
+  extras,
 }: {
   lines: DocLine[];
   byLine: DocumentTotals["byLine"];
   taxNames: Map<string, string>;
+  extras: LineExtras;
 }) {
   return (
     <table className="doc-table">
@@ -111,7 +122,13 @@ function LineTable({
       </thead>
       <tbody>
         {lines.map((line) => (
-          <LineRow key={line.id} line={line} computed={byLine.get(line.id)} taxNames={taxNames} />
+          <LineRow
+            key={line.id}
+            line={line}
+            computed={byLine.get(line.id)}
+            taxNames={taxNames}
+            extras={extras}
+          />
         ))}
       </tbody>
     </table>
@@ -122,11 +139,14 @@ function LineRow({
   line,
   computed,
   taxNames,
+  extras,
 }: {
   line: DocLine;
   computed?: ComputedLine;
   taxNames: Map<string, string>;
+  extras: LineExtras;
 }) {
+  const flagged = extras.flagged.has(line.id);
   // Excluded options still show what they would cost.
   const amount = computed?.included
     ? computed.amountCents
@@ -134,9 +154,13 @@ function LineRow({
   const discount = (computed?.lineDiscountCents ?? 0) > 0 ? computed!.lineDiscountCents : 0;
   const taxes = line.taxRateIds.map((id) => taxNames.get(id)).filter(Boolean);
   return (
-    <tr className={cn(line.optional && !line.selected && "doc-excluded")}>
+    <tr
+      className={cn(line.optional && !line.selected && "doc-excluded", flagged && "doc-line-flagged")}
+      data-line-id={line.id}
+    >
       <td>
         <span className="doc-line-title">{line.description || "Untitled line"}</span>
+        {flagged && <span className="doc-flag">Change requested</span>}
         {!isEmptyRichText(line.details) && (
           <div
             className="doc-details"
@@ -149,6 +173,7 @@ function LineRow({
             {discount > 0 && ` · discount ${formatCents(discount)}`}
           </span>
         )}
+        {extras.lineAction?.(line)}
       </td>
       <td className="num">{formatQuantity(line.qtyMilli)}</td>
       <td>{line.unit}</td>
@@ -169,6 +194,7 @@ export function DocumentRenderer(props: DocumentRendererProps) {
     : "Draft";
   const { computed } = totals;
   const Title = props.titleAs ?? "h1";
+  const extras: LineExtras = { lineAction: props.lineAction, flagged: new Set(props.flaggedLines) };
 
   return (
     <article
@@ -290,11 +316,13 @@ export function DocumentRenderer(props: DocumentRendererProps) {
         return (
           <section key={section.id} className="doc-section">
             <h2 className="doc-section-title">{section.title || "Untitled room"}</h2>
-            {regular.length > 0 && <LineTable lines={regular} byLine={totals.byLine} taxNames={taxNames} />}
+            {regular.length > 0 && (
+              <LineTable lines={regular} byLine={totals.byLine} taxNames={taxNames} extras={extras} />
+            )}
             {options.length > 0 && (
               <div className="doc-options">
                 <h3 className="doc-label">Options</h3>
-                <LineTable lines={options} byLine={totals.byLine} taxNames={taxNames} />
+                <LineTable lines={options} byLine={totals.byLine} taxNames={taxNames} extras={extras} />
               </div>
             )}
           </section>

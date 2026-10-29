@@ -691,7 +691,10 @@ export const conversation = sqliteTable(
     ownerUnread: integer().notNull().default(0),
     clientUnread: integer().notNull().default(0),
   },
-  (t) => [uniqueIndex("conversation_entity_uq").on(t.entityType, t.entityId)],
+  (t) => [
+    uniqueIndex("conversation_entity_uq").on(t.entityType, t.entityId),
+    index("conversation_business_last_idx").on(t.businessId, t.lastMessageAt),
+  ],
 );
 
 export const message = sqliteTable(
@@ -727,10 +730,14 @@ export const changeRequest = sqliteTable(
       .notNull()
       .references(() => message.id),
     revisionId: text().notNull(),
+    /** A line id of that revision, or `document` for the whole document. */
     lineRef: text().notNull(),
+    /** The line's description when asked, so the thread reads the same after the line changes. */
+    lineLabel: text(),
     kind: text({ enum: ["remove", "quantity", "question", "other"] }).notNull(),
     proposedQtyMilli: integer(),
-    status: text({ enum: ["open", "accepted", "declined"] })
+    /** `answered` closes a question (no SQL CHECK, so no migration; docs/decisions.md). */
+    status: text({ enum: ["open", "accepted", "declined", "answered"] })
       .notNull()
       .default("open"),
     resolutionNote: text(),

@@ -18,14 +18,15 @@ import {
   voidInvoice,
 } from "~/features/invoices/service";
 import { recordPaymentSchema, saveInvoiceDraftSchema } from "~/features/invoices/schema";
-import { approveSchema } from "~/features/portal/schema";
+import { approveSchema, changeRequestSchema } from "~/features/portal/schema";
 import {
   approveQuote,
   loadPortalInvoice,
   loadPortalQuote,
   PortalError,
+  postClientMessage,
+  raiseChangeRequest,
   recordInvoiceView,
-  requestInvoiceChanges,
 } from "~/features/portal/service";
 import { saveDraftSchema } from "~/features/quotes/schema";
 import { createQuote, quoteShareUrl, saveDraft, sendQuote } from "~/features/quotes/service";
@@ -394,15 +395,27 @@ describe("payer portal /i/:token (FR-INV-08)", () => {
     await recordInvoiceView(testEnv, portal, META);
     expect((await getInvoice(ctx, id))!.invoice.status).toBe("viewed");
 
-    await requestInvoiceChanges(
+    // A plain message doesn't change the status; a change request does (FR-MSG-02, 07).
+    await postClientMessage(
       testEnv,
+      "invoice",
       token,
-      {
-        intent: "request_changes",
+      { intent: "message", revisionId: portal.revision.id, name: "Amaka", message: "Thanks!" },
+      META,
+    );
+    expect((await getInvoice(ctx, id))!.invoice.status).toBe("viewed");
+    await raiseChangeRequest(
+      testEnv,
+      "invoice",
+      token,
+      changeRequestSchema.parse({
+        intent: "change_request",
         revisionId: portal.revision.id,
         name: "Amaka",
-        message: "Can I pay in two parts?",
-      },
+        lineRef: "document",
+        kind: "question",
+        note: "Can I pay in two parts?",
+      }),
       META,
     );
     expect((await getInvoice(ctx, id))!.invoice.status).toBe("changes_requested");
@@ -421,10 +434,11 @@ describe("payer portal /i/:token (FR-INV-08)", () => {
     const revisionId = (await loadPortalInvoice(testEnv, token))!.revision.id;
     await voidInvoice(ctx, id, { reason: "Duplicate", reissue: false });
     await expect(
-      requestInvoiceChanges(
+      postClientMessage(
         testEnv,
+        "invoice",
         token,
-        { intent: "request_changes", revisionId, name: "A", message: "Hi" },
+        { intent: "message", revisionId, name: "Ada", message: "Hi" },
         META,
       ),
     ).rejects.toBeInstanceOf(PortalError);
@@ -484,5 +498,6 @@ describe("numbering under load (FR-INV-02)", () => {
     expect(list.counts.outstanding).toBe(100);
     const summary = await outstandingSummary(ctx);
     expect(summary.outstandingCents).toBeGreaterThanOrEqual(100 * 1000);
-  });
+    // 300 writes in parallel: more than the default 5 s when the whole suite shares the machine.
+  }, 30_000);
 });

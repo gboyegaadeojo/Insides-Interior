@@ -31,6 +31,11 @@ import { SwipeRow } from "~/components/ui/swipe-row";
 import { MoneyText } from "~/components/ui/text";
 import { SignaturePad } from "~/components/ui/signature-pad";
 import { toast } from "~/components/ui/toast";
+import {
+  MessageItem,
+  RequestStatusChip,
+  type ThreadMessageView,
+} from "~/features/conversations/ui/thread-parts";
 import { cn } from "~/lib/utils";
 import { HUES, MOTION, NEUTRALS, PALETTE, RADII, STATUS_EXTRA, TYPE_SCALE } from "~/styles/tokens";
 import { requireOwner } from "~/server/session";
@@ -99,6 +104,52 @@ export default function Design({ loaderData }: Route.ComponentProps) {
     </div>
   );
 }
+
+const DEMO_THREAD: ThreadMessageView[] = [
+  {
+    id: "m1",
+    from: "client",
+    authorName: "Amaka Obi",
+    body: "We already have cushions.",
+    createdAt: "2026-10-29T13:34:00.000Z",
+    hidden: false,
+    request: {
+      id: "r1",
+      kind: "remove",
+      lineRef: "cushions",
+      lineLabel: "Scatter cushions",
+      proposedQtyMilli: null,
+      status: "open",
+      resolutionNote: null,
+    },
+  },
+  {
+    id: "m2",
+    from: "client",
+    authorName: "Amaka Obi",
+    body: "",
+    createdAt: "2026-10-29T13:36:00.000Z",
+    hidden: false,
+    request: {
+      id: "r2",
+      kind: "quantity",
+      lineRef: "sofa",
+      lineLabel: "Three-seater sofa",
+      proposedQtyMilli: 2000,
+      status: "declined",
+      resolutionNote: "One sofa fits the room best.",
+    },
+  },
+  {
+    id: "m3",
+    from: "team",
+    authorName: "Insides Interior",
+    body: "Done, the cushions are off. The revised quote is on its way.",
+    createdAt: "2026-10-29T14:02:00.000Z",
+    hidden: false,
+    request: null,
+  },
+];
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -373,6 +424,19 @@ function Showcase() {
           Stored values: <span className="tabular">{money ?? "empty"}</span> cents,{" "}
           <span className="tabular">{qty ?? "empty"}</span> thousandths.
         </p>
+      </Section>
+
+      <Section title="Conversation: messages and change-request cards">
+        <ol className="flex max-w-2xl flex-col gap-4">
+          {DEMO_THREAD.map((message) => (
+            <MessageItem key={message.id} message={message} noun="quote" highlight={message.id === "m1"} />
+          ))}
+        </ol>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {(["open", "accepted", "declined", "answered"] as const).map((status) => (
+            <RequestStatusChip key={status} status={status} />
+          ))}
+        </div>
       </Section>
 
       <Section title="Segmented control">

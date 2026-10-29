@@ -165,6 +165,7 @@ export function quoteSentEmail(
     note?: string;
     override?: EmailTemplateOverride;
     defaults: EmailTemplateOverride;
+    changes?: RevisionChanges;
   },
 ): RenderedEmail {
   const values: MergeValues = {
@@ -181,7 +182,10 @@ export function quoteSentEmail(
     ? `Revised quote ${opts.facts.number} (rev ${opts.revision}) from ${brand.name}`
     : renderMergeFields(wording.subject, values);
   const body = paragraphs(renderMergeFields(wording.body, values));
-  if (revised) body.push("This revision replaces the earlier version; the earlier link no longer works.");
+  if (revised) {
+    body.push(...changesBody(opts.changes));
+    body.push("This revision replaces the earlier version; the earlier link no longer works.");
+  }
   const { html, text } = layout(brand, {
     preheader: `${opts.facts.number} · ${opts.facts.total}${opts.facts.validUntil ? ` · valid until ${opts.facts.validUntil}` : ""}`,
     headline: revised ? `Your revised quote is ready` : `Your quote is ready`,
@@ -189,6 +193,7 @@ export function quoteSentEmail(
     quote: opts.note?.trim() || undefined,
     facts: [
       ["Quote", revised ? `${opts.facts.number} · rev ${opts.revision}` : opts.facts.number],
+      ...(revised ? changesFacts(opts.changes) : []),
       ["Total", opts.facts.total],
       ...(opts.facts.deposit ? ([["Deposit on approval", opts.facts.deposit]] as [string, string][]) : []),
       ...(opts.facts.validUntil ? ([["Valid until", opts.facts.validUntil]] as [string, string][]) : []),
@@ -243,7 +248,10 @@ export function quoteApprovedOwnerEmail(
   return { subject, html, text };
 }
 
-/** Changes requested, to each owner (SPEC 9.4). */
+/**
+ * New message or change request, to each owner (SPEC 9.4). A change request
+ * names the line and what was asked (`about`, e.g. "Remove this item: Cushions").
+ */
 export function changesRequestedOwnerEmail(
   brand: Brand,
   opts: {
@@ -253,18 +261,83 @@ export function changesRequestedOwnerEmail(
     number: string;
     message: string;
     url: string;
+    /** Absent for a plain message. */
+    about?: string;
   },
 ): RenderedEmail {
-  const subject = `${opts.clientName} asked for changes to ${opts.number}`;
+  const request = opts.about !== undefined;
+  const subject = request
+    ? `${opts.clientName} asked for a change to ${opts.number}`
+    : `New message from ${opts.clientName} about ${opts.number}`;
   const { html, text } = layout(brand, {
-    preheader: opts.message.slice(0, 120),
-    headline: "Changes requested",
-    body: [`${opts.authorName} asked for changes to ${opts.noun} ${opts.number}:`],
-    quote: opts.message,
-    button: { label: `Open ${opts.noun}`, url: opts.url },
-    footnote: `Reply from the app by revising the ${opts.noun}; the client gets the new version by email.`,
+    preheader: (opts.about ? `${opts.about}. ` : "") + opts.message.slice(0, 120),
+    headline: request ? "Change requested" : "New message",
+    body: [
+      request
+        ? `${opts.authorName} asked for a change to ${opts.noun} ${opts.number}: ${opts.about}.`
+        : `${opts.authorName} wrote about ${opts.noun} ${opts.number}:`,
+    ],
+    quote: opts.message || undefined,
+    button: { label: "Open conversation", url: opts.url },
+    footnote: request
+      ? `Accept, decline or reply from the app. Nothing changes on the ${opts.noun} until you send a revision.`
+      : "Reply from the app; the client gets your answer by email.",
   });
   return { subject, html, text };
+}
+
+/**
+ * The owner replied or resolved change requests, to the payer (SPEC 9.4 "Owner
+ * reply"). `outcomes` lists each resolution in plain words.
+ */
+export function ownerReplyEmail(
+  brand: Brand,
+  opts: {
+    noun: "quote" | "invoice";
+    clientName: string;
+    number: string;
+    message?: string;
+    outcomes?: string[];
+    url: string;
+  },
+): RenderedEmail {
+  const subject = `${brand.name} replied about ${opts.noun} ${opts.number}`;
+  const body = [`Hi ${firstName(opts.clientName)},`];
+  if (opts.outcomes?.length) {
+    body.push(
+      `${brand.name} has looked at your request${opts.outcomes.length === 1 ? "" : "s"} about ${opts.noun} ${opts.number}:`,
+      ...opts.outcomes,
+    );
+  } else {
+    body.push(`${brand.name} replied about ${opts.noun} ${opts.number}:`);
+  }
+  const { html, text } = layout(brand, {
+    preheader: (opts.message ?? opts.outcomes?.join(" ") ?? "").slice(0, 120),
+    headline: opts.outcomes?.length ? "An update on your request" : "You have a reply",
+    body,
+    quote: opts.message?.trim() || undefined,
+    button: { label: "View conversation", url: opts.url },
+    footnote: "You can reply on the same page; there's no need to sign in.",
+  });
+  return { subject, html, text };
+}
+
+/** "What changed" for a revised quote or invoice email (FR-MSG-06). */
+export interface RevisionChanges {
+  lines: string[];
+  totalBefore: string;
+  totalAfter: string;
+}
+
+function changesBody(changes: RevisionChanges | undefined): string[] {
+  if (!changes || changes.lines.length === 0) return [];
+  return ["What changed:", ...changes.lines.map((l) => `• ${l}`)];
+}
+
+function changesFacts(changes: RevisionChanges | undefined): [string, string][] {
+  return changes && changes.totalBefore !== changes.totalAfter
+    ? [["Previous total", changes.totalBefore]]
+    : [];
 }
 
 export interface InvoiceEmailFacts {
@@ -286,6 +359,7 @@ export function invoiceSentEmail(
     note?: string;
     override?: EmailTemplateOverride;
     defaults: EmailTemplateOverride;
+    changes?: RevisionChanges;
   },
 ): RenderedEmail {
   const values: MergeValues = {
@@ -304,7 +378,10 @@ export function invoiceSentEmail(
     ? `Revised invoice ${opts.facts.number} (rev ${opts.revision}) from ${brand.name}`
     : renderMergeFields(wording.subject, values);
   const body = paragraphs(renderMergeFields(wording.body, values));
-  if (revised) body.push("This revision replaces the earlier version; the earlier link no longer works.");
+  if (revised) {
+    body.push(...changesBody(opts.changes));
+    body.push("This revision replaces the earlier version; the earlier link no longer works.");
+  }
   const { html, text } = layout(brand, {
     preheader: `${opts.facts.number} · ${opts.facts.due} due${opts.facts.dueDate ? ` ${opts.facts.dueDate}` : ""}`,
     headline: revised ? "Your revised invoice" : "Your invoice is ready",
@@ -312,6 +389,7 @@ export function invoiceSentEmail(
     quote: opts.note?.trim() || undefined,
     facts: [
       ["Invoice", revised ? `${opts.facts.number} · rev ${opts.revision}` : opts.facts.number],
+      ...(revised ? changesFacts(opts.changes) : []),
       ["Amount due", opts.facts.due],
       ...(opts.facts.dueDate ? ([["Due", opts.facts.dueDate]] as [string, string][]) : []),
     ],
