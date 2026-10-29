@@ -7,7 +7,7 @@ export function SectionHeader({ title, description }: { title: string; descripti
     <div className="mb-4">
       <Link
         to="/settings"
-        className="mb-2 -ml-2 inline-flex min-h-11 items-center gap-1 rounded-control px-2 font-semibold text-teal-ink wide:hidden"
+        className="mb-2 -ml-2 inline-flex min-h-11 items-center gap-1 rounded-control px-2 font-semibold text-accent wide:hidden"
       >
         <ChevronLeft className="size-5" aria-hidden />
         Settings

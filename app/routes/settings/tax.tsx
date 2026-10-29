@@ -182,7 +182,7 @@ function RateForm({ rate }: { rate?: Route.ComponentProps["loaderData"]["taxRate
             type="checkbox"
             name="isDefault"
             defaultChecked={rate?.isDefault ?? true}
-            className="size-5 accent-[var(--teal-base)]"
+            className="size-5 accent-[var(--accent)]"
           />
           <span>Add to new items by default</span>
         </label>

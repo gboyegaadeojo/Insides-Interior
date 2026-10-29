@@ -142,7 +142,7 @@ export function RecordPaymentSheet({
                   if (e.target.checked) applySuggestion(rateBp);
                   else if (!cashTouched) setCash(balanceCents);
                 }}
-                className="size-6 shrink-0 accent-[var(--teal-base)]"
+                className="size-6 shrink-0 accent-[var(--accent)]"
               />
               <span>
                 <span className="font-semibold">The client deducted WHT</span>
@@ -193,7 +193,7 @@ export function RecordPaymentSheet({
               <input
                 type="checkbox"
                 name="allowCredit"
-                className="mt-0.5 size-6 shrink-0 accent-[var(--teal-base)]"
+                className="mt-0.5 size-6 shrink-0 accent-[var(--accent)]"
               />
               <span>
                 <span className="font-semibold">Keep the extra {formatCents(excess)} as client credit</span>

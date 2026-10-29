@@ -178,7 +178,7 @@ export default function BusinessSettings({ loaderData }: Route.ComponentProps) {
                 accept="image/png,image/svg+xml"
                 aria-invalid={Boolean(logoErrors.logo) || undefined}
                 aria-describedby={logoErrors.logo ? "logo-error" : undefined}
-                className="block w-full text-body file:mr-3 file:h-11 file:rounded-control file:border-0 file:bg-teal-tint file:px-4 file:font-semibold file:text-teal-ink"
+                className="block w-full text-body file:mr-3 file:h-11 file:rounded-control file:border-0 file:bg-surface-2 file:px-4 file:font-semibold file:text-primary"
               />
               {logoErrors.logo && (
                 <p id="logo-error" role="alert" className="text-label font-semibold text-danger-ink">

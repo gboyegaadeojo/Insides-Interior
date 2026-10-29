@@ -18,12 +18,12 @@ export function ItemTypeChip({ type, className }: { type: ItemType; className?: 
   return (
     <span
       className={cn(
-        "inline-flex h-6 items-center gap-1 rounded-full px-2 text-micro font-semibold",
+        "inline-flex h-[22px] shrink-0 items-center gap-1 rounded-full px-2 text-label leading-none font-semibold whitespace-nowrap",
         TONE[tone].soft,
         className,
       )}
     >
-      <Icon className="size-3.5" aria-hidden />
+      <Icon className="size-3" strokeWidth={2.4} aria-hidden />
       {label}
     </span>
   );

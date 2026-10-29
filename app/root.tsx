@@ -85,7 +85,7 @@ export function ErrorBoundary({ error }: Route.ErrorBoundaryProps) {
       <p className="mt-2 text-secondary">{details}</p>
       <a
         href="/"
-        className="mt-6 inline-flex h-11 items-center rounded-control bg-teal-base px-4 font-semibold text-teal-on"
+        className="mt-6 inline-flex h-11 items-center rounded-control bg-action px-4 font-semibold text-action-on"
       >
         Go to Home
       </a>

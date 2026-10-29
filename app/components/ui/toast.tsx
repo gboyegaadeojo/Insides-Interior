@@ -15,7 +15,7 @@ export function Toaster() {
           title: "font-semibold",
           description: "text-secondary",
           actionButton:
-            "ml-auto inline-flex h-11 shrink-0 items-center rounded-control px-3 font-semibold text-teal-ink hover:bg-teal-tint",
+            "ml-auto inline-flex h-11 shrink-0 items-center rounded-control px-3 font-semibold text-accent hover:bg-accent-tint",
           cancelButton: "inline-flex h-11 shrink-0 items-center rounded-control px-3 text-secondary",
           error: "border-danger-base",
           success: "border-sage-base",

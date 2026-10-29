@@ -52,7 +52,7 @@ export const STATUS_CONFIG: Record<
   partially_paid: { label: "Partially paid", tone: "teal", style: "tinted" },
   paid: { label: "Paid", tone: "sage", style: "solid", icon: CheckCheck },
   due_soon: { label: "Due soon", tone: "saffron", style: "tinted", icon: Clock },
-  overdue: { label: "Overdue", tone: "danger", style: "solid", icon: AlertCircle },
+  overdue: { label: "Overdue", tone: "danger", style: "tinted", icon: AlertCircle },
   declined: { label: "Declined", tone: "roseclay", style: "tinted", icon: XCircle },
   expired: { label: "Expired", tone: "roseclay", style: "tinted", icon: Clock },
   void: { label: "Void", tone: "neutral", style: "outline" },
@@ -77,9 +77,10 @@ export function StatusBadge({ status, percentPaid, revision, size = "md", classN
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border font-semibold whitespace-nowrap",
-        size === "md" ? "h-7 px-2.5 text-micro" : "h-6 px-2 text-micro",
-        config.style === "outline" && "border-current bg-surface",
+        // One spec for every badge (premium redesign 2): same height, size and weight, never wraps.
+        "inline-flex shrink-0 items-center gap-1 rounded-full border text-label leading-none font-semibold whitespace-nowrap",
+        size === "md" ? "h-6 px-2.5" : "h-[22px] px-2",
+        config.style === "outline" && "border-tertiary/45 bg-surface",
         config.style === "outline" && (tone ? tone.ink : "text-secondary"),
         config.style === "tinted" && tone && cn(tone.soft, "border-transparent"),
         config.style === "solid" && tone && cn(tone.solid, "border-transparent"),
@@ -89,7 +90,7 @@ export function StatusBadge({ status, percentPaid, revision, size = "md", classN
       {status === "partially_paid" ? (
         <ProgressRing percent={percentPaid ?? 0} />
       ) : (
-        Icon && <Icon className="size-3.5 shrink-0" aria-hidden />
+        Icon && <Icon className="size-3 shrink-0" strokeWidth={2.4} aria-hidden />
       )}
       <span className={cn(status === "void" && "line-through")}>{label}</span>
       {status === "partially_paid" && percentPaid !== undefined && (

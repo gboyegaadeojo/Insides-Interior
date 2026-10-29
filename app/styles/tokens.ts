@@ -7,40 +7,49 @@ export type Hex = `#${string}`;
 export const HUES = ["teal", "plum", "indigo", "terracotta", "saffron", "sage", "roseclay", "ocean"] as const;
 export type Hue = (typeof HUES)[number];
 
-/** SPEC 6.3 studio palette: tint, base, ink (light) and the dark-mode base. */
+/**
+ * SPEC 6.3 studio palette: tint, base, ink (light) and the dark-mode base.
+ * Premium redesign 2 (docs/decisions.md): the same eight hues, muted and
+ * desaturated, so colour carries meaning (status, avatars, charts) without
+ * shouting. Chrome stays graphite and bronze (NEUTRALS).
+ */
 export const PALETTE: Record<Hue, { label: string; tint: Hex; base: Hex; ink: Hex; dark: Hex }> = {
-  teal: { label: "Teal", tint: "#E6F4F2", base: "#0F766E", ink: "#0B4F4A", dark: "#4FD1C5" },
-  plum: { label: "Plum", tint: "#F5EBF3", base: "#8E3B7E", ink: "#5E2453", dark: "#E09BD3" },
-  indigo: { label: "Indigo", tint: "#ECEEFC", base: "#4453C4", ink: "#2C3690", dark: "#9AA6FF" },
-  terracotta: { label: "Terracotta", tint: "#FBEEE8", base: "#C2532D", ink: "#8A3418", dark: "#F4A07F" },
-  saffron: { label: "Saffron", tint: "#FCF4DD", base: "#B7800B", ink: "#7A5300", dark: "#F2C94C" },
-  sage: { label: "Sage", tint: "#EDF4EC", base: "#4E7D51", ink: "#2F5332", dark: "#9BD19E" },
-  roseclay: { label: "Rose clay", tint: "#FBEDEF", base: "#B4505F", ink: "#7D2E3A", dark: "#F2A3AE" },
-  ocean: { label: "Ocean", tint: "#E8F2FA", base: "#2563A8", ink: "#183F6C", dark: "#8EC3F5" },
+  teal: { label: "Teal", tint: "#EAF1F0", base: "#3E6F6A", ink: "#2A4F4B", dark: "#8BB9B3" },
+  plum: { label: "Plum", tint: "#F1ECF3", base: "#7C6A92", ink: "#54456A", dark: "#B9A8CF" },
+  indigo: { label: "Indigo", tint: "#ECF0F8", base: "#4A5F95", ink: "#2B4579", dark: "#A3B4DC" },
+  terracotta: { label: "Terracotta", tint: "#F6EEEA", base: "#A2634A", ink: "#6E3E2C", dark: "#D6A48F" },
+  saffron: { label: "Saffron", tint: "#FBF3E2", base: "#946200", ink: "#6E4A00", dark: "#E2C27F" },
+  sage: { label: "Sage", tint: "#EAF2EC", base: "#4F7A5E", ink: "#2E5A3E", dark: "#9EC4A9" },
+  roseclay: { label: "Rose clay", tint: "#F7EDEE", base: "#A15C66", ink: "#7A3E47", dark: "#D9A3AB" },
+  ocean: { label: "Ocean", tint: "#EAF0F5", base: "#4F6F8F", ink: "#304E6C", dark: "#9DB7D0" },
 };
 
 /** Status-only colours that are not studio hues (SPEC 6.3 status table). */
 export const STATUS_EXTRA = {
-  slate: { label: "Slate", light: "#64748B" as Hex, dark: "#94A3B8" as Hex },
-  danger: { label: "Danger", light: "#B42332" as Hex, dark: "#FF7D87" as Hex },
+  slate: { label: "Slate", light: "#6E6E73" as Hex, dark: "#A1A1A6" as Hex },
+  danger: { label: "Danger", light: "#B3261E" as Hex, dark: "#FF8A80" as Hex },
 };
 
 /**
- * Warm ivory, white and linen surfaces with charcoal text (premium redesign,
- * docs/decisions.md). text-tertiary doubles as the 3:1 outline for controls.
+ * Apple-calm neutrals (premium redesign 2, docs/decisions.md): near-neutral
+ * greys and white, graphite text, a true dark mode. text-tertiary doubles as
+ * the 3:1 outline for controls.
  */
 export const NEUTRALS: Record<string, { light: Hex; dark: Hex }> = {
-  canvas: { light: "#F8F6F1", dark: "#121110" },
-  surface: { light: "#FFFFFF", dark: "#1B1A18" },
-  "surface-2": { light: "#F0EDE6", dark: "#252320" },
-  "surface-3": { light: "#E6E1D8", dark: "#2F2C28" },
-  border: { light: "#E2DDD4", dark: "#36322D" },
-  "text-primary": { light: "#24211E", dark: "#F5F1EA" },
-  "text-secondary": { light: "#68615A", dark: "#BDB5AA" },
-  "text-tertiary": { light: "#7A7268", dark: "#9A9187" },
-  /** Primary actions: deep walnut (ivory in dark mode). */
-  action: { light: "#302B26", dark: "#F0EDE6" },
-  "action-on": { light: "#FFFFFF", dark: "#24211E" },
+  canvas: { light: "#F5F5F4", dark: "#161618" },
+  surface: { light: "#FFFFFF", dark: "#1F1F21" },
+  "surface-2": { light: "#F2F2F0", dark: "#2A2A2D" },
+  "surface-3": { light: "#E8E8E6", dark: "#333336" },
+  border: { light: "#E5E5E3", dark: "#36363A" },
+  "text-primary": { light: "#1D1D1F", dark: "#F5F5F7" },
+  "text-secondary": { light: "#636368", dark: "#A1A1A6" },
+  "text-tertiary": { light: "#76767B", dark: "#8E8E93" },
+  /** Primary actions: graphite (near-white in dark mode). */
+  action: { light: "#1D1D1F", dark: "#F5F5F7" },
+  "action-on": { light: "#FFFFFF", dark: "#161618" },
+  /** The one accent: bronze, for selection, focus, links and the current page. */
+  accent: { light: "#8A6A44", dark: "#C9A77C" },
+  "accent-tint": { light: "#F3EDE5", dark: "#2E2820" },
 };
 
 /** SPEC 6.2 / 6.3: module → signature hue. */
@@ -74,13 +83,13 @@ const LIGHT_EXTRA_TINT_OPACITY = 0.1;
  * 16px on touch screens so iOS Safari doesn't zoom on focus (app.css).
  */
 export const TYPE_SCALE = {
-  display: { phone: 24, tablet: 28, lineHeight: 1.15, weight: 500, font: "display" },
-  title: { phone: 21, tablet: 24, lineHeight: 1.2, weight: 500, font: "display" },
-  section: { phone: 16, tablet: 16, lineHeight: 1.35, weight: 600, font: "sans" },
+  display: { phone: 28, tablet: 30, lineHeight: 1.12, weight: 700, font: "display" },
+  title: { phone: 20, tablet: 20, lineHeight: 1.25, weight: 600, font: "display" },
+  section: { phone: 17, tablet: 17, lineHeight: 1.3, weight: 600, font: "sans" },
   body: { phone: 15, tablet: 14, lineHeight: 1.5, weight: 400, font: "sans" },
   compact: { phone: 14, tablet: 14, desktop: 13, lineHeight: 1.45, weight: 400, font: "sans" },
   label: { phone: 12, tablet: 12, lineHeight: 1.4, weight: 600, font: "sans" },
-  kpi: { phone: 24, tablet: 28, lineHeight: 1.1, weight: 650, font: "sans" },
+  kpi: { phone: 22, tablet: 26, lineHeight: 1.1, weight: 600, font: "sans" },
   micro: { phone: 11, tablet: 11, lineHeight: 1.4, weight: 500, font: "sans" },
 } as const;
 
@@ -95,7 +104,7 @@ export const MOTION = {
   celebrate: 900,
 } as const;
 
-export const RADII = { control: 10, card: 16, sheet: 20 } as const;
+export const RADII = { control: 10, card: 14, sheet: 18 } as const;
 
 /** Breakpoints (SPEC 6.1): tablet portrait, tablet landscape, desktop. */
 export const BREAKPOINTS = { tablet: 744, wide: 1024, desktop: 1280 } as const;
@@ -193,7 +202,7 @@ function colourBlock(theme: Theme, indent: string) {
 
 function darkExtras(indent: string) {
   return [
-    "--elev-card: 0 1px 2px rgb(0 0 0 / 30%), 0 8px 24px rgb(0 0 0 / 24%);",
+    "--elev-card: 0 0 0 1px rgb(255 255 255 / 2%);",
     "--elev-sheet: 0 24px 64px rgb(0 0 0 / 50%);",
     "--backdrop: rgb(0 0 0 / 60%);",
   ]
@@ -233,9 +242,9 @@ export function renderTokensCss(): string {
 [data-theme="light"] {
   color-scheme: light;
 ${colourBlock(light, "  ")}
-  --elev-card: 0 1px 2px rgb(36 33 30 / 4%), 0 6px 20px -8px rgb(36 33 30 / 8%);
-  --elev-sheet: 0 24px 64px -12px rgb(36 33 30 / 22%);
-  --backdrop: rgb(36 33 30 / 36%);
+  --elev-card: 0 1px 1px rgb(0 0 0 / 2%);
+  --elev-sheet: 0 24px 64px -12px rgb(0 0 0 / 20%);
+  --backdrop: rgb(0 0 0 / 32%);
 }
 
 [data-theme="dark"] {

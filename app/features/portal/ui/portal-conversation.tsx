@@ -289,7 +289,7 @@ export function ChangeRequestSheet({
                 key={k}
                 className={cn(
                   "flex min-h-12 cursor-pointer items-center gap-3 rounded-control border px-3.5 transition-colors duration-fast",
-                  chosen === k ? "border-teal-base bg-teal-tint" : "border-border hover:bg-surface-2",
+                  chosen === k ? "border-accent bg-accent-tint" : "border-border hover:bg-surface-2",
                 )}
               >
                 <input
@@ -298,7 +298,7 @@ export function ChangeRequestSheet({
                   value={k}
                   checked={chosen === k}
                   onChange={() => setKind(k)}
-                  className="size-5 shrink-0 accent-[var(--teal-base)]"
+                  className="size-5 shrink-0 accent-[var(--accent)]"
                 />
                 <span className="font-semibold">{CHANGE_KIND_LABEL[k]}</span>
               </label>

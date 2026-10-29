@@ -556,6 +556,8 @@ Primary destinations: **Home, Quotes, Invoices, Clients, Inbox**, then **More** 
 
 ### 6.3 Colour system (DS-COL)
 
+> **Premium redesign 2 (2026-10-29, docs/decisions.md).** The exact values now live in `app/styles/tokens.ts`: Apple-calm neutrals (canvas `#F5F5F4`, surface `#FFFFFF`, text `#1D1D1F`, a true dark mode `#161618`/`#1F1F21`), graphite primary actions, one bronze accent (`#8A6A44`, dark `#C9A77C`) for selection, focus, links and the current page, and the eight hues below muted and desaturated. The tables keep the roles; the token file holds the hex.
+
 #### Neutrals (the room)
 
 | Token | Light | Dark | Use |
@@ -607,8 +609,8 @@ In dark mode, tints become the base colour at 14–18% opacity over `surface`, a
 - **DS-COL-01** All colours come from tokens (CSS variables exposed as Tailwind theme values). No raw hex in components.
 - **DS-COL-02** Every text/background pair meets WCAG 2.2 AA (4.5:1 for text, 3:1 for large text and UI boundaries), in light and dark, including hover, pressed, selected and disabled states. Text on a tint uses that hue's ink.
 - **DS-COL-03** Colour is never the only signal: statuses carry words, charts carry labels or patterns, required fields carry text.
-- **DS-COL-04** Colour is meaningful, not decorative: chrome (nav, header bands, buttons) stays neutral with a walnut primary action and teal for selection; colour goes where it carries information: KPI cards with a coloured top edge and icon, colourful category chips for item types, client avatar colours, multi-colour charts, illustrated empty states, colourful + New tiles.
-- **DS-COL-05** Each KPI card uses the colour of the module it links to (Outstanding = Indigo, Quotes awaiting = Plum, Paid this month = Sage, Overdue = Danger).
+- **DS-COL-04** Colour is meaningful, not decorative: chrome (nav, header bands, buttons) stays neutral with a graphite primary action and bronze for selection and focus; colour goes where it carries information: status badges, item-type and category chips, client avatar colours, multi-colour charts, illustrated empty states. Every badge and chip shares one spec (22–24px tall, 12px semibold, never wraps).
+- **DS-COL-05** KPI cards are calm: label, figure and detail on white; only Overdue carries colour (a danger dot and wording). Each still opens the list behind its number.
 - **DS-COL-06** Client avatars: initials on one of the eight bases, chosen by hashing the client name; ink text white or near-black, whichever passes contrast.
 - **DS-COL-07** Gradients are allowed only as soft two-stop washes (tint → canvas) on empty states. No glass blur over content, no neon, no gradients behind body text.
 - **DS-COL-08** **Client-facing documents** (portal, PDF, emails) use the business brand colour from Settings plus neutrals and status colours. The app's eight-hue palette stays inside the app so documents print cleanly and look like her brand, not ours.
@@ -618,8 +620,8 @@ In dark mode, tints become the base colour at 14–18% opacity over `surface`, a
 
 | Style | Font | Size / line height (tablet & desktop) | Phone | Weight | Use |
 | --- | --- | --- | --- | --- | --- |
-| Display | Fraunces (variable serif) | 28 / 1.15 | 24 | 500 | Home greeting, document titles |
-| Page title | Fraunces | 24 / 1.2 | 21 | 500 | Module and record titles |
+| Display | Inter, tight tracking (−0.02em) | 30 / 1.12 | 28 | 700 | Home greeting, large titles |
+| Page title | Inter, tight tracking | 20 / 1.25 | 20 | 600 | Module and record titles |
 | Section title | Inter | 16 / 1.35 | 16 | 600 | Card and section headings |
 | Body | Inter | 14 / 1.5 | 15 | 400 | Main content; text fields stay 16 px on touch screens (iOS zoom) |
 | Compact body | Inter | 13 / 1.45 | 14 | 400–500 | Dense tables on desktop only |
@@ -627,6 +629,7 @@ In dark mode, tints become the base colour at 14–18% opacity over `surface`, a
 | KPI value | Inter, tabular figures | 28 / 1.1 | 24 | 650 | Key totals |
 | Micro | Inter | 11 / 1.4 | 11 | 500 | Badges, helper text (never essential instructions alone) |
 
+- **DS-TYP-00** (Premium redesign 2) One sans family for the whole interface; hierarchy comes from weight, size and grey. The serif (Fraunces) appears only on documents (business name, document title) and the logo mark.
 - **DS-TYP-01** Fallback stack: `Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`; serif fallback `Georgia, serif`. Self-host both fonts (subsetted WOFF2, `font-display: swap`).
 - **DS-TYP-02** Tabular numerals (`font-variant-numeric: tabular-nums`) everywhere money or quantities appear; amounts right-aligned in tables.
 - **DS-TYP-03** Text scales with the user's browser/OS text size up to 200% without hiding actions.
@@ -681,9 +684,9 @@ Motion makes the app feel alive and premium while explaining change. It never de
 - Tablet landscape: editor 58% left, live document preview 42% right (sticky, scales the paper).
 - Tablet portrait and phone: segmented **Edit | Preview** control at the top; a sticky bottom total bar shows Subtotal, Tax and Total and opens a breakdown sheet.
 - Client picker: searchable combobox with avatars and "Create '<name>'".
-- Sections are coloured cards with the room name in the display serif; lines show item-type chips (service Teal, product Sage, fee Saffron, allowance Ocean). Optional items carry a dotted outline and an "Optional" chip.
+- Rooms are slim ledger groups (premium redesign 2): a header row with the room name (editable in place), item count, subtotal and a "⋯" menu (move, remove); one column header (Item · Qty · Price · Amount); one compact row per line edited in place (the figures drop to a second row when the room is narrow); a quiet "Add line" row. A sticky room outline above the rooms shows every room with its subtotal and jumps to it. On a phone each line is a two-line row ("2 each × ₦5,000", amount) that opens in place to edit. Item-type chips stay small (service Teal, product Sage, fee Saffron, allowance Ocean); optional items carry an "Optional" chip and show their amount in grey.
 - Add line opens a catalogue sheet with photos, search and recent items; custom lines allowed.
-- Totals card: subtotal, discounts, each tax on its own line with its rate, total, deposit and balance due, all from the shared domain functions.
+- Summary group: the whole-document discount control, subtotal, discounts, each tax on its own line with its rate, total, deposit and balance due, all from the shared domain functions. Notes and terms fold into one row that opens to edit.
 - Leaving with unsaved changes asks for confirmation unless the draft is safely saved.
 
 **Document detail** (quote or invoice after sending). Document preview, a coloured status timeline (sent → viewed → approved/paid), payments list, conversation thread panel (right column on tablet landscape, a tab on smaller screens), and one primary action: Record payment, Send reminder, or Send revision depending on state.

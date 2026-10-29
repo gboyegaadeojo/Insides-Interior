@@ -618,7 +618,7 @@ function TemplateForm({
                 />
                 <span
                   className={cn(
-                    "block size-11 rounded-full ring-offset-2 ring-offset-surface peer-checked:ring-2 peer-checked:ring-primary peer-focus-visible:outline-2 peer-focus-visible:outline-teal-base",
+                    "block size-11 rounded-full ring-offset-2 ring-offset-surface peer-checked:ring-2 peer-checked:ring-primary peer-focus-visible:outline-2 peer-focus-visible:outline-accent",
                     TONE[hue].base,
                   )}
                 />
