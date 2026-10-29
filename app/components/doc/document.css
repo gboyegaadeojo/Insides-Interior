@@ -1,7 +1,9 @@
 /* DocumentRenderer (SPEC 6.10 DS-DOC). Paper is always light; the business
    brand colour comes in as --doc-brand / --doc-on-brand. US Letter in print.
-   Art direction: an editorial proposal. Serif display type, hairline rules in
-   the brand colour, tracked small labels, generous rows (docs/decisions.md). */
+   Art direction (premium redesign 2, docs/decisions.md): calm and editorial.
+   A light serif for the business name and title, Inter for everything else,
+   tracked small labels, tabular figures, and the brand colour used once, on
+   the rule under the header. */
 
 .doc {
   position: relative;
@@ -44,8 +46,8 @@
 
 .doc-business-name {
   font-family: "Fraunces Variable", Fraunces, Georgia, serif;
-  font-size: 19pt;
-  font-weight: 500;
+  font-size: 15pt;
+  font-weight: 400;
   letter-spacing: -0.005em;
   margin-bottom: 6pt !important;
 }
@@ -62,11 +64,11 @@
 .doc-title {
   margin: 0;
   font-family: "Fraunces Variable", Fraunces, Georgia, serif;
-  font-size: 32pt;
-  font-weight: 400;
+  font-size: 24pt;
+  font-weight: 300;
   line-height: 1;
   letter-spacing: -0.01em;
-  color: var(--doc-brand);
+  color: var(--text-primary);
 }
 
 .doc-number {
@@ -131,10 +133,10 @@
 .doc-section-title {
   margin: 0 0 2pt;
   padding-bottom: 5pt;
-  border-bottom: 0.75pt solid var(--doc-brand);
-  font-family: "Fraunces Variable", Fraunces, Georgia, serif;
-  font-size: 14pt;
-  font-weight: 500;
+  border-bottom: 0.75pt solid var(--border);
+  font-size: 10.5pt;
+  font-weight: 600;
+  letter-spacing: -0.005em;
   color: var(--text-primary);
   break-after: avoid;
 }
@@ -310,11 +312,11 @@
   white-space: nowrap;
 }
 
-/* The total sits under a brand-colour rule rather than in a filled band. */
+/* The total sits under a hairline in ink rather than in a filled band. */
 .doc-totals .doc-total {
   margin: 8pt 0 4pt;
   padding: 9pt 0 3pt !important;
-  border-top: 1pt solid var(--doc-brand);
+  border-top: 1pt solid var(--text-primary);
   align-items: baseline;
 }
 
@@ -327,10 +329,10 @@
 }
 
 .doc-totals .doc-total dd {
-  font-family: "Fraunces Variable", Fraunces, Georgia, serif;
-  font-size: 17pt;
-  font-weight: 500;
-  color: var(--doc-brand);
+  font-size: 14pt;
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  color: var(--text-primary);
 }
 
 .doc-totals .doc-balance {

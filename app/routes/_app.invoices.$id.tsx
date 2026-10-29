@@ -749,7 +749,7 @@ function VoidDialog({
         />
         {!hasPayments && (
           <label className="flex min-h-11 cursor-pointer items-center gap-3">
-            <input type="checkbox" name="reissue" className="size-6 accent-[var(--teal-base)]" />
+            <input type="checkbox" name="reissue" className="size-6 accent-[var(--accent)]" />
             Make a corrected copy to send instead
           </label>
         )}

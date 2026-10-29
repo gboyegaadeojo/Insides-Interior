@@ -110,12 +110,17 @@ function Rail({
           aria-label="Insides Interior home"
         >
           <span
-            className="inline-flex size-10 shrink-0 items-center justify-center rounded-control bg-teal-base font-display text-section text-teal-on"
+            className="inline-flex size-10 shrink-0 items-center justify-center rounded-[9px] bg-action font-doc text-section font-normal text-action-on"
             aria-hidden
           >
             I
           </span>
-          <span className={cn("hidden font-display text-section leading-tight", expanded && "wide:block")}>
+          <span
+            className={cn(
+              "hidden text-body leading-tight font-semibold tracking-tight",
+              expanded && "wide:block",
+            )}
+          >
             Insides Interior
           </span>
         </Link>
@@ -126,7 +131,7 @@ function Rail({
           type="button"
           onClick={onNew}
           className={cn(
-            "flex h-12 w-full items-center justify-center gap-2 rounded-control bg-action font-semibold text-action-on shadow-card transition-[transform,background-color] duration-fast ease-out hover:bg-action/88 active:scale-[0.98] active:duration-press",
+            "flex h-11 w-full items-center justify-center gap-2 rounded-control bg-action font-medium text-action-on transition-[transform,background-color] duration-fast ease-out hover:bg-action/88 active:scale-[0.98] active:duration-press",
           )}
         >
           <Plus className="size-5" aria-hidden />
@@ -185,8 +190,8 @@ function RailList({
                 "relative flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-control px-0.5 py-1.5 transition-colors duration-standard",
                 expanded && "wide:min-h-11 wide:flex-row wide:justify-start wide:gap-3 wide:px-2",
                 active
-                  ? "bg-surface text-primary shadow-card before:absolute before:inset-y-2.5 before:left-0 before:w-0.75 before:rounded-full before:bg-teal-base"
-                  : "text-secondary hover:bg-surface-3/60 hover:text-primary",
+                  ? "bg-surface text-primary shadow-[0_1px_2px_rgb(0_0_0/6%)]"
+                  : "text-primary hover:bg-surface-3/70",
               )}
             >
               <NavIcon icon={item.icon} active={active} />
@@ -240,9 +245,9 @@ function TopBar({
   onSearch: () => void;
 }) {
   return (
-    <header className="sticky top-0 z-20 bg-canvas/95 pt-safe backdrop-saturate-150">
+    <header className="sticky top-0 z-20 bg-canvas pt-safe">
       <div className="mx-auto flex h-16 w-full max-w-[1440px] items-center gap-2 px-[var(--gutter)]">
-        <h1 className="min-w-0 flex-1 truncate font-display text-title">{title}</h1>
+        <h1 className="min-w-0 flex-1 truncate font-display text-title font-semibold">{title}</h1>
         <button
           type="button"
           onClick={onSearch}
@@ -300,7 +305,7 @@ function TabBar({ inboxUnread, onNew }: { inboxUnread: number; onNew: () => void
             <span
               className={cn(
                 "inline-flex size-7 items-center justify-center rounded-lg [&_svg]:size-4.5",
-                moreActive && "text-teal-ink",
+                moreActive && "text-accent",
               )}
               aria-hidden
             >
@@ -336,14 +341,14 @@ function TabItem({ item, active }: { item: Destination; active: boolean }) {
   );
 }
 
-/** Navigation icon: quiet when idle, teal when it's the current page. */
+/** Navigation icon: quiet when idle, bronze when it's the current page. */
 function NavIcon({ icon: Icon, active }: { icon: LucideIcon; active: boolean }) {
   return (
     <span
       aria-hidden
       className={cn(
         "inline-flex size-7 shrink-0 items-center justify-center [&_svg]:size-4.5",
-        active ? "text-teal-ink" : "text-tertiary",
+        active ? "text-accent" : "text-tertiary",
       )}
     >
       <Icon strokeWidth={active ? 2.1 : 1.8} />

@@ -101,7 +101,7 @@ export function Combobox({
                         )}
                       </span>
                       {option.value === value && (
-                        <Check className="size-4 text-teal-base" aria-label="Selected" />
+                        <Check className="size-4 text-accent" aria-label="Selected" />
                       )}
                     </Command.Item>
                   ))}
@@ -114,7 +114,7 @@ export function Combobox({
                         setOpen(false);
                         setQuery("");
                       }}
-                      className="mt-1 flex min-h-11 cursor-pointer items-center gap-3 rounded-control border-t border-border px-3 py-2 font-semibold text-teal-ink data-[selected=true]:bg-teal-tint"
+                      className="mt-1 flex min-h-11 cursor-pointer items-center gap-3 rounded-control border-t border-border px-3 py-2 font-semibold text-accent data-[selected=true]:bg-accent-tint"
                     >
                       <Plus className="size-5" aria-hidden />
                       {query.trim() ? `Create “${query.trim()}”` : createLabel}

@@ -148,12 +148,12 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
   return (
     <main
       data-module="home"
-      className="flex min-h-dvh items-center justify-center bg-gradient-to-br from-teal-tint via-canvas to-plum-tint px-4 py-10 pt-safe pb-safe"
+      className="flex min-h-dvh items-center justify-center bg-canvas px-4 py-10 pt-safe pb-safe"
     >
       <div className="w-full max-w-md rounded-sheet border border-border bg-surface p-6 shadow-sheet tablet:p-8">
         <div className="mb-6 flex items-center gap-3">
           <span
-            className="inline-flex size-12 items-center justify-center rounded-card bg-teal-base font-display text-title text-teal-on"
+            className="inline-flex size-12 items-center justify-center rounded-card bg-action font-doc text-title text-action-on"
             aria-hidden
           >
             I
@@ -163,7 +163,7 @@ export default function SignIn({ loaderData, actionData }: Route.ComponentProps)
 
         {sent ? (
           <div role="status" aria-live="polite">
-            <MailCheck className="mb-3 size-10 text-teal-base" aria-hidden />
+            <MailCheck className="mb-3 size-10 text-accent" aria-hidden />
             <h1 className="font-display text-title">Check your email</h1>
             <p className="mt-2 text-secondary">
               We sent a sign-in link to <strong className="text-primary">{sent}</strong>. It works once and

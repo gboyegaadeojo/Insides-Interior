@@ -44,7 +44,7 @@ export function RichTextField({
         "aria-multiline": "true",
         "aria-labelledby": `${id}-label`,
         class:
-          "min-h-20 rounded-b-control border border-t-0 border-tertiary bg-surface px-3.5 py-2.5 text-body outline-none focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-teal-base [&_ul]:list-disc [&_ul]:pl-5 [&_strong]:font-semibold",
+          "min-h-20 rounded-b-control border border-t-0 border-tertiary bg-surface px-3.5 py-2.5 text-body outline-none focus-visible:outline-2 focus-visible:outline-offset-0 focus-visible:outline-accent [&_ul]:list-disc [&_ul]:pl-5 [&_strong]:font-semibold",
         ...(placeholder ? { "data-placeholder": placeholder } : {}),
       },
     },
@@ -63,7 +63,7 @@ export function RichTextField({
   });
 
   const toolButton =
-    "inline-flex size-11 items-center justify-center rounded-control text-secondary hover:bg-surface-3 aria-pressed:bg-teal-tint aria-pressed:text-teal-ink";
+    "inline-flex size-11 items-center justify-center rounded-control text-secondary hover:bg-surface-3 aria-pressed:bg-accent-tint aria-pressed:text-accent";
 
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>

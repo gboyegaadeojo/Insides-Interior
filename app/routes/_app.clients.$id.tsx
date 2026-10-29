@@ -515,7 +515,7 @@ function ContactsCard({
           <TextField label="Email" name="email" type="email" error={errors.email} />
           <TextField label="Phone" name="phone" type="tel" inputMode="tel" error={errors.phone} />
           <label className="flex min-h-11 items-center gap-3">
-            <input type="checkbox" name="isPrimary" className="size-5 accent-[var(--teal-base)]" />
+            <input type="checkbox" name="isPrimary" className="size-5 accent-[var(--accent)]" />
             Primary contact
           </label>
           <div className="flex justify-end gap-2">

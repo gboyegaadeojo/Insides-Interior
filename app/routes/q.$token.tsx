@@ -352,7 +352,7 @@ function Portal({ d }: { d: LoaderData }) {
                           return next;
                         })
                       }
-                      className="size-6 shrink-0 accent-[var(--teal-base)]"
+                      className="size-6 shrink-0 accent-[var(--accent)]"
                     />
                     <span className="min-w-0 flex-1">
                       <span className="block font-semibold">{option.description || "Option"}</span>
@@ -642,7 +642,7 @@ function ApproveSheet({
                 name="agree"
                 required
                 aria-invalid={result?.fieldErrors.agree ? true : undefined}
-                className="mt-0.5 size-6 shrink-0 accent-[var(--teal-base)]"
+                className="mt-0.5 size-6 shrink-0 accent-[var(--accent)]"
               />
               <span>
                 I approve quote {d.number} for <strong className="tabular">{formatCents(totalCents)}</strong>{" "}

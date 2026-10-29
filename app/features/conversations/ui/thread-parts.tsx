@@ -189,7 +189,7 @@ export function MessageItem({
           <p
             className={cn(
               "rounded-card px-3.5 py-2.5 [overflow-wrap:anywhere] whitespace-pre-line",
-              mine ? "bg-teal-tint text-primary" : "border border-border bg-surface",
+              mine ? "bg-accent-tint text-primary" : "border border-border bg-surface",
             )}
           >
             {message.body}

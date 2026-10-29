@@ -611,7 +611,7 @@ function ExpenseForm({
             name="billable"
             defaultChecked={expense?.billable ?? false}
             disabled={!projectId}
-            className="mt-0.5 size-5 accent-[var(--teal-base)]"
+            className="mt-0.5 size-5 accent-[var(--accent)]"
           />
           <span>
             <span className="block font-semibold">Bill this to the client</span>

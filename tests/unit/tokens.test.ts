@@ -59,6 +59,15 @@ describe.each<ThemeName>(["light", "dark"])("%s theme contrast (DS-COL-02)", (na
     }
   });
 
+  // Premium redesign 2: the bronze accent is used for links and selected text on cards and the page.
+  it("accent is AA text on surface and canvas, and a 3:1 focus ring on every neutral", () => {
+    for (const bg of ["surface", "canvas"]) {
+      expect(contrast(n("accent"), n(bg)), bg).toBeGreaterThanOrEqual(AA_TEXT);
+    }
+    for (const bg of backgrounds) expect(contrast(n("accent"), n(bg)), bg).toBeGreaterThanOrEqual(AA_UI);
+    expect(contrast(n("text-primary"), n("accent-tint"))).toBeGreaterThanOrEqual(AA_TEXT);
+  });
+
   const allHues = [...HUES, ...(Object.keys(STATUS_EXTRA) as (keyof typeof STATUS_EXTRA)[])];
 
   it.each(allHues)("%s: ink on tint, on-colour on base, ink on surface are AA text", (hue) => {

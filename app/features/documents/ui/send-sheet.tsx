@@ -155,7 +155,7 @@ export function SendSheet({
                 type="checkbox"
                 name="resolveOpen"
                 defaultChecked
-                className="mt-0.5 size-6 shrink-0 accent-[var(--teal-base)]"
+                className="mt-0.5 size-6 shrink-0 accent-[var(--accent)]"
               />
               <span>
                 <span className="font-semibold">

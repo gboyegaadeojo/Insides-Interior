@@ -111,7 +111,7 @@ const STEPS = [
 function Widget<T>({
   id,
   title,
-  icon: Icon,
+  icon: _icon,
   action,
   resolve,
   skeleton,
@@ -125,23 +125,22 @@ function Widget<T>({
   skeleton: React.ReactNode;
   children: (value: T) => React.ReactNode;
 }) {
+  // Inset-grouped (premium redesign 2): the heading sits above the group.
   return (
-    <section
-      aria-labelledby={`${id}-heading`}
-      className="rounded-sheet border border-border bg-surface shadow-card"
-    >
-      <div className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-2 border-b border-border px-5 py-3 tablet:px-6">
-        <Icon className="size-4.5 text-secondary" aria-hidden />
-        <h2 id={`${id}-heading`} className="font-display text-title">
+    <section aria-labelledby={`${id}-heading`} className="flex flex-col gap-2.5">
+      <div className="flex min-h-11 flex-wrap items-center gap-x-3 gap-y-2 px-1">
+        <h2 id={`${id}-heading`} className="text-section font-semibold">
           {title}
         </h2>
         {action && <div className="ml-auto">{action}</div>}
       </div>
-      <React.Suspense fallback={<Loading label={`Loading ${title.toLowerCase()}`}>{skeleton}</Loading>}>
-        <Await resolve={resolve} errorElement={<WidgetError title={title} />}>
-          {(value) => children(value as T)}
-        </Await>
-      </React.Suspense>
+      <div className="overflow-hidden rounded-card border border-border bg-surface">
+        <React.Suspense fallback={<Loading label={`Loading ${title.toLowerCase()}`}>{skeleton}</Loading>}>
+          <Await resolve={resolve} errorElement={<WidgetError title={title} />}>
+            {(value) => children(value as T)}
+          </Await>
+        </React.Suspense>
+      </div>
     </section>
   );
 }
@@ -252,12 +251,10 @@ export default function Home({ loaderData }: Route.ComponentProps) {
   const [, setParams] = useSearchParams();
   return (
     <div className="flex flex-col gap-6">
-      <section className="rounded-sheet border border-border bg-gradient-to-br from-teal-tint to-plum-tint px-6 py-7 tablet:px-10 tablet:py-9">
-        <p className="text-micro font-semibold tracking-[0.12em] text-secondary uppercase">
-          {loaderData.date}
-        </p>
-        <h2 className="mt-3 font-display text-display">{loaderData.greeting}</h2>
-        <p className="mt-2 max-w-xl text-secondary">
+      <section className="px-1 pt-1">
+        <p className="text-label font-medium text-secondary">{loaderData.date}</p>
+        <h2 className="mt-1 font-display text-display">{loaderData.greeting}</h2>
+        <p className="mt-1.5 max-w-xl text-secondary">
           {loaderData.fresh
             ? "Welcome to your new studio app. Three quick steps and you're ready to send your first quote."
             : "Here's where the studio stands today."}
@@ -300,9 +297,9 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                     >
                       <Avatar name={item.clientName ?? "No client"} />
                       <div className="min-w-0 flex-1">
-                        <p className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                        <p className="flex min-w-0 items-center gap-2">
                           <span className="truncate font-semibold">{item.clientName ?? item.title}</span>
-                          <StatusBadge status={item.status as Status} size="sm" />
+                          <StatusBadge status={item.status as Status} size="sm" className="tablet:hidden" />
                         </p>
                         <p className="truncate text-label text-secondary">
                           {[
@@ -317,7 +314,12 @@ export default function Home({ loaderData }: Route.ComponentProps) {
                             .join(" · ")}
                         </p>
                       </div>
-                      <Button asChild variant="secondary" className="shrink-0">
+                      <StatusBadge
+                        status={item.status as Status}
+                        size="sm"
+                        className="hidden tablet:inline-flex"
+                      />
+                      <Button asChild variant="secondary" size="sm">
                         <Link to={item.to}>{item.action}</Link>
                       </Button>
                     </li>

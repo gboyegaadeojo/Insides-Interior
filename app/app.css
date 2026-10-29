@@ -22,6 +22,8 @@
   --color-backdrop: var(--backdrop);
   --color-action: var(--action);
   --color-action-on: var(--action-on);
+  --color-accent: var(--accent);
+  --color-accent-tint: var(--accent-tint);
 
   --color-teal-tint: var(--teal-tint);
   --color-teal-base: var(--teal-base);
@@ -71,7 +73,10 @@
   --color-mod-on: var(--mod-on);
 
   --font-sans: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  --font-display: "Fraunces Variable", Fraunces, Georgia, serif;
+  /* Premium redesign 2: one sans for the whole interface (titles set tight, like
+     Apple's SF); the serif lives only on documents (document.css) as --font-doc. */
+  --font-display: "Inter Variable", Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-doc: "Fraunces Variable", Fraunces, Georgia, serif;
 
   --text-display: var(--fs-display);
   --text-display--line-height: var(--lh-display);
@@ -126,10 +131,23 @@
     line-height: var(--lh-body);
   }
 
-  /* DS-A11Y: 2px Teal ring with 2px offset, always visible on keyboard focus. */
+  /* DS-A11Y: 2px accent (bronze) ring with 2px offset, always visible on keyboard focus. */
   :focus-visible {
-    outline: 2px solid var(--teal-base);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
+  }
+
+  body {
+    letter-spacing: -0.006em;
+    font-feature-settings: "cv11", "ss03";
+    -webkit-font-smoothing: antialiased;
+  }
+
+  h1,
+  h2,
+  h3,
+  .font-display {
+    letter-spacing: -0.02em;
   }
 
   button:not(:disabled),

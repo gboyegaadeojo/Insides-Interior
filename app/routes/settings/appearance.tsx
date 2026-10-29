@@ -49,14 +49,14 @@ export default function AppearanceSettings() {
                     onClick={() => applyTheme(value)}
                     className={cn(
                       "flex flex-col gap-2 rounded-card border-2 p-2 text-left transition-colors duration-standard",
-                      selected ? "border-teal-base" : "border-border hover:border-tertiary",
+                      selected ? "border-accent" : "border-border hover:border-tertiary",
                     )}
                   >
                     <ThemePreview theme={value} />
                     <span className="flex min-h-8 items-center gap-1.5 px-1 font-semibold">
                       <IconChip icon={icon} tone="teal" size="sm" filled={selected} />
                       {label}
-                      {selected && <Check className="ml-auto size-4 text-teal-base" aria-hidden />}
+                      {selected && <Check className="ml-auto size-4 text-accent" aria-hidden />}
                     </span>
                   </button>
                 );
@@ -90,7 +90,7 @@ export default function AppearanceSettings() {
               aria-hidden
               className={cn(
                 "relative h-8 w-13 rounded-full transition-colors duration-standard",
-                celebrations ? "bg-teal-base" : "bg-surface-3",
+                celebrations ? "bg-accent" : "bg-surface-3",
               )}
             >
               <span

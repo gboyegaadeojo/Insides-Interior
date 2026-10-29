@@ -119,7 +119,7 @@ export function CatalogueSheet({
               }
               className="mb-3 flex min-h-14 w-full items-center gap-3 rounded-card border border-dashed border-tertiary px-3 text-left hover:bg-surface-2"
             >
-              <PencilLine className="size-5 text-teal-base" aria-hidden />
+              <PencilLine className="size-5 text-accent" aria-hidden />
               <span className="font-semibold">Custom line</span>
               <span className="text-label font-normal text-secondary">Type anything, priced by you</span>
             </button>

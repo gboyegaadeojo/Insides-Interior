@@ -47,7 +47,7 @@ export function SegmentedControl<T extends string>({
       role="radiogroup"
       aria-label={label}
       className={cn(
-        "inline-flex w-fit max-w-full gap-0.5 self-start overflow-x-auto rounded-full border border-border bg-surface-2 p-0.5",
+        "inline-flex w-fit max-w-full gap-0.5 self-start overflow-x-auto rounded-[10px] bg-surface-3/80 p-0.5",
         className,
       )}
     >
@@ -66,20 +66,15 @@ export function SegmentedControl<T extends string>({
             onClick={() => onValueChange(segment.value)}
             onKeyDown={(event) => onKeyDown(event, index)}
             className={cn(
-              "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-full px-4 font-semibold whitespace-nowrap transition-colors duration-standard pointer-fine:h-9 pointer-fine:px-3.5",
-              selected ? "bg-surface text-primary shadow-card" : "text-secondary hover:text-primary",
+              "inline-flex h-11 shrink-0 items-center gap-1.5 rounded-[8px] px-3.5 text-label whitespace-nowrap transition-colors duration-standard pointer-fine:h-8 pointer-fine:px-3",
+              selected
+                ? "bg-surface font-semibold text-primary shadow-[0_1px_3px_rgb(0_0_0/12%)]"
+                : "font-medium text-primary hover:bg-surface/50",
             )}
           >
             {segment.label}
             {segment.count !== undefined && (
-              <span
-                className={cn(
-                  "rounded-full px-1.5 text-micro tabular",
-                  selected ? "bg-surface-2 text-primary" : "bg-surface-3 text-primary",
-                )}
-              >
-                {segment.count}
-              </span>
+              <span className={cn("text-label font-normal tabular", "text-secondary")}>{segment.count}</span>
             )}
           </button>
         );

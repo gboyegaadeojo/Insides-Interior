@@ -44,6 +44,9 @@ test("Home shows the four figures, each opening its filtered list", async ({ pag
   const chart = page.getByRole("region", { name: "Revenue and expenses" });
   await chart.getByRole("radio", { name: "Table" }).click();
   await expect(chart.getByRole("table")).toContainText("Revenue");
+  // The phone tab bar floats over whatever scrolls beneath it; scan with the page at its end
+  // so no button is mid-scroll under it (axe target-size would count that as overlap).
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
   expect(await seriousViolations(page), "home").toEqual([]);
   await shot(page, "phase9-home");
 

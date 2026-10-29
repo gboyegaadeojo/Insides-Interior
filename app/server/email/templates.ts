@@ -25,7 +25,7 @@ export interface RenderedEmail {
 const INK = "#24211E";
 const BODY = "#3D3731";
 const MUTED = "#68615A";
-const CANVAS = "#F8F6F1";
+const CANVAS = "#F5F5F4";
 const LINE = "#E2DDD4";
 const FALLBACK_BRAND = "#0F766E";
 

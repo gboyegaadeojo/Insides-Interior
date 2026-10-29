@@ -83,7 +83,7 @@ export function ItemFields({
               key={t}
               className={cn(
                 "flex min-h-12 cursor-pointer items-center justify-center rounded-control border-2 px-2 transition-colors duration-fast",
-                type === t ? "border-teal-base bg-surface" : "border-border bg-surface-2",
+                type === t ? "border-accent bg-surface" : "border-border bg-surface-2",
               )}
             >
               <input
@@ -178,7 +178,7 @@ export function ItemFields({
                 name="taxIds"
                 value={rate.id}
                 defaultChecked={taxDefaults.includes(rate.id)}
-                className="size-5 accent-[var(--teal-base)]"
+                className="size-5 accent-[var(--accent)]"
               />
               {rate.name} <span className="text-secondary tabular">{formatBp(rate.rateBp)}%</span>
             </label>
