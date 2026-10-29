@@ -41,7 +41,7 @@ function audit(ctx: RequestContext, entityId: string, action: string, data?: Rec
 }
 
 /** Active tax rates plus any archived ones a draft still references, as frozen copies. */
-async function taxRatesFor(ctx: Ctx, referenced: string[]) {
+export async function taxRatesFor(ctx: Ctx, referenced: string[]) {
   const rows = await ctx.db
     .select()
     .from(schema.taxRate)
@@ -194,7 +194,11 @@ export async function saveDraft(ctx: RequestContext, id: string, input: SaveDraf
     ...input.content,
     sections: input.content.sections.map((s) => ({
       ...s,
-      lines: s.lines.map((l) => ({ ...l, taxRateIds: l.taxRateIds.filter((t) => known.has(t)) })),
+      // Quotes have no server-generated lines: a `locked` flag is ignored.
+      lines: s.lines.map(({ locked: _locked, ...l }) => ({
+        ...l,
+        taxRateIds: l.taxRateIds.filter((t) => known.has(t)),
+      })),
     })),
     taxRates,
   };
@@ -587,7 +591,7 @@ export async function sendQuote(ctx: RequestContext, id: string, input: SendQuot
     entityId: id,
     template: revisionNo > 1 ? "quote_revised" : "quote_sent",
     message,
-    numberFromQuoteId: row.number ? undefined : id,
+    numberFrom: row.number ? undefined : { entity: "quote", id },
   });
   const now = nowIso();
   const seq = schema.sequence;

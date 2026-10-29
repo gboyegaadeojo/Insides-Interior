@@ -7,6 +7,9 @@ export const LOCALE = "en-NG";
 /** ISO 4217 currency for new documents. */
 export const CURRENCY = "NGN";
 
+/** Shown before money inputs. */
+export const CURRENCY_SYMBOL = "₦";
+
 /** Business dates are calendar days here; instants are stored in UTC. */
 export const BUSINESS_TZ = "Africa/Lagos";
 

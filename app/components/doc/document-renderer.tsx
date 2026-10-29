@@ -71,6 +71,10 @@ export interface DocumentRendererProps {
   notes?: string | null;
   terms?: string | null;
   paymentInstructions?: string[];
+  /** The client's PO or reference (FR-INV-03). */
+  reference?: string | null;
+  /** Invoices: paid so far (cash + WHT) and what's left (SPEC 8.3). */
+  settlement?: { paidCents: number; balanceCents: number } | null;
   stamp?: "paid" | "void" | "revised" | "approved" | null;
   /** h2 when the page around the document has its own h1 (portal). */
   titleAs?: "h1" | "h2";
@@ -271,6 +275,12 @@ export function DocumentRenderer(props: DocumentRendererProps) {
             <p>{props.title}</p>
           </div>
         )}
+        {props.reference && (
+          <div>
+            <h2 className="doc-label">Your reference</h2>
+            <p>{props.reference}</p>
+          </div>
+        )}
       </section>
 
       {sections.map((section) => {
@@ -342,6 +352,18 @@ export function DocumentRenderer(props: DocumentRendererProps) {
               <div>
                 <dt>Balance on completion</dt>
                 <dd>{formatCents(totals.balanceCents)}</dd>
+              </div>
+            </>
+          )}
+          {props.settlement && props.settlement.paidCents > 0 && (
+            <>
+              <div>
+                <dt>Paid to date</dt>
+                <dd>−{formatCents(props.settlement.paidCents)}</dd>
+              </div>
+              <div className="doc-balance">
+                <dt>Balance due</dt>
+                <dd>{formatCents(props.settlement.balanceCents)}</dd>
               </div>
             </>
           )}

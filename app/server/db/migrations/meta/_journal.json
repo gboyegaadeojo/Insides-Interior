@@ -64,6 +64,13 @@
       "when": 1793236421340,
       "tag": "0008_share_token_salt",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "6",
+      "when": 1793242200033,
+      "tag": "0009_invoices_payments",
+      "breakpoints": true
     }
   ]
 }

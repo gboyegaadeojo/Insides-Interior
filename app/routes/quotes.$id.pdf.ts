@@ -1,5 +1,5 @@
 import { and, eq } from "drizzle-orm";
-import { quotePdf } from "~/features/quotes/pdf";
+import { documentPdf } from "~/features/documents/pdf";
 import { schema } from "~/server/db";
 import { pdfResponse } from "~/server/pdf-response";
 import { requireUser } from "~/server/session";
@@ -13,5 +13,5 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     .from(schema.quote)
     .where(and(eq(schema.quote.id, params.id), eq(schema.quote.businessId, ctx.user.businessId)));
   if (!row) throw new Response("Not found", { status: 404 });
-  return pdfResponse(() => quotePdf(ctx.env, row.id));
+  return pdfResponse(() => documentPdf(ctx.env, "quote", row.id));
 }

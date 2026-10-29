@@ -20,7 +20,7 @@ import { MoneyText } from "~/components/ui/text";
 import type { DocumentTotals } from "~/domain/document";
 import { cn } from "~/lib/utils";
 import { LineEditor } from "./line-editor";
-import type { DraftAction, DraftSection } from "./use-draft";
+import type { DraftSection, SectionAction } from "./use-draft";
 
 // Room sections as cards with a header strip (SPEC 6.8 builder), the room name in the
 // display serif, a drag handle plus Move up/down (FR-QT-01).
@@ -46,7 +46,7 @@ export function SectionCard({
   count: number;
   totals: DocumentTotals;
   taxRates: { id: string; name: string; rateBp: number }[];
-  dispatch: (action: DraftAction) => void;
+  dispatch: (action: SectionAction) => void;
   onAddLine: (sectionId: string) => void;
 }) {
   const sensors = useDragSensors();

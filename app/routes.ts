@@ -4,7 +4,7 @@ export default [
   layout("routes/_app.tsx", [
     index("routes/_app._index.tsx"),
     route("quotes", "routes/_app.quotes.tsx", [route(":id", "routes/_app.quotes.$id.tsx")]),
-    route("invoices", "routes/_app.invoices.tsx"),
+    route("invoices", "routes/_app.invoices.tsx", [route(":id", "routes/_app.invoices.$id.tsx")]),
     route("clients", "routes/_app.clients.tsx", [
       index("routes/_app.clients._index.tsx"),
       route(":id", "routes/_app.clients.$id.tsx"),
@@ -31,9 +31,12 @@ export default [
     ]),
   ]),
   route("quotes/:id/pdf", "routes/quotes.$id.pdf.ts"),
+  route("invoices/:id/pdf", "routes/invoices.$id.pdf.ts"),
   // Client portal (SPEC 6.8): token-only, no app shell.
   route("q/:token", "routes/q.$token.tsx"),
   route("q/:token/pdf", "routes/q.$token.pdf.ts"),
+  route("i/:token", "routes/i.$token.tsx"),
+  route("i/:token/pdf", "routes/i.$token.pdf.ts"),
   route("api/webhooks/resend", "routes/api.webhooks.resend.ts"),
   route("sign-in", "routes/sign-in.tsx"),
   route("sign-out", "routes/sign-out.ts"),
@@ -43,6 +46,7 @@ export default [
   route("files/*", "routes/files.$.ts"),
   route("api/clients", "routes/api.clients.ts"),
   route("api/quotes/:id/draft", "routes/api.quotes.$id.draft.ts"),
+  route("api/invoices/:id/draft", "routes/api.invoices.$id.draft.ts"),
   route("api/auth/*", "routes/api.auth.$.ts"),
   route("api/preferences", "routes/api.preferences.ts"),
   route("api/test/sign-in", "routes/api.test.sign-in.ts"),

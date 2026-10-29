@@ -42,6 +42,7 @@ import {
   updateClient,
 } from "~/features/clients/service";
 import { ClientFields } from "~/features/clients/ui/client-form";
+import { NewInvoiceButton } from "~/features/invoices/ui/new-invoice-button";
 import { NewQuoteButton } from "~/features/quotes/ui/new-quote-button";
 import { ServiceError } from "~/features/settings/service";
 import { activityLabel, relativeTime } from "~/lib/activity-label";
@@ -202,10 +203,19 @@ export default function ClientProfile({ loaderData }: Route.ComponentProps) {
             </dd>
           </div>
         </dl>
+        {balance.creditAvailableCents > 0 && (
+          <p className="mt-3 rounded-control bg-sage-tint px-3 py-2 text-label text-sage-ink tablet:col-span-2">
+            <span className="font-semibold">
+              <MoneyText cents={balance.creditAvailableCents} /> credit
+            </span>{" "}
+            from overpayments, available for future invoices.
+          </p>
+        )}
       </Card>
 
       <div className="flex flex-wrap gap-2">
         {!client.archivedAt && <NewQuoteButton clientId={client.id} size="md" variant="primary" />}
+        {!client.archivedAt && <NewInvoiceButton clientId={client.id} size="md" variant="secondary" />}
         <Button variant="secondary" onClick={() => edit.show()}>
           <Pencil aria-hidden />
           Edit

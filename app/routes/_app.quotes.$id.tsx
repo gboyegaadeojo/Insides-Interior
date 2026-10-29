@@ -1,44 +1,29 @@
-import { closestCenter, DndContext, type DragEndEvent } from "@dnd-kit/core";
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import {
   CalendarPlus,
   Check,
   ChevronLeft,
-  ClipboardCopy,
   Copy,
   FileDown,
   FolderOpen,
-  Mail,
   PencilLine,
-  Plus,
+  Receipt,
   RefreshCw,
   Send,
-  Share2,
   Trash2,
   Undo2,
 } from "lucide-react";
 import * as React from "react";
-import {
-  data,
-  Form,
-  Link,
-  redirect,
-  useActionData,
-  useBlocker,
-  useNavigation,
-  useRevalidator,
-} from "react-router";
+import { data, Form, Link, redirect, useActionData, useNavigation, useRevalidator } from "react-router";
 import { DocumentRenderer, type DocumentRendererProps } from "~/components/doc/document-renderer";
 import { Paper } from "~/components/doc/paper";
 import { RouteErrorBoundary } from "~/components/shell/route-error";
 import { Button } from "~/components/ui/button";
 import { Card } from "~/components/ui/card";
 import { ConfirmDialog } from "~/components/ui/confirm-dialog";
-import { DateField, TextField, Textarea } from "~/components/ui/field";
+import { DateField, TextField } from "~/components/ui/field";
 import { MoneyField } from "~/components/ui/number-fields";
 import { SaveStatus } from "~/components/ui/save-status";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import { Sheet, SheetContent } from "~/components/ui/sheet";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { toast } from "~/components/ui/toast";
 import { computeContent, depositFrom } from "~/domain/document";
@@ -49,6 +34,9 @@ import { ClientCombobox } from "~/features/clients/ui/client-combobox";
 import { formatAddress } from "~/features/clients/service";
 import { listTemplates } from "~/features/catalogue/service";
 import { SiteSelect } from "~/features/projects/ui/site-select";
+import { fromQuoteSchema } from "~/features/invoices/schema";
+import { createInvoiceFromQuote, invoicesForQuote } from "~/features/invoices/service";
+import { INVOICE_KIND_LABEL } from "~/features/invoices/constants";
 import { sendQuoteSchema } from "~/features/quotes/schema";
 import {
   builderCatalogue,
@@ -66,17 +54,16 @@ import {
   sendQuote,
   sendSetup,
 } from "~/features/quotes/service";
-import { type BuilderItem, CatalogueSheet } from "~/features/quotes/ui/catalogue-sheet";
-import { SectionCard, useDragSensors } from "~/features/quotes/ui/section-card";
-import { TotalBar, TotalsBreakdown } from "~/features/quotes/ui/totals";
-import { type Draft, type DraftAction, useDraft } from "~/features/quotes/ui/use-draft";
+import { BuilderWorkspace } from "~/features/documents/ui/builder-workspace";
+import { ClientLinkCard, HistoryCard } from "~/features/documents/ui/history-card";
+import { SendSheet } from "~/features/documents/ui/send-sheet";
+import type { BuilderItem } from "~/features/documents/ui/catalogue-sheet";
+import { type Draft, type DraftAction, useDraft } from "~/features/documents/ui/use-draft";
 import { loadDocBusiness } from "~/features/settings/doc-business";
 import { activeTaxRates, ServiceError } from "~/features/settings/service";
-import { activityLabel, relativeTime } from "~/lib/activity-label";
+import { relativeTime } from "~/lib/activity-label";
 import { businessToday, formatDate } from "~/lib/dates";
-import { renderMergeFields } from "~/lib/merge-fields";
 import type { AppHandle } from "~/lib/route-handle";
-import { cn } from "~/lib/utils";
 import { signedFileUrl } from "~/server/files";
 import { assertSameOrigin, requireUser } from "~/server/session";
 import type { Route } from "./+types/_app.quotes.$id";
@@ -92,7 +79,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const detail = await getQuote(ctx, params.id);
   if (!detail) throw new Response("Not found", { status: 404 });
   const isDraft = detail.quote.status === "draft";
-  const [business, items, templates, rates, history, setup, shareUrl] = await Promise.all([
+  const [business, items, templates, rates, history, setup, shareUrl, invoices] = await Promise.all([
     loadDocBusiness(ctx.db, ctx.user.businessId),
     isDraft ? builderCatalogue(ctx) : [],
     isDraft ? listTemplates(ctx) : [],
@@ -100,6 +87,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     detail.quote.number ? quoteHistory(ctx, params.id) : null,
     isDraft ? sendSetup(ctx) : null,
     detail.quote.shareTokenSalt ? quoteShareUrl(ctx.env, params.id, detail.quote.shareTokenSalt) : null,
+    detail.quote.status === "approved" ? invoicesForQuote(ctx, params.id) : [],
   ]);
   const builderItems: BuilderItem[] = await Promise.all(
     items.map(async (i) => ({
@@ -120,6 +108,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     revisionNo: detail.revisionNo,
     revising: detail.revising,
     history,
+    invoices,
     sendSetup: setup,
     shareUrl,
     client: detail.client
@@ -192,6 +181,17 @@ export async function action({ request, params, context }: Route.ActionArgs) {
       case "retry_email":
         await retryQuoteEmail(ctx, params.id);
         return done("Email queued again");
+      case "create_invoice": {
+        const parsed = fromQuoteSchema.safeParse(Object.fromEntries(form));
+        if (!parsed.success) {
+          const issue = parsed.error.issues[0]!;
+          return data(
+            { ok: false as const, intent, error: issue.message, field: String(issue.path[0]), message: null },
+            { status: 400 },
+          );
+        }
+        return redirect(`/invoices/${await createInvoiceFromQuote(ctx, params.id, parsed.data)}`);
+      }
     }
   } catch (error) {
     if (error instanceof DraftConflictError) {
@@ -363,11 +363,128 @@ function SentQuote({ data }: { data: LoaderData }) {
         </div>
         <div className="order-1 flex flex-col gap-4 wide:order-2">
           {acceptance && <ApprovalCard acceptance={acceptance} projectId={data.quote.projectId} />}
-          {data.shareUrl && <ClientLinkCard url={data.shareUrl} busy={busy("rotate_link")} />}
+          {status === "approved" && <QuoteInvoicesCard data={data} />}
+          {data.shareUrl && <ClientLinkCard url={data.shareUrl} busy={busy("rotate_link")} noun="quote" />}
           {data.history && <HistoryCard history={data.history} retrying={busy("retry_email")} />}
         </div>
       </div>
     </div>
+  );
+}
+
+/**
+ * FR-QT-12, FR-INV-01: invoices from the approved quote. Deposit uses the
+ * quote's terms; progress bills a % or an amount; final credits everything
+ * already invoiced so the parts add up to the quote; "in full" is an ordinary
+ * editable copy.
+ */
+function QuoteInvoicesCard({ data }: { data: LoaderData }) {
+  const navigation = useNavigation();
+  const actionData = useActionData<typeof action>();
+  const [progress, setProgress] = React.useState(false);
+  const [portionType, setPortionType] = React.useState<"percent" | "amount">("percent");
+  const [amount, setAmount] = React.useState<number | null>(null);
+  const live = data.invoices.filter((i) => i.status !== "void");
+  const has = (kind: string) => live.some((i) => i.kind === kind);
+  const creating = (kind: string) =>
+    navigation.state !== "idle" &&
+    navigation.formData?.get("intent") === "create_invoice" &&
+    navigation.formData?.get("kind") === kind;
+  const error =
+    actionData && !actionData.ok && actionData.intent === "create_invoice" ? actionData.error : null;
+  const createButton = (kind: string, label: string, variant: "primary" | "secondary" = "secondary") => (
+    <Form method="post">
+      <input type="hidden" name="intent" value="create_invoice" />
+      <input type="hidden" name="kind" value={kind} />
+      <Button type="submit" variant={variant} className="w-full" loading={creating(kind)}>
+        <Receipt aria-hidden />
+        {label}
+      </Button>
+    </Form>
+  );
+  return (
+    <Card>
+      <h2 className="font-display text-title">Invoices</h2>
+      {data.invoices.length > 0 ? (
+        <ul className="mt-3 flex flex-col divide-y divide-border" aria-label="Invoices for this quote">
+          {data.invoices.map((inv) => (
+            <li key={inv.id}>
+              <Link
+                to={`/invoices/${inv.id}`}
+                className="flex min-h-11 items-center justify-between gap-3 py-2 hover:text-indigo-ink"
+              >
+                <span>
+                  <span className="font-semibold">{inv.number ?? "Draft"}</span>{" "}
+                  <span className="text-label text-secondary">{INVOICE_KIND_LABEL[inv.kind]}</span>
+                </span>
+                <StatusBadge status={inv.status} size="sm" />
+              </Link>
+            </li>
+          ))}
+        </ul>
+      ) : (
+        <p className="mt-1 text-label text-secondary">
+          {data.quote.depositType ? "Next step: the deposit invoice." : "Bill it in parts or in full."}
+        </p>
+      )}
+      {error && (
+        <p role="alert" className="mt-3 text-label font-semibold text-danger-ink">
+          {error}
+        </p>
+      )}
+      <div className="mt-4 flex flex-col gap-2">
+        {data.quote.depositType && !has("deposit") && createButton("deposit", "Deposit invoice", "primary")}
+        {progress ? (
+          <Form method="post" className="flex flex-col gap-3 rounded-card border border-border p-3">
+            <input type="hidden" name="intent" value="create_invoice" />
+            <input type="hidden" name="kind" value="progress" />
+            <input type="hidden" name="portionType" value={portionType} />
+            <SegmentedControl
+              label="Bill a percentage or an amount"
+              value={portionType}
+              onValueChange={(next) => {
+                setPortionType(next);
+                setAmount(null);
+              }}
+              segments={[
+                { value: "percent", label: "% of quote" },
+                { value: "amount", label: "Amount" },
+              ]}
+            />
+            {portionType === "percent" ? (
+              <TextField
+                label="Percentage"
+                name="portionPercent"
+                inputMode="decimal"
+                defaultValue="30"
+                onChange={(e) => {
+                  const bp = parseMoneyToCents(e.target.value.replace(/%$/, ""));
+                  setAmount(bp);
+                }}
+                className="text-right tabular"
+              />
+            ) : (
+              <MoneyField label="Amount before tax" value={amount} onValueChange={setAmount} />
+            )}
+            <input
+              type="hidden"
+              name="portionValue"
+              value={portionType === "percent" ? String(amount ?? 3000) : String(amount ?? 0)}
+            />
+            <Button type="submit" loading={creating("progress")}>
+              Create progress invoice
+            </Button>
+          </Form>
+        ) : (
+          <Button type="button" variant="secondary" onClick={() => setProgress(true)}>
+            <Receipt aria-hidden />
+            Progress invoice
+          </Button>
+        )}
+        {!has("final") && createButton("final", "Final invoice")}
+        {live.length === 0 && createButton("full", "Invoice in full")}
+      </div>
+    </Card>
   );
 }
 
@@ -419,145 +536,6 @@ function ApprovalCard({
   );
 }
 
-const noSubscribe = () => () => {};
-
-function ClientLinkCard({ url, busy }: { url: string; busy: boolean }) {
-  const [confirm, setConfirm] = React.useState(false);
-  const formRef = React.useRef<HTMLFormElement>(null);
-  const canShare = React.useSyncExternalStore(
-    noSubscribe,
-    () => typeof navigator.share === "function",
-    () => false,
-  );
-  async function copy() {
-    try {
-      await navigator.clipboard.writeText(url);
-      toast("Link copied", { tone: "success" });
-    } catch {
-      toast("Couldn't copy; select the link and copy it", { tone: "error" });
-    }
-  }
-  return (
-    <Card>
-      <h2 className="font-display text-title">Client link</h2>
-      <p className="mt-1 text-label text-secondary">
-        Anyone with this link can view and approve the quote. Share it by WhatsApp or text if email is slow.
-      </p>
-      <TextField
-        label="Link"
-        readOnly
-        value={url}
-        onFocus={(e) => e.currentTarget.select()}
-        fieldClassName="mt-3"
-        className="text-label"
-      />
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button type="button" variant="secondary" onClick={copy}>
-          <ClipboardCopy aria-hidden />
-          Copy link
-        </Button>
-        {canShare && (
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => void navigator.share({ url }).catch(() => {})}
-          >
-            <Share2 aria-hidden />
-            Share
-          </Button>
-        )}
-        <Button type="button" variant="ghost" onClick={() => setConfirm(true)} loading={busy}>
-          <RefreshCw aria-hidden />
-          New link
-        </Button>
-      </div>
-      <Form method="post" ref={formRef} className="hidden">
-        <input type="hidden" name="intent" value="rotate_link" />
-      </Form>
-      <ConfirmDialog
-        open={confirm}
-        onOpenChange={setConfirm}
-        title="Make a new link?"
-        description="The current link stops working at once. Use this if the link went to the wrong person."
-        confirmLabel="Make a new link"
-        destructive
-        onConfirm={() => formRef.current?.requestSubmit()}
-      />
-    </Card>
-  );
-}
-
-const EMAIL_LABEL: Record<string, string> = {
-  quote_sent: "Quote sent",
-  quote_revised: "Revision sent",
-  quote_approved_client: "Approval receipt to client",
-  quote_approved_owner: "Approval notice",
-  quote_changes_requested_owner: "Change request notice",
-};
-
-const EMAIL_STATUS: Record<string, { label: string; tone: string }> = {
-  queued: { label: "Sending", tone: "text-secondary" },
-  sent: { label: "Sent", tone: "text-indigo-ink" },
-  delivered: { label: "Delivered", tone: "text-teal-ink" },
-  opened: { label: "Opened", tone: "text-sage-ink" },
-  bounced: { label: "Bounced", tone: "text-danger-ink" },
-  complained: { label: "Marked as spam", tone: "text-danger-ink" },
-  failed: { label: "Failed", tone: "text-danger-ink" },
-};
-
-function HistoryCard({
-  history,
-  retrying,
-}: {
-  history: NonNullable<LoaderData["history"]>;
-  retrying: boolean;
-}) {
-  const latest = history.emails.find((e) => e.template === "quote_sent" || e.template === "quote_revised");
-  const stuck = latest?.stuck;
-  return (
-    <Card>
-      <h2 className="font-display text-title">History</h2>
-      {history.emails.length > 0 && (
-        <ul className="mt-3 flex flex-col gap-2" aria-label="Emails">
-          {history.emails.map((email) => {
-            const s = EMAIL_STATUS[email.status] ?? EMAIL_STATUS.queued!;
-            return (
-              <li key={email.id} className="flex items-start gap-3 rounded-control bg-surface-2 p-3">
-                <Mail className="mt-0.5 size-4.5 shrink-0 text-secondary" aria-hidden />
-                <div className="min-w-0 flex-1">
-                  <p className="font-semibold">{EMAIL_LABEL[email.template] ?? email.template}</p>
-                  <p className="truncate text-label text-secondary">to {email.to}</p>
-                  {email.error && <p className="text-label text-danger-ink">{email.error}</p>}
-                </div>
-                <span className={cn("text-label font-semibold", s.tone)}>{s.label}</span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {stuck && (
-        <Form method="post" className="mt-3">
-          <input type="hidden" name="intent" value="retry_email" />
-          <Button type="submit" variant="secondary" className="w-full" loading={retrying}>
-            <RefreshCw aria-hidden />
-            Retry the email
-          </Button>
-        </Form>
-      )}
-      <ol className="mt-4 flex flex-col gap-2 border-t border-border pt-4" aria-label="Activity">
-        {history.events.map((event) => (
-          <li key={event.id} className="flex items-baseline justify-between gap-3 text-label">
-            <span>{activityLabel(event.action, event.data)}</span>
-            <time dateTime={event.at} className="shrink-0 text-secondary">
-              {relativeTime(event.at)}
-            </time>
-          </li>
-        ))}
-      </ol>
-    </Card>
-  );
-}
-
 function Builder({ data }: { data: LoaderData }) {
   const initial: Draft = {
     header: {
@@ -574,7 +552,7 @@ function Builder({ data }: { data: LoaderData }) {
     terms: data.content.terms,
   };
   const { draft, dispatch, status, conflict, overwrite, retry, dirty, version, saveNow } = useDraft({
-    quoteId: data.quote.id,
+    endpoint: `/api/quotes/${data.quote.id}/draft`,
     initial,
     version: data.quote.draftVersion,
     savedAt: data.quote.updatedAt,
@@ -592,101 +570,26 @@ function Builder({ data }: { data: LoaderData }) {
   const [site, setSite] = React.useState(
     data.site ? { label: data.site.label, address: data.site.address } : null,
   );
-  const [view, setView] = React.useState<"edit" | "preview">("edit");
-  const [addingTo, setAddingTo] = React.useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [sending, setSending] = React.useState(false);
-  const sensors = useDragSensors();
   const navigation = useNavigation();
   const revalidator = useRevalidator();
 
   const props = previewProps(data, draft, client, site);
+  const actionData = useActionData<typeof action>();
+  const sameClient = !!data.client && draft.header.clientId === data.client.id;
   const depositLabel =
     draft.header.depositType === "percent" && draft.header.depositValue !== null
       ? `${formatBp(draft.header.depositValue)}%`
       : undefined;
 
-  // Leave-page confirmation unless the draft is safely saved (SPEC 6.8 builder).
-  const blocker = useBlocker(
-    ({ currentLocation, nextLocation }) => dirty && currentLocation.pathname !== nextLocation.pathname,
-  );
-  React.useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
-
-  function onSectionDragEnd(event: DragEndEvent) {
-    const from = draft.sections.findIndex((s) => s.id === event.active.id);
-    const to = draft.sections.findIndex((s) => s.id === event.over?.id);
-    if (from >= 0 && to >= 0) dispatch({ type: "moveSection", from, to });
-  }
-
-  const editor = (
-    <div className="flex flex-col gap-4">
-      <HeaderFields
-        draft={draft}
-        dispatch={dispatch}
-        onClient={(name) => setClient(name ? { name, company: null, address: "", email: null } : null)}
-        onSite={setSite}
-      />
-      <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onSectionDragEnd}>
-        <SortableContext items={draft.sections.map((s) => s.id)} strategy={verticalListSortingStrategy}>
-          <div className="flex flex-col gap-4">
-            {draft.sections.map((section, i) => (
-              <SectionCard
-                key={section.id}
-                section={section}
-                index={i}
-                count={draft.sections.length}
-                totals={props.totals}
-                taxRates={data.content.taxRates}
-                dispatch={dispatch}
-                onAddLine={setAddingTo}
-              />
-            ))}
-          </div>
-        </SortableContext>
-      </DndContext>
-      <Button
-        type="button"
-        variant="tinted"
-        size="lg"
-        className="border-dashed border-tertiary/60 text-secondary hover:text-primary"
-        onClick={() =>
-          dispatch({
-            type: "addSection",
-            section: { id: crypto.randomUUID(), title: `Room ${draft.sections.length + 1}`, lines: [] },
-          })
-        }
-      >
-        <Plus aria-hidden />
-        Add room
-      </Button>
-      <DocumentDiscountField draft={draft} dispatch={dispatch} />
-      <Card>
-        <h2 className="mb-4 font-display text-title">Notes and terms</h2>
-        <div className="flex flex-col gap-4">
-          <Textarea
-            label="Notes"
-            value={draft.notes ?? ""}
-            onChange={(e) => dispatch({ type: "text", field: "notes", value: e.target.value })}
-            hint="Lead times, what's included"
-          />
-          <Textarea
-            label="Terms"
-            value={draft.terms ?? ""}
-            onChange={(e) => dispatch({ type: "text", field: "terms", value: e.target.value })}
-            className="min-h-32"
-          />
-        </div>
-      </Card>
-      <Card>
-        <h2 className="mb-3 font-display text-title">Totals</h2>
-        <TotalsBreakdown totals={props.totals} depositLabel={depositLabel} />
-      </Card>
-    </div>
+  const header = (
+    <HeaderFields
+      draft={draft}
+      dispatch={dispatch}
+      onClient={(name) => setClient(name ? { name, company: null, address: "", email: null } : null)}
+      onSite={setSite}
+    />
   );
 
   return (
@@ -756,85 +659,44 @@ function Builder({ data }: { data: LoaderData }) {
         </div>
       )}
 
-      {conflict && (
-        <div
-          role="alert"
-          className="flex flex-col gap-3 rounded-card border border-saffron-base bg-saffron-tint p-4 text-saffron-ink tablet:flex-row tablet:items-center"
-        >
-          <p className="flex-1 font-semibold">
-            A newer version of this quote was saved in another tab or device. Your latest changes aren't
-            saved.
-          </p>
-          <Button
-            type="button"
-            variant="secondary"
-            onClick={() => revalidator.revalidate().then(() => window.location.reload())}
-          >
-            Load the newer version
-          </Button>
-          <Button type="button" onClick={overwrite}>
-            Keep mine
-          </Button>
-        </div>
-      )}
-
-      <SegmentedControl
-        label="Edit or preview"
-        className="wide:hidden"
-        value={view}
-        onValueChange={setView}
-        segments={[
-          { value: "edit", label: "Edit" },
-          { value: "preview", label: "Preview" },
-        ]}
-      />
-
-      {/* Tablet landscape 58/42 keeps room to edit; desktop splits evenly so the preview stays legible. */}
-      <div className="wide:grid wide:grid-cols-[minmax(0,58fr)_minmax(0,42fr)] wide:items-start wide:gap-6 desktop:grid-cols-2">
-        <div className={cn(view === "preview" && "hidden wide:block")}>{editor}</div>
-        <aside
-          aria-label="Live preview"
-          className={cn(
-            "rounded-sheet border border-border bg-surface-2 p-3 tablet:p-5 wide:sticky wide:top-20 desktop:p-4",
-            view === "edit" && "hidden wide:block",
-          )}
-        >
-          <Paper>
-            <DocumentRenderer {...props} />
-          </Paper>
-        </aside>
-      </div>
-
-      <TotalBar totals={props.totals} depositLabel={depositLabel} />
-
-      <CatalogueSheet
-        open={addingTo !== null}
-        onOpenChange={(open) => !open && setAddingTo(null)}
-        items={data.items}
-        templates={data.templates}
-        defaultTaxIds={data.defaultTaxIds}
-        onAddLines={(lines) => addingTo && dispatch({ type: "addLines", sectionId: addingTo, lines })}
-        onAddSection={(section) => dispatch({ type: "addSection", section })}
-      />
-      <ConfirmDialog
-        open={blocker.state === "blocked"}
-        onOpenChange={(open) => !open && blocker.state === "blocked" && blocker.reset()}
-        title="Leave before it's saved?"
-        description="Your latest changes to this quote haven't been saved yet."
-        confirmLabel="Leave anyway"
-        cancelLabel="Stay"
-        destructive
-        onConfirm={() => {
-          if (blocker.state === "blocked") blocker.proceed();
-        }}
+      <BuilderWorkspace
+        noun="quote"
+        header={header}
+        sections={draft.sections}
+        documentDiscount={draft.documentDiscount}
+        notes={draft.notes}
+        terms={draft.terms}
+        dispatch={dispatch}
+        totals={props.totals}
+        taxRates={data.content.taxRates}
+        depositLabel={depositLabel}
+        preview={<DocumentRenderer {...props} />}
+        dirty={dirty}
+        conflict={!!conflict}
+        onOverwrite={overwrite}
+        catalogue={{ items: data.items, templates: data.templates, defaultTaxIds: data.defaultTaxIds }}
       />
       <DeleteDraftDialog open={confirmDelete} onOpenChange={setConfirmDelete} revising={!!data.revising} />
       <SendSheet
         open={sending}
         onOpenChange={setSending}
-        data={data}
-        draft={draft}
-        totals={props.totals}
+        noun="quote"
+        revision={data.revising ? data.revising.revisionNo + 1 : 1}
+        number={data.quote.number}
+        nextNumber={data.sendSetup?.nextNumber ?? null}
+        wording={data.sendSetup?.wording}
+        values={{
+          "client.firstName": (sameClient ? data.client!.name : "there").split(/s+/)[0],
+          "client.name": sameClient ? data.client!.name : "",
+          "business.name": data.business.name,
+          "quote.number": data.quote.number ?? data.sendSetup?.nextNumber ?? "",
+          "amount.total": formatCents(props.totals.computed.totalCents),
+          link: "(link to the quote)",
+        }}
+        revisedSubject={`Revised quote ${data.quote.number} (rev ${(data.revising?.revisionNo ?? 0) + 1}) from ${data.business.name}`}
+        client={sameClient ? data.client : null}
+        totalCents={props.totals.computed.totalCents}
+        error={actionData && !actionData.ok && actionData.intent === "send" ? actionData : null}
         version={version}
         saving={dirty && !conflict && status.state !== "error"}
         blocked={
@@ -889,174 +751,6 @@ function DeleteDraftDialog({
   );
 }
 
-/**
- * FR-QT-08: send with the PDF attached and the portal link; CC/BCC; preview of
- * the email before it goes. The button waits for autosave so the server sends
- * exactly what's on screen, and is disabled while sending.
- */
-function SendSheet({
-  open,
-  onOpenChange,
-  data,
-  draft,
-  totals,
-  version,
-  saving,
-  blocked,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  data: LoaderData;
-  draft: Draft;
-  totals: DocumentRendererProps["totals"];
-  version: number;
-  saving: boolean;
-  blocked: string | null;
-}) {
-  const navigation = useNavigation();
-  const actionData = useActionData<typeof action>();
-  const sendingNow = navigation.state !== "idle" && navigation.formData?.get("intent") === "send";
-  const error = actionData && !actionData.ok && actionData.intent === "send" ? actionData : null;
-  const [copies, setCopies] = React.useState(false);
-  const formId = React.useId();
-  const sameClient = data.client && draft.header.clientId === data.client.id;
-  const revision = data.revising ? data.revising.revisionNo + 1 : 1;
-  const number = data.quote.number ?? data.sendSetup?.nextNumber ?? "your next number";
-  const wording = data.sendSetup?.wording;
-  const values = {
-    "client.firstName": (sameClient ? data.client!.name : "there").split(/\s+/)[0],
-    "client.name": sameClient ? data.client!.name : "",
-    "business.name": data.business.name,
-    "quote.number": number,
-    "amount.total": formatCents(totals.computed.totalCents),
-    link: "(link to the quote)",
-  };
-  const subject =
-    revision > 1
-      ? `Revised quote ${number} (rev ${revision}) from ${data.business.name}`
-      : wording
-        ? renderMergeFields(wording.subject, values)
-        : "";
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        title={revision > 1 ? `Send revision ${revision}` : "Send quote"}
-        description={
-          data.quote.number
-            ? `${data.quote.number} goes out with its PDF and a link to view and approve.`
-            : `It gets its number when it's sent, most likely ${number}.`
-        }
-        footer={
-          <div className="flex flex-col gap-2">
-            {(blocked || saving) && (
-              <p className="text-label font-semibold text-secondary" role="status">
-                {blocked ?? "Saving your latest changes…"}
-              </p>
-            )}
-            <Button
-              type="submit"
-              form={formId}
-              size="lg"
-              className="w-full"
-              loading={sendingNow}
-              disabled={!!blocked || saving}
-            >
-              <Send aria-hidden />
-              Send {formatCents(totals.computed.totalCents)}
-            </Button>
-          </div>
-        }
-      >
-        <Form method="post" id={formId} className="flex flex-col gap-5">
-          <input type="hidden" name="intent" value="send" />
-          <input type="hidden" name="version" value={version} />
-          {error?.error && error.field !== "to" && error.field !== "cc" && error.field !== "bcc" && (
-            <p
-              role="alert"
-              className="rounded-card border border-danger-base bg-danger-tint p-3 font-semibold text-danger-ink"
-            >
-              {error.error}
-            </p>
-          )}
-          {sameClient && data.client!.emailBounced && (
-            <p
-              role="alert"
-              className="rounded-card border border-saffron-base bg-saffron-tint p-3 text-saffron-ink"
-            >
-              <span className="font-semibold">The last email to {data.client!.email} bounced.</span> Check the
-              address before sending.
-            </p>
-          )}
-          <TextField
-            key={sameClient ? data.client!.id : "other"}
-            label="To"
-            name="to"
-            type="email"
-            required
-            autoComplete="off"
-            defaultValue={sameClient ? (data.client!.email ?? "") : ""}
-            error={error?.field === "to" ? (error.error ?? undefined) : undefined}
-            hint={sameClient && !data.client!.email ? "This client has no email saved yet" : undefined}
-          />
-          {copies ? (
-            <>
-              <TextField
-                label="CC"
-                name="cc"
-                autoComplete="off"
-                hint="Separate addresses with commas"
-                error={error?.field === "cc" ? (error.error ?? undefined) : undefined}
-              />
-              <TextField
-                label="BCC"
-                name="bcc"
-                autoComplete="off"
-                hint="Separate addresses with commas"
-                error={error?.field === "bcc" ? (error.error ?? undefined) : undefined}
-              />
-            </>
-          ) : (
-            <Button type="button" variant="ghost" className="self-start" onClick={() => setCopies(true)}>
-              <Plus aria-hidden />
-              Add CC or BCC
-            </Button>
-          )}
-          <Textarea
-            label="Personal note (optional)"
-            name="note"
-            maxLength={2000}
-            hint="Shown in the email above the quote details"
-          />
-          {wording && (
-            <section
-              aria-label="Email preview"
-              className="rounded-card border border-border bg-surface-2 p-4"
-            >
-              <p className="text-micro font-semibold tracking-[0.08em] text-secondary uppercase">
-                Email preview
-              </p>
-              <p className="mt-2 font-semibold">{subject}</p>
-              <div className="mt-2 flex flex-col gap-2 text-label text-secondary">
-                {renderMergeFields(wording.body, values)
-                  .split(/\n\s*\n/)
-                  .filter(Boolean)
-                  .map((p) => (
-                    <p key={p} className="whitespace-pre-line">
-                      {p}
-                    </p>
-                  ))}
-              </div>
-              <p className="mt-3 text-micro text-secondary">
-                Change this wording in Settings → Email. The PDF is attached.
-              </p>
-            </section>
-          )}
-        </Form>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
 function HeaderFields({
   draft,
   dispatch,
@@ -1072,7 +766,7 @@ function HeaderFields({
   return (
     <Card>
       <h2 className="mb-4 font-display text-title">Details</h2>
-      <div className="grid gap-4 tablet:grid-cols-2">
+      <div className="grid gap-4 tablet:grid-cols-2 [&>*]:min-w-0">
         <ClientCombobox
           name="builder-client"
           defaultValue={header.clientId}
@@ -1158,74 +852,6 @@ function DepositField({ draft, dispatch }: { draft: Draft; dispatch: (action: Dr
         </div>
       )}
     </div>
-  );
-}
-
-function DocumentDiscountField({
-  draft,
-  dispatch,
-}: {
-  draft: Draft;
-  dispatch: (action: DraftAction) => void;
-}) {
-  const discount = draft.documentDiscount;
-  return (
-    <Card>
-      <h2 className="mb-4 font-display text-title">Discount on the whole quote</h2>
-      <div className="flex flex-col gap-2">
-        <SegmentedControl
-          label="Document discount"
-          value={discount?.type ?? "none"}
-          onValueChange={(mode) =>
-            dispatch({
-              type: "documentDiscount",
-              discount:
-                mode === "none"
-                  ? undefined
-                  : mode === "percent"
-                    ? { type: "percent", bp: 1000 }
-                    : { type: "amount", cents: 0 },
-            })
-          }
-          segments={[
-            { value: "none", label: "None" },
-            { value: "percent", label: "%" },
-            { value: "amount", label: "₦" },
-          ]}
-        />
-        {discount?.type === "percent" && (
-          <TextField
-            label="Discount (%)"
-            inputMode="decimal"
-            defaultValue={formatBp(discount.bp)}
-            key={`dd-${discount.bp}`}
-            onBlur={(e) => {
-              const bp = parseMoneyToCents(e.target.value.replace(/%$/, ""));
-              if (bp !== null)
-                dispatch({
-                  type: "documentDiscount",
-                  discount: { type: "percent", bp: Math.min(10_000, Math.max(0, bp)) },
-                });
-            }}
-            fieldClassName="max-w-40"
-            className="text-right tabular"
-            hint="Shared across lines before tax"
-          />
-        )}
-        {discount?.type === "amount" && (
-          <div className="max-w-56">
-            <MoneyField
-              label="Discount"
-              value={discount.cents}
-              onValueChange={(v) =>
-                dispatch({ type: "documentDiscount", discount: { type: "amount", cents: v ?? 0 } })
-              }
-              hint="Shared across lines before tax"
-            />
-          </div>
-        )}
-      </div>
-    </Card>
   );
 }
 

@@ -3,9 +3,11 @@
 // post a message, raise a change request. Viewing is recorded as a portal
 // event; a quote past its valid-until date is marked expired when opened.
 
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { computeContent, depositFrom } from "~/domain/document";
+import { settledCents } from "~/domain/invoice";
+import { canInvoice, invoiceTransition } from "~/domain/lifecycle";
 import { formatCents } from "~/domain/money";
 import {
   applySelection,
@@ -336,25 +338,33 @@ export async function approveQuote(env: Env, token: string, input: ApproveInput,
 }
 
 /**
- * The client asks for changes in the quote's conversation (FR-QT-10, FR-MSG-02).
- * Phase 7 adds line-level requests and the owner's replies.
+ * A client's message in a document's conversation (FR-MSG-02) and everything
+ * that goes with it: the conversation row, unread count, a notification and an
+ * email for every owner, and activity. Rate limited per conversation (SPEC
+ * 11.1). The caller adds its own status change to the same batch.
  */
-export async function requestQuoteChanges(
+async function clientMessage(
   env: Env,
-  token: string,
-  input: RequestChangesInput,
-  meta: VisitorMeta,
+  db: Db,
+  args: {
+    entity: "quote" | "invoice";
+    entityId: string;
+    businessId: string;
+    number: string;
+    clientName: string;
+    authorName: string;
+    body: string;
+    revisionId: string;
+    revisionNo: number;
+    meta: VisitorMeta;
+  },
 ) {
-  const portal = await loadPortalQuote(env, token);
-  if (!portal) throw new PortalError("This link isn't valid.", "invalid");
-  const { quote, revision, client } = portal;
-  checkOpen(portal, input.revisionId, ["sent", "viewed", "changes_requested"]);
-  const db = getDb(env);
-
   const [existing] = await db
     .select({ id: schema.conversation.id })
     .from(schema.conversation)
-    .where(and(eq(schema.conversation.entityType, "quote"), eq(schema.conversation.entityId, quote.id)));
+    .where(
+      and(eq(schema.conversation.entityType, args.entity), eq(schema.conversation.entityId, args.entityId)),
+    );
   const conversationId = existing?.id ?? newId("cnv");
   if (existing) {
     const since = new Date(Date.now() - 60 * 60 * 1000).toISOString();
@@ -373,10 +383,10 @@ export async function requestQuoteChanges(
   }
 
   const [brand, owners] = await Promise.all([
-    loadEmailBrand(db, env, quote.businessId),
-    activeOwners(db, quote.businessId),
+    loadEmailBrand(db, env, args.businessId),
+    activeOwners(db, args.businessId),
   ]);
-  const ownerUrl = new URL(`/quotes/${quote.id}`, env.APP_URL).toString();
+  const ownerUrl = new URL(`/${args.entity}s/${args.entityId}`, env.APP_URL).toString();
   const messageId = newId("msg");
   const now = nowIso();
   const jobs: EmailJob[] = [];
@@ -385,9 +395,9 @@ export async function requestQuoteChanges(
     statements.push(
       db.insert(schema.conversation).values({
         id: conversationId,
-        businessId: quote.businessId,
-        entityType: "quote",
-        entityId: quote.id,
+        businessId: args.businessId,
+        entityType: args.entity,
+        entityId: args.entityId,
       }),
     );
   }
@@ -396,18 +406,91 @@ export async function requestQuoteChanges(
       id: messageId,
       conversationId,
       author: "client",
-      clientName: input.name,
-      body: input.message,
-      revisionId: revision.id,
+      clientName: args.authorName,
+      body: args.body,
+      revisionId: args.revisionId,
       createdAt: now,
     }),
     db
       .update(schema.conversation)
       .set({ lastMessageAt: now, ownerUnread: sql`${schema.conversation.ownerUnread} + 1`, updatedAt: now })
       .where(eq(schema.conversation.id, conversationId)),
+    activityInsert(db, {
+      businessId: args.businessId,
+      actor: { type: "client" },
+      entityType: args.entity,
+      entityId: args.entityId,
+      action: `${args.entity}.changes_requested`,
+      data: { name: args.authorName, revision: args.revisionNo, ip: args.meta.ip },
+    }),
+  );
+  for (const owner of owners) {
+    statements.push(
+      db.insert(schema.notification).values({
+        id: newId("ntf"),
+        userId: owner.id,
+        type: `${args.entity}.changes_requested`,
+        entityType: args.entity,
+        entityId: args.entityId,
+        title: `${args.clientName} asked for changes to ${args.number}`,
+      }),
+    );
+    const message = {
+      ...changesRequestedOwnerEmail(brand, {
+        noun: args.entity,
+        clientName: args.clientName,
+        authorName: args.authorName,
+        number: args.number,
+        message: args.body,
+        url: ownerUrl,
+      }),
+      to: [owner.email],
+      idempotencyKey: `message:${messageId}:changes_requested:${owner.id}`,
+    };
+    const email = emailInsert(db, {
+      businessId: args.businessId,
+      entityType: args.entity,
+      entityId: args.entityId,
+      template: `${args.entity}_changes_requested_owner`,
+      message,
+    });
+    statements.push(email.insert);
+    jobs.push({ kind: "email", emailId: email.id, businessId: args.businessId, message });
+  }
+  return { statements, jobs };
+}
+
+/**
+ * The client asks for changes in the quote's conversation (FR-QT-10, FR-MSG-02).
+ * Phase 7 adds line-level requests and the owner's replies.
+ */
+export async function requestQuoteChanges(
+  env: Env,
+  token: string,
+  input: RequestChangesInput,
+  meta: VisitorMeta,
+) {
+  const portal = await loadPortalQuote(env, token);
+  if (!portal) throw new PortalError("This link isn't valid.", "invalid");
+  const { quote, revision, client } = portal;
+  checkOpen(portal, input.revisionId, ["sent", "viewed", "changes_requested"]);
+  const db = getDb(env);
+  const { statements, jobs } = await clientMessage(env, db, {
+    entity: "quote",
+    entityId: quote.id,
+    businessId: quote.businessId,
+    number: quote.number!,
+    clientName: client.displayName,
+    authorName: input.name,
+    body: input.message,
+    revisionId: revision.id,
+    revisionNo: revision.revisionNo,
+    meta,
+  });
+  statements.push(
     db
       .update(schema.quote)
-      .set({ status: "changes_requested", updatedAt: now })
+      .set({ status: "changes_requested", updatedAt: nowIso() })
       .where(
         and(
           eq(schema.quote.id, quote.id),
@@ -416,45 +499,7 @@ export async function requestQuoteChanges(
         ),
       ),
     requireChanged(db, quote.id),
-    clientActivity(db, quote.businessId, quote.id, "quote.changes_requested", {
-      name: input.name,
-      revision: revision.revisionNo,
-      ip: meta.ip,
-    }),
   );
-  for (const owner of owners) {
-    statements.push(
-      db.insert(schema.notification).values({
-        id: newId("ntf"),
-        userId: owner.id,
-        type: "quote.changes_requested",
-        entityType: "quote",
-        entityId: quote.id,
-        title: `${client.displayName} asked for changes to ${quote.number}`,
-      }),
-    );
-    const message = {
-      ...changesRequestedOwnerEmail(brand, {
-        clientName: client.displayName,
-        authorName: input.name,
-        number: quote.number!,
-        message: input.message,
-        url: ownerUrl,
-      }),
-      to: [owner.email],
-      idempotencyKey: `message:${messageId}:changes_requested:${owner.id}`,
-    };
-    const email = emailInsert(db, {
-      businessId: quote.businessId,
-      entityType: "quote",
-      entityId: quote.id,
-      template: "quote_changes_requested_owner",
-      message,
-    });
-    statements.push(email.insert);
-    jobs.push({ kind: "email", emailId: email.id, businessId: quote.businessId, message });
-  }
-
   try {
     await db.batch(statements as Batch);
   } catch (error) {
@@ -463,5 +508,137 @@ export async function requestQuoteChanges(
     checkOpen(fresh, input.revisionId, ["sent", "viewed", "changes_requested"]);
     throw error;
   }
+  await enqueue(env, jobs);
+}
+
+// ---------- Invoices (/i/:token, FR-INV-08) ----------
+
+/** The invoice behind a share token with its payments and balance, or null. */
+export async function loadPortalInvoice(env: Env, token: string | undefined) {
+  if (!looksLikeShareToken(token)) return null;
+  const db = getDb(env);
+  const [row] = await db
+    .select()
+    .from(schema.invoice)
+    .where(eq(schema.invoice.shareTokenHash, await hashShareToken(token)));
+  if (!row?.currentRevisionId || !row.clientId) return null;
+  const [[revision], [client], site, payments] = await Promise.all([
+    db.select().from(schema.invoiceRevision).where(eq(schema.invoiceRevision.id, row.currentRevisionId)),
+    db.select().from(schema.client).where(eq(schema.client.id, row.clientId)),
+    row.siteId ? db.select().from(schema.site).where(eq(schema.site.id, row.siteId)) : Promise.resolve([]),
+    db
+      .select({
+        id: schema.payment.id,
+        amountCents: schema.payment.amountCents,
+        whtCents: schema.payment.whtCents,
+        receivedOn: schema.payment.receivedOn,
+        method: schema.payment.method,
+      })
+      .from(schema.payment)
+      .where(and(eq(schema.payment.invoiceId, row.id), isNull(schema.payment.deletedAt)))
+      .orderBy(schema.payment.receivedOn),
+  ]);
+  if (!revision || !client) return null;
+  const settled = settledCents({ totalCents: revision.totalCents, payments });
+  return {
+    invoice: row,
+    revision,
+    client,
+    site: site[0] ?? null,
+    payments,
+    settledCents: settled,
+    balanceCents: revision.totalCents - settled,
+    token,
+  };
+}
+
+export type PortalInvoice = NonNullable<Awaited<ReturnType<typeof loadPortalInvoice>>>;
+
+/** Records a view and moves a sent invoice to viewed. */
+export async function recordInvoiceView(env: Env, portal: PortalInvoice, meta: VisitorMeta) {
+  const db = getDb(env);
+  const { invoice } = portal;
+  const statements: BatchItem<"sqlite">[] = [
+    db.insert(schema.portalEvent).values({
+      id: newId("pev"),
+      entityType: "invoice",
+      entityId: invoice.id,
+      event: "viewed",
+      ip: meta.ip,
+      userAgent: meta.userAgent?.slice(0, 300) ?? null,
+    }),
+  ];
+  if (invoice.status === "sent") {
+    statements.push(
+      db
+        .update(schema.invoice)
+        .set({ status: "viewed", updatedAt: nowIso() })
+        .where(and(eq(schema.invoice.id, invoice.id), eq(schema.invoice.status, "sent"))),
+      activityInsert(db, {
+        businessId: invoice.businessId,
+        actor: { type: "client" },
+        entityType: "invoice",
+        entityId: invoice.id,
+        action: "invoice.viewed",
+        data: { revision: portal.revision.revisionNo },
+      }),
+    );
+  }
+  await db.batch(statements as Batch);
+}
+
+/** Statuses where the payer can still write (SPEC 5.13). */
+const INVOICE_OPEN: string[] = ["sent", "viewed", "changes_requested", "partially_paid", "overdue"];
+
+/**
+ * The payer asks for changes on an invoice (FR-INV-08, FR-MSG-02). An unpaid
+ * invoice moves to changes_requested (reminders pause, FR-MSG-07); one with
+ * payments keeps its status and the owner sees the message.
+ */
+export async function requestInvoiceChanges(
+  env: Env,
+  token: string,
+  input: RequestChangesInput,
+  meta: VisitorMeta,
+) {
+  const portal = await loadPortalInvoice(env, token);
+  if (!portal) throw new PortalError("This link isn't valid.", "invalid");
+  const { invoice, revision, client } = portal;
+  if (invoice.status === "draft")
+    throw new PortalError("This invoice is being updated. You'll get the new version by email.", "revising");
+  if (!INVOICE_OPEN.includes(invoice.status)) throw new PortalError("This invoice is closed.", "closed");
+  if (input.revisionId !== revision.id)
+    throw new PortalError(
+      "This invoice was updated since you opened it. Please review the latest version.",
+      "stale",
+    );
+  const db = getDb(env);
+  const { statements, jobs } = await clientMessage(env, db, {
+    entity: "invoice",
+    entityId: invoice.id,
+    businessId: invoice.businessId,
+    number: invoice.number!,
+    clientName: client.displayName,
+    authorName: input.name,
+    body: input.message,
+    revisionId: revision.id,
+    revisionNo: revision.revisionNo,
+    meta,
+  });
+  if (canInvoice(invoice.status, "request_changes")) {
+    statements.push(
+      db
+        .update(schema.invoice)
+        .set({ status: invoiceTransition(invoice.status, "request_changes"), updatedAt: nowIso() })
+        .where(
+          and(
+            eq(schema.invoice.id, invoice.id),
+            eq(schema.invoice.status, invoice.status),
+            eq(schema.invoice.currentRevisionId, revision.id),
+          ),
+        ),
+    );
+  }
+  await db.batch(statements as Batch);
   await enqueue(env, jobs);
 }

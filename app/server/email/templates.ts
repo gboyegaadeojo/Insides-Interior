@@ -246,16 +246,120 @@ export function quoteApprovedOwnerEmail(
 /** Changes requested, to each owner (SPEC 9.4). */
 export function changesRequestedOwnerEmail(
   brand: Brand,
-  opts: { clientName: string; authorName: string; number: string; message: string; url: string },
+  opts: {
+    noun: "quote" | "invoice";
+    clientName: string;
+    authorName: string;
+    number: string;
+    message: string;
+    url: string;
+  },
 ): RenderedEmail {
   const subject = `${opts.clientName} asked for changes to ${opts.number}`;
   const { html, text } = layout(brand, {
     preheader: opts.message.slice(0, 120),
     headline: "Changes requested",
-    body: [`${opts.authorName} asked for changes to quote ${opts.number}:`],
+    body: [`${opts.authorName} asked for changes to ${opts.noun} ${opts.number}:`],
     quote: opts.message,
-    button: { label: "Open quote", url: opts.url },
-    footnote: "Reply from the app by revising the quote; the client gets the new version by email.",
+    button: { label: `Open ${opts.noun}`, url: opts.url },
+    footnote: `Reply from the app by revising the ${opts.noun}; the client gets the new version by email.`,
   });
   return { subject, html, text };
+}
+
+export interface InvoiceEmailFacts {
+  number: string;
+  /** Formatted amounts and dates. */
+  total: string;
+  due: string;
+  dueDate?: string;
+}
+
+/** Invoice sent, or a revision re-sent under the same number (SPEC 9.4, FR-INV-05/06). */
+export function invoiceSentEmail(
+  brand: Brand,
+  opts: {
+    clientName: string;
+    facts: InvoiceEmailFacts;
+    url: string;
+    revision?: number;
+    note?: string;
+    override?: EmailTemplateOverride;
+    defaults: EmailTemplateOverride;
+  },
+): RenderedEmail {
+  const values: MergeValues = {
+    "client.firstName": firstName(opts.clientName),
+    "client.name": opts.clientName,
+    "business.name": brand.name,
+    "invoice.number": opts.facts.number,
+    "amount.total": opts.facts.total,
+    "amount.due": opts.facts.due,
+    "date.due": opts.facts.dueDate,
+    link: opts.url,
+  };
+  const wording = opts.override ?? opts.defaults;
+  const revised = (opts.revision ?? 1) > 1;
+  const subject = revised
+    ? `Revised invoice ${opts.facts.number} (rev ${opts.revision}) from ${brand.name}`
+    : renderMergeFields(wording.subject, values);
+  const body = paragraphs(renderMergeFields(wording.body, values));
+  if (revised) body.push("This revision replaces the earlier version; the earlier link no longer works.");
+  const { html, text } = layout(brand, {
+    preheader: `${opts.facts.number} · ${opts.facts.due} due${opts.facts.dueDate ? ` ${opts.facts.dueDate}` : ""}`,
+    headline: revised ? "Your revised invoice" : "Your invoice is ready",
+    body,
+    quote: opts.note?.trim() || undefined,
+    facts: [
+      ["Invoice", revised ? `${opts.facts.number} · rev ${opts.revision}` : opts.facts.number],
+      ["Amount due", opts.facts.due],
+      ...(opts.facts.dueDate ? ([["Due", opts.facts.dueDate]] as [string, string][]) : []),
+    ],
+    button: { label: revised ? "See what changed" : "View invoice", url: opts.url },
+    footnote: "The PDF is attached. Payment details are on the invoice.",
+  });
+  return { subject, html, text };
+}
+
+/** Payment receipt (SPEC 9.4, FR-PAY-03): amount, method and what's left to pay. */
+export function paymentReceiptEmail(
+  brand: Brand,
+  opts: {
+    clientName: string;
+    number: string;
+    amount: string;
+    wht?: string;
+    method: string;
+    receivedOn: string;
+    balance: string;
+    paidInFull: boolean;
+    url: string;
+    override?: EmailTemplateOverride;
+    defaults: EmailTemplateOverride;
+  },
+): RenderedEmail {
+  const values: MergeValues = {
+    "client.firstName": firstName(opts.clientName),
+    "client.name": opts.clientName,
+    "business.name": brand.name,
+    "invoice.number": opts.number,
+    "amount.due": opts.balance,
+    link: opts.url,
+  };
+  const wording = opts.override ?? opts.defaults;
+  const { html, text } = layout(brand, {
+    preheader: `${opts.amount} received for ${opts.number}. ${opts.paidInFull ? "Paid in full." : `Balance ${opts.balance}.`}`,
+    headline: opts.paidInFull ? "Paid in full, thank you" : "Payment received, thank you",
+    body: paragraphs(renderMergeFields(wording.body, values)),
+    facts: [
+      ["Invoice", opts.number],
+      ["Received", opts.amount],
+      ...(opts.wht ? ([["Withholding tax", opts.wht]] as [string, string][]) : []),
+      ["Method", opts.method],
+      ["Date", opts.receivedOn],
+      ["Balance remaining", opts.balance],
+    ],
+    button: { label: "View receipt", url: opts.url },
+  });
+  return { subject: renderMergeFields(wording.subject, values), html, text };
 }
