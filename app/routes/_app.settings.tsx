@@ -1,4 +1,5 @@
 import { ChevronRight } from "lucide-react";
+import { RouteErrorBoundary } from "~/components/shell/route-error";
 import { NavLink, Outlet, useLocation } from "react-router";
 import { groupsFor } from "~/components/settings/groups";
 import { SplitView } from "~/components/shell/split-view";
@@ -64,3 +65,5 @@ export default function SettingsLayout() {
     />
   );
 }
+
+export { RouteErrorBoundary as ErrorBoundary };

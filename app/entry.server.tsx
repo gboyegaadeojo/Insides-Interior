@@ -5,6 +5,13 @@ import { ServerRouter } from "react-router";
 import { NonceContext } from "~/lib/nonce";
 import { contentSecurityPolicy, newNonce } from "~/server/security-headers";
 
+/** Errors in loaders, actions and rendering reach the Worker's logs with the page they hit. */
+export function handleError(error: unknown, { request }: { request: Request }) {
+  if (request.signal.aborted) return;
+  const path = new URL(request.url).pathname;
+  console.error(`route error on ${path}`, error instanceof Error ? (error.stack ?? error.message) : error);
+}
+
 export default async function handleRequest(
   request: Request,
   responseStatusCode: number,
