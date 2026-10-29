@@ -16,18 +16,14 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { ArrowDown, ArrowUp, GripVertical, Plus, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
-import { TONE } from "~/components/ui/hue";
 import { MoneyText } from "~/components/ui/text";
 import type { DocumentTotals } from "~/domain/document";
 import { cn } from "~/lib/utils";
-import { HUES } from "~/styles/tokens";
 import { LineEditor } from "./line-editor";
 import type { DraftAction, DraftSection } from "./use-draft";
 
-// Room sections as coloured cards (SPEC 6.8 builder), the room name in the
+// Room sections as cards with a header strip (SPEC 6.8 builder), the room name in the
 // display serif, a drag handle plus Move up/down (FR-QT-01).
-
-const SECTION_HUES = HUES.filter((h) => h !== "teal");
 
 export function useDragSensors() {
   return useSensors(
@@ -53,7 +49,6 @@ export function SectionCard({
   dispatch: (action: DraftAction) => void;
   onAddLine: (sectionId: string) => void;
 }) {
-  const hue = SECTION_HUES[index % SECTION_HUES.length]!;
   const sensors = useDragSensors();
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: section.id });
@@ -71,19 +66,18 @@ export function SectionCard({
       style={{ transform: CSS.Transform.toString(transform), transition }}
       aria-label={section.title || "Untitled room"}
       className={cn(
-        "@container rounded-sheet border-l-4 bg-surface-2 p-3 shadow-card",
-        TONE[hue].border,
+        "@container overflow-hidden rounded-card border border-border bg-surface shadow-card",
         isDragging && "relative z-20 shadow-sheet",
       )}
     >
-      <div className="mb-3 flex items-center gap-1">
+      <div className="flex items-center gap-1 border-b border-border bg-surface-2/60 py-1.5 pr-1.5 pl-1">
         <button
           type="button"
           ref={setActivatorNodeRef}
           {...attributes}
           {...listeners}
           aria-label={`Drag to reorder room ${section.title}`}
-          className="inline-flex size-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-control text-secondary hover:bg-surface-3"
+          className="inline-flex size-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-control text-tertiary hover:bg-surface-3 hover:text-primary"
         >
           <GripVertical className="size-5" aria-hidden />
         </button>
@@ -95,13 +89,10 @@ export function SectionCard({
               dispatch({ type: "renameSection", sectionId: section.id, title: e.target.value })
             }
             placeholder="Room name"
-            className={cn(
-              "h-11 w-full rounded-control bg-transparent px-2 font-display text-section outline-none hover:bg-surface focus-visible:bg-surface focus-visible:outline-2 focus-visible:outline-teal-base",
-              TONE[hue].ink,
-            )}
+            className="h-11 w-full rounded-control bg-transparent px-2 font-display text-title text-primary outline-none hover:bg-surface focus-visible:bg-surface focus-visible:outline-2 focus-visible:outline-teal-base"
           />
         </label>
-        <MoneyText cents={roomTotal} className="hidden px-2 font-semibold tablet:inline" />
+        <MoneyText cents={roomTotal} className="hidden px-3 text-section font-semibold tablet:inline" />
         <Button
           type="button"
           variant="ghost"
@@ -136,7 +127,7 @@ export function SectionCard({
 
       <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
         <SortableContext items={section.lines.map((l) => l.id)} strategy={verticalListSortingStrategy}>
-          <ul className="flex flex-col gap-2" aria-label={`Lines in ${section.title}`}>
+          <ul className="divide-y divide-border" aria-label={`Lines in ${section.title}`}>
             {section.lines.map((line, i) => (
               <LineEditor
                 key={line.id}
@@ -153,14 +144,14 @@ export function SectionCard({
         </SortableContext>
       </DndContext>
       {section.lines.length === 0 && (
-        <p className="px-2 pb-2 text-secondary">
+        <p className="px-5 pt-5 text-secondary">
           No lines yet. Add from your catalogue or type a custom line.
         </p>
       )}
       <Button
         type="button"
         variant="secondary"
-        className="mt-3 w-full tablet:w-auto"
+        className="m-3 w-[calc(100%-1.5rem)] tablet:w-auto"
         onClick={() => onAddLine(section.id)}
       >
         <Plus aria-hidden />

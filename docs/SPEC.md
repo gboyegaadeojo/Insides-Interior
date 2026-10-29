@@ -539,7 +539,7 @@ Design and test in this order. Every screen must be fully usable on all of them;
 - **DS-PLT-01** Layout responds to available width, not device detection. Use container queries for components (cards, tables, the document preview) so they adapt inside split views.
 - **DS-PLT-02** Rotation and multitasking (iPad Split View, Slide Over, Stage Manager) never lose state: open drawers, scroll position, unsaved input and the selected row survive.
 - **DS-PLT-03** Respect safe areas (`env(safe-area-inset-*)`) for the notch, the home indicator and rounded corners; sticky bars sit above the home indicator.
-- **DS-PLT-04** Installable PWA: manifest with name, short name, icons (maskable 512 px), `display: standalone`, splash colours, and `theme-color` that matches the current module colour.
+- **DS-PLT-04** Installable PWA: manifest with name, short name, icons (maskable 512 px), `display: standalone`, splash colours, and `theme-color` that matches the canvas.
 - **DS-PLT-05** Works with an iPad hardware keyboard and trackpad (hover states, pointer cursor, shortcuts) but never requires them.
 - **DS-PLT-06** Apple Pencil Scribble works in every text field (use native inputs, never custom canvas text fields).
 
@@ -547,10 +547,10 @@ Design and test in this order. Every screen must be fully usable on all of them;
 
 Primary destinations: **Home, Quotes, Invoices, Clients, Inbox**, then **More** (Projects, Catalogue, Expenses, Payments, Reports, Settings). On phone the five tabs are Home, Quotes, **+ New**, Invoices, More; Clients and Inbox are first in More and in search, and Inbox shows its unread badge on the More tab.
 
-- **DS-NAV-01** Each destination shows its icon on a small rounded chip in its module colour (section 6.3). The selected item gets a filled chip, a tinted row background and bold label; unselected chips are tinted, not grey.
+- **DS-NAV-01** Each destination shows its icon, quiet when idle. The selected item gets a teal icon, a raised surface row with a teal edge marker and a bold label, so selection never relies on colour alone.
 - **DS-NAV-02** The **+ New** button is always reachable: raised centre tab on phone, a prominent filled button at the top of the rail on tablet and desktop. It opens a sheet with large colourful tiles: New quote, New invoice, Record payment, Log expense, New client.
 - **DS-NAV-03** The top bar shows the page title (display serif), the search button, notifications and the account avatar. On tablet it also shows contextual actions for the open record.
-- **DS-NAV-04** Each module screen opens with a **module header band**: a soft gradient from the module tint to the canvas, 96–140 px tall on tablet, carrying the title, a one-line summary ("4 awaiting answer · $18,420 out") and the primary action.
+- **DS-NAV-04** Each module screen opens with a **module header band**: a quiet strip on the canvas closed by a hairline, carrying the title, a one-line summary ("4 awaiting answer · $18,420 out") and the primary action.
 - **DS-NAV-05** Lists and details use the **split view** pattern on wide screens (list 360–420 px, detail fills the rest) and push navigation on phone. Back always returns to the same scroll position.
 - **DS-NAV-06** Command palette: Cmd/Ctrl+K on a keyboard, search button on touch. Lists actions and records; arrow keys, Enter, Escape; announced to screen readers.
 
@@ -607,10 +607,10 @@ In dark mode, tints become the base colour at 14–18% opacity over `surface`, a
 - **DS-COL-01** All colours come from tokens (CSS variables exposed as Tailwind theme values). No raw hex in components.
 - **DS-COL-02** Every text/background pair meets WCAG 2.2 AA (4.5:1 for text, 3:1 for large text and UI boundaries), in light and dark, including hover, pressed, selected and disabled states. Text on a tint uses that hue's ink.
 - **DS-COL-03** Colour is never the only signal: statuses carry words, charts carry labels or patterns, required fields carry text.
-- **DS-COL-04** Generous, meaningful use is expected: module header bands, coloured nav chips, KPI cards with a coloured top edge and icon, colourful category chips for item types, client avatar colours, multi-colour charts, illustrated empty states, colourful + New tiles.
+- **DS-COL-04** Colour is meaningful, not decorative: chrome (nav, header bands, buttons) stays neutral with a walnut primary action and teal for selection; colour goes where it carries information: KPI cards with a coloured top edge and icon, colourful category chips for item types, client avatar colours, multi-colour charts, illustrated empty states, colourful + New tiles.
 - **DS-COL-05** Each KPI card uses the colour of the module it links to (Outstanding = Indigo, Quotes awaiting = Plum, Paid this month = Sage, Overdue = Danger).
 - **DS-COL-06** Client avatars: initials on one of the eight bases, chosen by hashing the client name; ink text white or near-black, whichever passes contrast.
-- **DS-COL-07** Gradients are allowed as soft two-stop washes (tint → canvas) on header bands, the Home greeting card and empty states. No glass blur over content, no neon, no gradients behind body text.
+- **DS-COL-07** Gradients are allowed only as soft two-stop washes (tint → canvas) on empty states. No glass blur over content, no neon, no gradients behind body text.
 - **DS-COL-08** **Client-facing documents** (portal, PDF, emails) use the business brand colour from Settings plus neutrals and status colours. The app's eight-hue palette stays inside the app so documents print cleanly and look like her brand, not ours.
 - **DS-COL-09** Charts use a fixed series order: Teal, Plum, Indigo, Terracotta, Saffron, Sage, Rose clay, Ocean. Revenue is always Teal and expenses always Rose clay, on every chart.
 

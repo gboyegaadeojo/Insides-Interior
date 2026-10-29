@@ -50,19 +50,19 @@ export function LineEditor({
       ref={setNodeRef}
       style={{ transform: CSS.Transform.toString(transform), transition }}
       className={cn(
-        "rounded-card border bg-surface",
-        line.optional ? "border-dashed border-tertiary" : "border-border",
+        "bg-surface transition-colors duration-fast",
+        line.optional && "bg-surface-2/50",
         isDragging && "relative z-10 shadow-sheet",
       )}
     >
-      <div className="flex gap-1 p-2">
+      <div className="flex gap-1 px-2 py-3">
         <button
           type="button"
           ref={setActivatorNodeRef}
           {...attributes}
           {...listeners}
           aria-label={`Drag to reorder ${name}`}
-          className="inline-flex size-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-control text-secondary hover:bg-surface-2 active:cursor-grabbing"
+          className="inline-flex size-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-control text-tertiary hover:bg-surface-2 hover:text-primary active:cursor-grabbing"
         >
           <GripVertical className="size-5" aria-hidden />
         </button>
@@ -71,7 +71,7 @@ export function LineEditor({
             <div className="mb-1 flex flex-wrap items-center gap-1.5">
               {line.itemType && <ItemTypeChip type={line.itemType} />}
               {line.optional && (
-                <span className="rounded-full bg-surface-3 px-2 py-0.5 text-micro font-semibold">
+                <span className="rounded-full border border-tertiary/60 px-2 py-0.5 text-micro font-semibold text-secondary">
                   Optional
                 </span>
               )}
@@ -96,7 +96,7 @@ export function LineEditor({
           />
           <div className="flex flex-col gap-1.5">
             <span className="text-label font-semibold">Amount</span>
-            <span className="flex h-11 items-center justify-end" aria-live="polite">
+            <span className="flex h-11 items-center justify-end pointer-fine:h-10" aria-live="polite">
               <MoneyText
                 cents={computed?.included === false ? 0 : (computed?.netCents ?? 0)}
                 className="font-semibold"

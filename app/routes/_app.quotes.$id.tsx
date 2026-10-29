@@ -289,6 +289,7 @@ function Builder({ data }: { data: LoaderData }) {
         type="button"
         variant="tinted"
         size="lg"
+        className="border-dashed border-tertiary/60 text-secondary hover:text-primary"
         onClick={() =>
           dispatch({
             type: "addSection",
@@ -301,7 +302,7 @@ function Builder({ data }: { data: LoaderData }) {
       </Button>
       <DocumentDiscountField draft={draft} dispatch={dispatch} />
       <Card>
-        <h2 className="mb-3 text-section font-semibold">Notes and terms</h2>
+        <h2 className="mb-4 font-display text-title">Notes and terms</h2>
         <div className="flex flex-col gap-4">
           <Textarea
             label="Notes"
@@ -318,7 +319,7 @@ function Builder({ data }: { data: LoaderData }) {
         </div>
       </Card>
       <Card>
-        <h2 className="mb-2 text-section font-semibold">Totals</h2>
+        <h2 className="mb-3 font-display text-title">Totals</h2>
         <TotalsBreakdown totals={props.totals} depositLabel={depositLabel} />
       </Card>
     </div>
@@ -390,11 +391,15 @@ function Builder({ data }: { data: LoaderData }) {
         ]}
       />
 
-      <div className="wide:grid wide:grid-cols-[minmax(0,58fr)_minmax(0,42fr)] wide:items-start wide:gap-6">
+      {/* Tablet landscape 58/42 keeps room to edit; desktop splits evenly so the preview stays legible. */}
+      <div className="wide:grid wide:grid-cols-[minmax(0,58fr)_minmax(0,42fr)] wide:items-start wide:gap-6 desktop:grid-cols-2">
         <div className={cn(view === "preview" && "hidden wide:block")}>{editor}</div>
         <aside
           aria-label="Live preview"
-          className={cn("wide:sticky wide:top-20", view === "edit" && "hidden wide:block")}
+          className={cn(
+            "rounded-sheet border border-border bg-surface-2 p-3 tablet:p-5 wide:sticky wide:top-20 desktop:p-4",
+            view === "edit" && "hidden wide:block",
+          )}
         >
           <Paper>
             <DocumentRenderer {...props} />
@@ -464,6 +469,7 @@ function HeaderFields({
   const { header } = draft;
   return (
     <Card>
+      <h2 className="mb-4 font-display text-title">Details</h2>
       <div className="grid gap-4 tablet:grid-cols-2">
         <ClientCombobox
           name="builder-client"
@@ -563,7 +569,7 @@ function DocumentDiscountField({
   const discount = draft.documentDiscount;
   return (
     <Card>
-      <h2 className="mb-3 text-section font-semibold">Discount on the whole quote</h2>
+      <h2 className="mb-4 font-display text-title">Discount on the whole quote</h2>
       <div className="flex flex-col gap-2">
         <SegmentedControl
           label="Document discount"

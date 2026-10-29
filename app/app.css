@@ -20,6 +20,8 @@
   --color-secondary: var(--text-secondary);
   --color-tertiary: var(--text-tertiary);
   --color-backdrop: var(--backdrop);
+  --color-action: var(--action);
+  --color-action-on: var(--action-on);
 
   --color-teal-tint: var(--teal-tint);
   --color-teal-base: var(--teal-base);
@@ -153,6 +155,9 @@
   font-variant-numeric: tabular-nums;
 }
 
+@utility duration-press {
+  transition-duration: var(--duration-press);
+}
 @utility duration-fast {
   transition-duration: var(--duration-fast);
 }

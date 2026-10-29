@@ -1,6 +1,9 @@
-import { MODULES, type Module, NEUTRALS, PALETTE } from "~/styles/tokens";
+import { NEUTRALS } from "~/styles/tokens";
 
-/** <meta name="theme-color"> per module (DS-PLT-04): the module tint, dark canvas in dark mode. */
-export function themeColors(module: Module) {
-  return { light: PALETTE[MODULES[module]].tint, dark: NEUTRALS.canvas!.dark };
+/**
+ * <meta name="theme-color"> (DS-PLT-04): the canvas, so the browser chrome
+ * blends with the page (restrained palette: no per-module colour).
+ */
+export function themeColors() {
+  return { light: NEUTRALS.canvas!.light, dark: NEUTRALS.canvas!.dark };
 }

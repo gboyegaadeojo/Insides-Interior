@@ -5,21 +5,23 @@ import * as React from "react";
 import { cn } from "~/lib/utils";
 
 // Refactored from legacy/src/components/ui/button.tsx (SPEC 2.5): tokens only,
+// walnut primary, linen tinted (restrained palette, docs/decisions.md),
 // sizes md 44 / lg 52 on touch, 40 / 44 with a mouse (DS-SPC-03), tinted and
 // loading variants, 0.98 press (DS-MOT-02).
 export const buttonVariants = cva(
   [
     "inline-flex shrink-0 select-none items-center justify-center gap-2 whitespace-nowrap rounded-control font-semibold",
-    "transition-[transform,background-color,color,box-shadow,opacity] duration-fast ease-out",
+    "transition-[transform,background-color,border-color,color,box-shadow,opacity] duration-fast ease-out active:duration-press",
     "active:scale-[0.98] disabled:pointer-events-none disabled:opacity-55 aria-busy:pointer-events-none",
     "[&_svg]:size-4.5 [&_svg]:shrink-0",
   ],
   {
     variants: {
       variant: {
-        primary: "bg-teal-base text-teal-on shadow-card hover:brightness-110",
-        secondary: "border border-tertiary bg-surface text-primary hover:bg-surface-2",
-        tinted: "bg-mod-tint text-mod-ink hover:brightness-[0.97]",
+        primary: "bg-action text-action-on shadow-card hover:bg-action/88",
+        secondary:
+          "border border-tertiary/70 bg-surface text-primary hover:border-tertiary hover:bg-surface-2",
+        tinted: "border border-border bg-surface-2 text-primary hover:bg-surface-3",
         ghost: "text-primary hover:bg-surface-2",
         destructive: "bg-danger-base text-danger-on hover:brightness-110",
       },
