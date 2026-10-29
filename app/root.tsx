@@ -8,10 +8,14 @@ import {
   useRouteLoaderData,
 } from "react-router";
 import { Toaster } from "~/components/ui/toast";
+import { useNonce } from "~/lib/nonce";
 import { readPreferences } from "~/lib/preferences";
 import { themeColors } from "~/lib/theme-color";
 import type { Route } from "./+types/root";
 import "./app.css";
+// The document styles load with the shell, so a document never flashes unstyled
+// while its route chunk arrives (found by the a11y sweep, phase 10).
+import "./components/doc/document.css";
 
 export function loader({ request }: Route.LoaderArgs) {
   return { preferences: readPreferences(request.headers.get("Cookie")) };
@@ -28,6 +32,7 @@ export function Layout({ children }: { children: React.ReactNode }) {
   const data = useRouteLoaderData<typeof loader>("root");
   const theme = data?.preferences.theme ?? "system";
   const colors = themeColors();
+  const nonce = useNonce();
   return (
     <html lang="en-NG" data-theme={theme}>
       <head>
@@ -50,8 +55,8 @@ export function Layout({ children }: { children: React.ReactNode }) {
       <body>
         {children}
         <Toaster />
-        <ScrollRestoration />
-        <Scripts />
+        <ScrollRestoration nonce={nonce} />
+        <Scripts nonce={nonce} />
       </body>
     </html>
   );

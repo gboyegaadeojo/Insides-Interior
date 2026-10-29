@@ -1,0 +1,50 @@
+name: Nightly backup
+
+# SPEC 11.3: a SQL dump of the production D1 database to the private
+# insides-backups R2 bucket every night (daily/, kept 90 days) and on the 1st
+# of the month (monthly/, kept 7 years). Retention is R2 lifecycle rules (see
+# docs/runbook.md). Runs outside the Worker, so the Workers Free CPU limit
+# doesn't apply. The app's daily job warns the owners if backups stop.
+
+on:
+  schedule:
+    # 01:30 UTC = 02:30 in Lagos, after the day's work.
+    - cron: "30 1 * * *"
+  workflow_dispatch:
+
+concurrency:
+  group: backup-production
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Export D1
+        run: npx wrangler d1 export insides_db --remote --output backup.sql
+      - name: Check the dump
+        run: |
+          test -s backup.sql
+          grep -q "CREATE TABLE" backup.sql
+          gzip -9 backup.sql
+          ls -l backup.sql.gz
+      - name: Upload to R2
+        run: |
+          DAY=$(TZ=Africa/Lagos date +%F)
+          npx wrangler r2 object put "insides-backups/daily/${DAY}.sql.gz" --file backup.sql.gz --remote --content-type application/gzip
+          if [ "$(TZ=Africa/Lagos date +%d)" = "01" ]; then
+            npx wrangler r2 object put "insides-backups/monthly/$(TZ=Africa/Lagos date +%Y-%m).sql.gz" --file backup.sql.gz --remote --content-type application/gzip
+          fi

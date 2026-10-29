@@ -1,5 +1,6 @@
 import { createRequestHandler } from "react-router";
 import type { Job } from "~/features/email/service";
+import { withBaselineHeaders } from "~/server/security-headers";
 
 declare module "react-router" {
   export interface AppLoadContext {
@@ -20,7 +21,8 @@ const requestHandler = createRequestHandler(
 
 export default {
   async fetch(request, env, ctx) {
-    return requestHandler(request, { cloudflare: { env, ctx } });
+    const response = await requestHandler(request, { cloudflare: { env, ctx } });
+    return withBaselineHeaders(response, new URL(request.url).protocol === "https:");
   },
 
   // Daily reminders and the weekly digest (SPEC 5.9). Loaded on demand, like

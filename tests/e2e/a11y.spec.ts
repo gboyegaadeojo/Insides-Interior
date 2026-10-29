@@ -14,6 +14,13 @@ const PAGES = [
   "/catalogue?view=templates&template=new",
   "/projects",
   "/projects?new=1",
+  "/inbox",
+  "/expenses",
+  "/expenses?expense=new",
+  "/payments",
+  "/reports",
+  "/reports?report=tax&basis=cash",
+  "/reports?report=aged",
   "/more",
   "/settings",
   "/settings/business",
@@ -25,6 +32,7 @@ const PAGES = [
   "/settings/team",
   "/settings/account",
   "/settings/appearance",
+  "/settings/data",
   "/design?theme=light",
   "/design?theme=dark",
 ];
@@ -46,6 +54,25 @@ for (const colorScheme of ["light", "dark"] as const) {
     test(`${path} has no serious accessibility violations (${colorScheme})`, async ({ page }) => {
       await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
       await page.goto(path);
+      // Streamed widgets (Home) and lists finish loading before the scan.
+      await page.waitForLoadState("networkidle");
+      if (!path.startsWith("/design")) await expect(page.locator('[aria-busy="true"]')).toHaveCount(0);
+      expect(await seriousViolations(page)).toEqual([]);
+    });
+  }
+
+  for (const noun of ["quote", "invoice"] as const) {
+    test(`a new ${noun} in the builder has no serious accessibility violations (${colorScheme})`, async ({
+      page,
+    }) => {
+      await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
+      await page.goto(`/${noun}s`);
+      await page
+        .getByRole("button", { name: `New ${noun}` })
+        .first()
+        .click();
+      await expect(page).toHaveURL(new RegExp(`/${noun}s/(qte|inv)_`));
+      await page.waitForLoadState("networkidle");
       expect(await seriousViolations(page)).toEqual([]);
     });
   }
