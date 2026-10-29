@@ -88,9 +88,9 @@ test("appearance setting switches theme and survives a reload", async ({ page })
   await expect(page.locator("html")).toHaveAttribute("data-theme", "system");
 });
 
-test("theme-color follows the module (DS-PLT-04)", async ({ page }) => {
-  await page.goto("/quotes");
-  await expect(page.locator('meta[name="theme-color"]').first()).toHaveAttribute("content", "#F5EBF3");
-  await page.goto("/invoices");
-  await expect(page.locator('meta[name="theme-color"]').first()).toHaveAttribute("content", "#ECEEFC");
+test("theme-color matches the canvas on every module (DS-PLT-04)", async ({ page }) => {
+  for (const path of ["/quotes", "/invoices"]) {
+    await page.goto(path);
+    await expect(page.locator('meta[name="theme-color"]').first()).toHaveAttribute("content", "#F8F6F1");
+  }
 });

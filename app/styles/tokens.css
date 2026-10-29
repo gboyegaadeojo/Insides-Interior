@@ -3,14 +3,16 @@
 :root,
 [data-theme="light"] {
   color-scheme: light;
-  --canvas: #F8F6F2;
+  --canvas: #F8F6F1;
   --surface: #FFFFFF;
-  --surface-2: #F2EEE8;
-  --surface-3: #E9E3DA;
-  --border: #E4DED5;
-  --text-primary: #1E1B18;
-  --text-secondary: #5C554D;
+  --surface-2: #F0EDE6;
+  --surface-3: #E6E1D8;
+  --border: #E2DDD4;
+  --text-primary: #24211E;
+  --text-secondary: #68615A;
   --text-tertiary: #7A7268;
+  --action: #302B26;
+  --action-on: #FFFFFF;
   --teal-tint: #E6F4F2;
   --teal-base: #0F766E;
   --teal-ink: #0B4F4A;
@@ -51,9 +53,9 @@
   --danger-base: #B42332;
   --danger-ink: #991E2B;
   --danger-on: #FFFFFF;
-  --elev-card: 0 1px 2px rgb(30 27 24 / 6%), 0 8px 24px rgb(30 27 24 / 6%);
-  --elev-sheet: 0 24px 64px rgb(30 27 24 / 18%);
-  --backdrop: rgb(30 27 24 / 40%);
+  --elev-card: 0 1px 2px rgb(36 33 30 / 4%), 0 6px 20px -8px rgb(36 33 30 / 8%);
+  --elev-sheet: 0 24px 64px -12px rgb(36 33 30 / 22%);
+  --backdrop: rgb(36 33 30 / 36%);
 }
 
 [data-theme="dark"] {
@@ -66,6 +68,8 @@
   --text-primary: #F5F1EA;
   --text-secondary: #BDB5AA;
   --text-tertiary: #9A9187;
+  --action: #F0EDE6;
+  --action-on: #24211E;
   --teal-tint: #233734;
   --teal-base: #4FD1C5;
   --teal-ink: #4FD1C5;
@@ -122,6 +126,8 @@
     --text-primary: #F5F1EA;
     --text-secondary: #BDB5AA;
     --text-tertiary: #9A9187;
+    --action: #F0EDE6;
+    --action-on: #24211E;
     --teal-tint: #233734;
     --teal-base: #4FD1C5;
     --teal-ink: #4FD1C5;
@@ -193,9 +199,10 @@
   --fs-micro: 0.6875rem;
   --lh-micro: 1.4;
   --fw-micro: 500;
-  --duration-fast: 120ms;
-  --duration-standard: 180ms;
-  --duration-panel: 260ms;
+  --duration-press: 120ms;
+  --duration-fast: 150ms;
+  --duration-standard: 200ms;
+  --duration-panel: 220ms;
   --duration-page: 220ms;
   --duration-chart: 400ms;
   --duration-celebrate: 900ms;
@@ -229,6 +236,7 @@
 
 @media (prefers-reduced-motion: reduce) {
   :root {
+    --duration-press: 0ms;
     --duration-fast: 0ms;
     --duration-standard: 0ms;
     --duration-panel: 0ms;

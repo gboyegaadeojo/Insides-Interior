@@ -9,7 +9,6 @@ import {
 } from "react-router";
 import { Toaster } from "~/components/ui/toast";
 import { readPreferences } from "~/lib/preferences";
-import { useAppHandle } from "~/lib/route-handle";
 import { themeColors } from "~/lib/theme-color";
 import type { Route } from "./+types/root";
 import "./app.css";
@@ -28,8 +27,7 @@ export const links: Route.LinksFunction = () => [
 export function Layout({ children }: { children: React.ReactNode }) {
   const data = useRouteLoaderData<typeof loader>("root");
   const theme = data?.preferences.theme ?? "system";
-  const { module } = useAppHandle();
-  const colors = themeColors(module);
+  const colors = themeColors();
   return (
     <html lang="en-NG" data-theme={theme}>
       <head>

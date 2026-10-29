@@ -45,6 +45,11 @@ describe.each<ThemeName>(["light", "dark"])("%s theme contrast (DS-COL-02)", (na
     }
   });
 
+  it("primary action text is AA on the action fill, and the fill stands out from every surface", () => {
+    expect(contrast(n("action-on"), n("action"))).toBeGreaterThanOrEqual(AA_TEXT);
+    for (const bg of backgrounds) expect(contrast(n("action"), n(bg)), bg).toBeGreaterThanOrEqual(AA_UI);
+  });
+
   // SPEC 6.3 says "verify contrast per use": tertiary text is only placed on
   // `surface` (cards, sheets); elsewhere it is an outline colour (docs/decisions.md).
   it("text-tertiary is AA text on surface and a 3:1 outline on every neutral", () => {

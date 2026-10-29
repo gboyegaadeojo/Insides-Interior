@@ -1,11 +1,10 @@
 import * as Popover from "@radix-ui/react-popover";
-import { Bell, Ellipsis, PanelLeftClose, PanelLeftOpen, Plus, Search } from "lucide-react";
+import { Bell, Ellipsis, type LucideIcon, PanelLeftClose, PanelLeftOpen, Plus, Search } from "lucide-react";
 import * as React from "react";
 import { Link, NavLink, useFetcher, useLocation } from "react-router";
 import { cn } from "~/lib/utils";
 import type { Module } from "~/styles/tokens";
 import { Avatar } from "../ui/avatar";
-import { IconChip } from "../ui/icon-chip";
 import { CommandPalette, useCommandShortcut } from "./command-palette";
 import { type Destination, isActive, MORE, PRIMARY } from "./nav";
 import { NewSheet } from "./new-sheet";
@@ -91,7 +90,7 @@ function Rail({
       aria-label="Main"
       data-expanded={expanded}
       className={cn(
-        "fixed inset-y-0 left-0 z-30 hidden w-[var(--rail-collapsed)] flex-col gap-1 overflow-y-auto border-r border-border bg-surface pt-[max(env(safe-area-inset-top),1rem)] pb-4 pl-safe tablet:flex",
+        "fixed inset-y-0 left-0 z-30 hidden w-[var(--rail-collapsed)] flex-col gap-1 overflow-y-auto border-r border-border bg-surface-2 pt-[max(env(safe-area-inset-top),1rem)] pb-4 pl-safe tablet:flex",
         "transition-[width] duration-panel ease-out",
         expanded && "wide:w-[var(--rail-expanded)]",
       )}
@@ -119,10 +118,10 @@ function Rail({
           type="button"
           onClick={onNew}
           className={cn(
-            "flex h-13 w-full items-center justify-center gap-2 rounded-control bg-teal-base font-semibold text-teal-on shadow-card transition-transform duration-fast ease-out active:scale-[0.98]",
+            "flex h-12 w-full items-center justify-center gap-2 rounded-control bg-action font-semibold text-action-on shadow-card transition-[transform,background-color] duration-fast ease-out hover:bg-action/88 active:scale-[0.98] active:duration-press",
           )}
         >
-          <Plus className="size-6" aria-hidden />
+          <Plus className="size-5" aria-hidden />
           <span className={cn("sr-only", expanded && "wide:not-sr-only")}>New</span>
         </button>
       </div>
@@ -177,10 +176,12 @@ function RailList({
               className={cn(
                 "relative flex min-h-14 flex-col items-center justify-center gap-0.5 rounded-control px-0.5 py-1.5 transition-colors duration-standard",
                 expanded && "wide:min-h-11 wide:flex-row wide:justify-start wide:gap-3 wide:px-2",
-                active ? "bg-mod-tint text-mod-ink" : "text-secondary hover:bg-surface-2 hover:text-primary",
+                active
+                  ? "bg-surface text-primary shadow-card before:absolute before:inset-y-2.5 before:left-0 before:w-0.75 before:rounded-full before:bg-teal-base"
+                  : "text-secondary hover:bg-surface-3/60 hover:text-primary",
               )}
             >
-              <IconChip icon={item.icon} tone={item.tone} filled={active} size="sm" />
+              <NavIcon icon={item.icon} active={active} />
               <span
                 className={cn(
                   "max-w-full truncate text-micro",
@@ -287,7 +288,7 @@ function TabBar({ inboxUnread, onNew }: { inboxUnread: number; onNew: () => void
           <button
             type="button"
             onClick={onNew}
-            className="-mt-7 inline-flex size-16 items-center justify-center rounded-full bg-teal-base text-teal-on shadow-sheet ring-4 ring-canvas transition-transform duration-fast ease-out active:scale-95"
+            className="-mt-7 inline-flex size-16 items-center justify-center rounded-full bg-action text-action-on shadow-sheet ring-4 ring-canvas transition-transform duration-fast ease-out active:scale-95 active:duration-press"
           >
             <Plus className="size-7" aria-hidden />
             <span className="sr-only">New</span>
@@ -305,8 +306,8 @@ function TabBar({ inboxUnread, onNew }: { inboxUnread: number; onNew: () => void
           >
             <span
               className={cn(
-                "inline-flex size-7 items-center justify-center rounded-lg [&_svg]:size-4",
-                moreActive ? "bg-surface-3" : "bg-surface-2",
+                "inline-flex size-7 items-center justify-center rounded-lg [&_svg]:size-4.5",
+                moreActive && "text-teal-ink",
               )}
               aria-hidden
             >
@@ -332,12 +333,27 @@ function TabItem({ item, active }: { item: Destination; active: boolean }) {
         aria-current={active ? "page" : undefined}
         className={cn(
           "flex h-full min-h-11 flex-col items-center justify-center gap-0.5",
-          active ? "text-mod-ink" : "text-secondary",
+          active ? "text-primary" : "text-secondary",
         )}
       >
-        <IconChip icon={item.icon} tone={item.tone} filled={active} size="sm" />
+        <NavIcon icon={item.icon} active={active} />
         <span className={cn("text-micro", active && "font-bold")}>{item.label}</span>
       </NavLink>
     </li>
+  );
+}
+
+/** Navigation icon: quiet when idle, teal when it's the current page. */
+function NavIcon({ icon: Icon, active }: { icon: LucideIcon; active: boolean }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "inline-flex size-7 shrink-0 items-center justify-center [&_svg]:size-4.5",
+        active ? "text-teal-ink" : "text-tertiary",
+      )}
+    >
+      <Icon strokeWidth={active ? 2.1 : 1.8} />
+    </span>
   );
 }

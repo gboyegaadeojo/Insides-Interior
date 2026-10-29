@@ -25,15 +25,22 @@ export const STATUS_EXTRA = {
   danger: { label: "Danger", light: "#B42332" as Hex, dark: "#FF7D87" as Hex },
 };
 
+/**
+ * Warm ivory, white and linen surfaces with charcoal text (premium redesign,
+ * docs/decisions.md). text-tertiary doubles as the 3:1 outline for controls.
+ */
 export const NEUTRALS: Record<string, { light: Hex; dark: Hex }> = {
-  canvas: { light: "#F8F6F2", dark: "#121110" },
+  canvas: { light: "#F8F6F1", dark: "#121110" },
   surface: { light: "#FFFFFF", dark: "#1B1A18" },
-  "surface-2": { light: "#F2EEE8", dark: "#252320" },
-  "surface-3": { light: "#E9E3DA", dark: "#2F2C28" },
-  border: { light: "#E4DED5", dark: "#36322D" },
-  "text-primary": { light: "#1E1B18", dark: "#F5F1EA" },
-  "text-secondary": { light: "#5C554D", dark: "#BDB5AA" },
+  "surface-2": { light: "#F0EDE6", dark: "#252320" },
+  "surface-3": { light: "#E6E1D8", dark: "#2F2C28" },
+  border: { light: "#E2DDD4", dark: "#36322D" },
+  "text-primary": { light: "#24211E", dark: "#F5F1EA" },
+  "text-secondary": { light: "#68615A", dark: "#BDB5AA" },
   "text-tertiary": { light: "#7A7268", dark: "#9A9187" },
+  /** Primary actions: deep walnut (ivory in dark mode). */
+  action: { light: "#302B26", dark: "#F0EDE6" },
+  "action-on": { light: "#FFFFFF", dark: "#24211E" },
 };
 
 /** SPEC 6.2 / 6.3: module → signature hue. */
@@ -77,11 +84,12 @@ export const TYPE_SCALE = {
   micro: { phone: 11, tablet: 11, lineHeight: 1.4, weight: 500, font: "sans" },
 } as const;
 
-/** SPEC 6.6 motion durations in ms. */
+/** SPEC 6.6 motion durations in ms: hover 150–200, press 120, panels ~200. */
 export const MOTION = {
-  fast: 120,
-  standard: 180,
-  panel: 260,
+  press: 120,
+  fast: 150,
+  standard: 200,
+  panel: 220,
   page: 220,
   chart: 400,
   celebrate: 900,
@@ -225,9 +233,9 @@ export function renderTokensCss(): string {
 [data-theme="light"] {
   color-scheme: light;
 ${colourBlock(light, "  ")}
-  --elev-card: 0 1px 2px rgb(30 27 24 / 6%), 0 8px 24px rgb(30 27 24 / 6%);
-  --elev-sheet: 0 24px 64px rgb(30 27 24 / 18%);
-  --backdrop: rgb(30 27 24 / 40%);
+  --elev-card: 0 1px 2px rgb(36 33 30 / 4%), 0 6px 20px -8px rgb(36 33 30 / 8%);
+  --elev-sheet: 0 24px 64px -12px rgb(36 33 30 / 22%);
+  --backdrop: rgb(36 33 30 / 36%);
 }
 
 [data-theme="dark"] {
