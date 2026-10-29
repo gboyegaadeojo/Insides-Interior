@@ -1,3 +1,4 @@
+import { addDays, businessToday } from "~/lib/dates";
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { quickCreateClient, saveSite } from "~/features/clients/service";
@@ -73,8 +74,10 @@ describe("quote drafts (FR-QT-01…07)", () => {
       number: null,
       currency: "NGN",
       draftVersion: 1,
+      // Owner request: an 85% deposit and 7-day validity by default.
       depositType: "percent",
-      depositValue: 5000,
+      depositValue: 8500,
+      validUntil: addDays(businessToday(), 7),
     });
     expect(detail!.content.sections).toHaveLength(1);
     expect(detail!.content.taxRates.map((r) => r.id)).toEqual(TAXES);

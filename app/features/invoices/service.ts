@@ -232,7 +232,37 @@ function lockAll(lines: Line[]): Line[] {
  *   with the exact taxes they charged (F3), all locked
  * - full: the approved lines as an ordinary, editable invoice
  */
-export async function createInvoiceFromQuote(ctx: RequestContext, quoteId: string, input: FromQuoteInput) {
+/** Stands in for a signed-in user when the system acts (the invoice drafted on approval). */
+const SYSTEM_USER = "system";
+
+function systemCtx(db: Db, businessId: string): Ctx {
+  return {
+    db,
+    user: { id: SYSTEM_USER, businessId, role: "owner", name: "System", email: "", sessionId: "" },
+  };
+}
+
+/**
+ * Owner request: when a client approves a quote, its deposit invoice (85% by
+ * default) is drafted straight away, or an invoice for the approved total if
+ * the quote has no deposit. It stays a draft until the owner sends it. Runs
+ * once: nothing is made if the quote already has a live deposit or full invoice.
+ */
+export async function createInvoiceOnApproval(db: Db, businessId: string, quoteId: string) {
+  const ctx = systemCtx(db, businessId);
+  const existing = await invoicesForQuote(ctx, quoteId);
+  if (existing.some((i) => i.status !== "void" && (i.kind === "deposit" || i.kind === "standard")))
+    return null;
+  const [quote] = await db
+    .select({ depositType: schema.quote.depositType, depositValue: schema.quote.depositValue })
+    .from(schema.quote)
+    .where(and(eq(schema.quote.id, quoteId), eq(schema.quote.businessId, businessId)));
+  const kind = quote?.depositType && quote.depositValue ? ("deposit" as const) : ("full" as const);
+  const id = await createInvoiceFromQuote(ctx, quoteId, { kind });
+  return { id, kind };
+}
+
+export async function createInvoiceFromQuote(ctx: Ctx, quoteId: string, input: FromQuoteInput) {
   const settings = await loadSettings(ctx);
   const { quote, revision, approved, totals } = await approvedQuote(ctx, quoteId);
   const ref = `quote ${quote.number}`;
@@ -308,11 +338,12 @@ export async function createInvoiceFromQuote(ctx: RequestContext, quoteId: strin
   }
 
   const id = newId("inv");
+  const automatic = ctx.user.id === SYSTEM_USER;
   await ctx.db.batch([
     ctx.db.insert(schema.invoice).values({
       id,
       businessId: ctx.user.businessId,
-      createdBy: ctx.user.id,
+      createdBy: automatic ? null : ctx.user.id,
       clientId: quote.clientId,
       projectId: quote.projectId,
       siteId: quote.siteId,
@@ -326,7 +357,14 @@ export async function createInvoiceFromQuote(ctx: RequestContext, quoteId: strin
       draftTotalCents: computeContent(content).computed.totalCents,
       draftVersion: 1,
     }),
-    audit(ctx, id, "invoice.created", { kind, fromQuote: quote.number }),
+    activityInsert(ctx.db, {
+      businessId: ctx.user.businessId,
+      actor: automatic ? { type: "system" } : { type: "user", id: ctx.user.id },
+      entityType: "invoice",
+      entityId: id,
+      action: "invoice.created",
+      data: { kind, fromQuote: quote.number, automatic: automatic || undefined },
+    }),
   ]);
   return id;
 }

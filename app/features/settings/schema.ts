@@ -104,6 +104,20 @@ export const paymentInstructionsSchema = z.object({
   paymentNote: optionalText(300),
 });
 
+/**
+ * The owner's permanent signature (owner request): pad strokes as JSON (turned
+ * into SVG on the server, never stored as markup from the browser), name, title.
+ */
+export const signatureSchema = z.object({
+  signature: z.string().trim().min(2, "Sign in the box first").max(80_000),
+  signatoryName: z.string().trim().min(2, "Enter the name printed under the signature").max(120),
+  signatoryTitle: z
+    .string()
+    .trim()
+    .max(120)
+    .transform((v) => v || null),
+});
+
 export const brandColorSchema = z.object({
   brandColor: z.string().transform((v, ctx) => {
     const hex = normaliseHex(v);

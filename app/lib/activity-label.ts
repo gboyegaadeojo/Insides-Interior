@@ -86,7 +86,11 @@ const DETAIL: Record<string, (data: Record<string, unknown>) => string | undefin
   "invoice.changes_requested": (d) => (d.about ? `: ${d.about}` : d.name ? `(${d.name})` : undefined),
   "invoice.voided": (d) => (d.reason ? `: ${d.reason}` : undefined),
   "invoice.created": (d) =>
-    d.fromQuote ? `from quote ${d.fromQuote}` : d.reissueOf ? `reissuing ${d.reissueOf}` : undefined,
+    d.fromQuote
+      ? `from quote ${d.fromQuote}${d.automatic ? " when it was approved" : ""}`
+      : d.reissueOf
+        ? `reissuing ${d.reissueOf}`
+        : undefined,
   "payment.recorded": (d) =>
     typeof d.amountCents === "number"
       ? `: ${formatCents(d.amountCents)}${typeof d.whtCents === "number" && d.whtCents > 0 ? ` + WHT ${formatCents(d.whtCents)}` : ""}`

@@ -27,7 +27,8 @@ export function seedStatements(opts: {
   const biz = q(SEED_IDS.business);
   const statements = [
     `INSERT OR IGNORE INTO business (id, legal_name, trading_name, timezone, currency, brand_color, created_at, updated_at) VALUES (${biz}, ${q(opts.businessName ?? "Insides Interior Limited")}, 'Insides Interior', 'Africa/Lagos', 'NGN', '#0F766E', ${iso}, ${iso})`,
-    `INSERT OR IGNORE INTO settings (business_id, updated_at) VALUES (${biz}, ${iso})`,
+    // 85% deposit and 7-day quotes (owner requests); the column defaults predate them.
+    `INSERT OR IGNORE INTO settings (business_id, default_deposit_bp, quote_valid_days, updated_at) VALUES (${biz}, 8500, 7, ${iso})`,
     `INSERT OR IGNORE INTO tax_rate (id, business_id, name, rate_bp, applies_to, is_default, position, created_at, updated_at) VALUES (${q(SEED_IDS.vat)}, ${biz}, 'VAT', 750, 'both', 0, 0, ${iso}, ${iso})`,
     `INSERT OR IGNORE INTO sequence (id, business_id, kind, prefix, next_value, created_at, updated_at) VALUES (${q(SEED_IDS.quoteSeq)}, ${biz}, 'quote', 'Q-', 1001, ${iso}, ${iso})`,
     `INSERT OR IGNORE INTO sequence (id, business_id, kind, prefix, next_value, created_at, updated_at) VALUES (${q(SEED_IDS.invoiceSeq)}, ${biz}, 'invoice', 'INV-', 1001, ${iso}, ${iso})`,

@@ -38,5 +38,8 @@ export async function loadDocBusiness(db: Db, businessId: string): Promise<DocBu
     tin: b.tin,
     rcNumber: b.rcNumber,
     brandColor: b.brandColor,
+    signature: b.signatureSvg
+      ? { svg: b.signatureSvg, name: b.signatoryName, title: b.signatoryTitle }
+      : null,
   };
 }

@@ -91,6 +91,11 @@ test("F1 quote → F2 deposit invoice → payment → F3 final invoice (SPEC 10.
     price: "8542.75",
   });
   await chargeVat(lines.nth(1), "Drapery fabric");
+  // F2 is SPEC 10.2's 50% deposit; the business default is 85%.
+  const deposit = page.getByLabel("Deposit (%)");
+  await expect(deposit).toHaveValue("85");
+  await deposit.fill("50");
+  await deposit.press("Tab");
   await expect(page.getByTestId("quote-total")).toHaveText("₦121,950.56");
   await waitSaved(page);
   await send(page, /Send quote/, "₦121,950.56");
@@ -107,9 +112,13 @@ test("F1 quote → F2 deposit invoice → payment → F3 final invoice (SPEC 10.
   await approve.getByRole("button", { name: /^Approve ₦121,950\.56/ }).click();
   await expect(client.getByText(/Approved by Amaka Obi/)).toBeVisible({ timeout: 15_000 });
 
-  // F2: the deposit invoice.
+  // F2: the deposit invoice, drafted the moment the client approved (owner request).
   await page.goto(quoteUrl);
-  await page.getByRole("button", { name: "Deposit invoice" }).click();
+  const drafted = page.getByRole("list", { name: "Invoices for this quote" }).getByRole("link");
+  await expect(drafted).toHaveCount(1);
+  await expect(drafted).toContainText("Draft");
+  await expect(page.getByRole("button", { name: "Deposit invoice" })).toHaveCount(0);
+  await drafted.click();
   await expect(page).toHaveURL(/\/invoices\/inv_/);
   await expect(page.getByText(/Deposit invoice for quote Q-\d+/)).toBeVisible();
   await expect(page.getByTestId("quote-total")).toHaveText("₦60,975.28");

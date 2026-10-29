@@ -20,6 +20,7 @@ import {
 } from "~/domain/portal";
 import { conversationOf, type ThreadEntity, threadMessages } from "~/features/conversations/requests";
 import { activeOwners, emailInsert, enqueue, type EmailJob } from "~/features/email/service";
+import { createInvoiceOnApproval } from "~/features/invoices/service";
 import { ownerNotices } from "~/features/notifications/service";
 import { loadEmailBrand } from "~/features/settings/doc-business";
 import { businessToday } from "~/lib/dates";
@@ -367,7 +368,30 @@ export async function approveQuote(env: Env, token: string, input: ApproveInput,
     throw error;
   }
   await enqueue(env, jobs);
-  return { totalCents: totals.computed.totalCents, depositCents: totals.depositCents, projectId };
+
+  // Owner request: draft the deposit invoice (or one for the total) right away.
+  // The approval stands even if this fails; the owner can still make it by hand.
+  let invoiceId: string | null = null;
+  try {
+    const drafted = await createInvoiceOnApproval(db, quote.businessId, quote.id);
+    if (drafted) {
+      invoiceId = drafted.id;
+      const notices = await ownerNotices(db, quote.businessId, {
+        type: "invoice.drafted",
+        entityType: "invoice",
+        entityId: drafted.id,
+        title: `${drafted.kind === "deposit" ? "Deposit invoice" : "Invoice"} for ${client.displayName} is drafted; check it and send`,
+      });
+      if (notices.length > 0) await db.batch(notices as unknown as Batch);
+    }
+  } catch (error) {
+    console.error(
+      "auto invoice on approval failed",
+      quote.id,
+      error instanceof Error ? error.message : error,
+    );
+  }
+  return { totalCents: totals.computed.totalCents, depositCents: totals.depositCents, projectId, invoiceId };
 }
 
 // ---------- Invoices (/i/:token, FR-INV-08) ----------

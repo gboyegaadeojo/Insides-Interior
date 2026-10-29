@@ -8,6 +8,7 @@ import {
   type LucideIcon,
   MailWarning,
   MessageSquareText,
+  Receipt,
 } from "lucide-react";
 import * as React from "react";
 import { Link, useFetcher } from "react-router";
@@ -36,6 +37,7 @@ interface NotificationData {
 
 const ICON: [RegExp, LucideIcon, string][] = [
   [/approved/, FileCheck2, "bg-sage-tint text-sage-ink"],
+  [/drafted/, Receipt, "bg-indigo-tint text-indigo-ink"],
   [/changes_requested|message/, MessageSquareText, "bg-saffron-tint text-saffron-ink"],
   [/viewed/, Eye, "bg-ocean-tint text-ocean-ink"],
   [/bounced|complained/, MailWarning, "bg-danger-tint text-danger-ink"],

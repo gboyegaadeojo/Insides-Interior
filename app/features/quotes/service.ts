@@ -555,15 +555,28 @@ export async function sendQuote(ctx: RequestContext, id: string, input: SendQuot
   const draft = row.draftContent;
   if (!draft || draft.sections.every((s) => s.lines.length === 0))
     throw new ServiceError("Add at least one line before sending");
-  if (!row.validUntil) throw new ServiceError("Set a valid-until date before sending");
-  if (isPastValidUntil(row.validUntil, businessToday()))
+  // A quote is valid N days (7) from the day it's sent (owner request). On a
+  // first send, a date still at what createQuote set counts from today; a date
+  // the owner picked is kept.
+  let validUntil = row.validUntil;
+  if (!row.number && validUntil) {
+    const [settings] = await ctx.db
+      .select({ days: schema.settings.quoteValidDays })
+      .from(schema.settings)
+      .where(eq(schema.settings.businessId, ctx.user.businessId));
+    const days = settings?.days ?? 7;
+    if (validUntil === addDays(businessToday(new Date(row.createdAt)), days))
+      validUntil = addDays(businessToday(), days);
+  }
+  if (!validUntil) throw new ServiceError("Set a valid-until date before sending");
+  if (isPastValidUntil(validUntil, businessToday()))
     throw new ServiceError("The valid-until date has passed; choose a later date");
 
   const referenced = draft.sections.flatMap((s) => s.lines.flatMap((l) => l.taxRateIds));
   const content: DocumentContent = {
     ...draft,
     taxRates: await taxRatesFor(ctx, referenced),
-    header: { title: row.title, clientId: row.clientId, siteId: row.siteId, validUntil: row.validUntil },
+    header: { title: row.title, clientId: row.clientId, siteId: row.siteId, validUntil: validUntil },
   };
   const totals = computeContent(content, depositFrom(row.depositType, row.depositValue));
 
@@ -615,7 +628,7 @@ export async function sendQuote(ctx: RequestContext, id: string, input: SendQuot
     number: row.number ?? NUMBER_PLACEHOLDER,
     clientName: client.displayName,
     totals,
-    validUntil: row.validUntil,
+    validUntil: validUntil,
     url,
     to: input.to,
     cc: input.cc,
@@ -647,6 +660,7 @@ export async function sendQuote(ctx: RequestContext, id: string, input: SendQuot
           currentRevisionId: revisionId,
           shareTokenHash: await hashShareToken(token),
           shareTokenSalt: salt,
+          validUntil,
           draftContent: null,
           draftVersion: sql`${schema.quote.draftVersion} + 1`,
           updatedAt: now,
@@ -919,7 +933,7 @@ export async function extendQuote(ctx: RequestContext, id: string) {
     .where(eq(schema.settings.businessId, ctx.user.businessId));
   const open: QuoteStatus[] = ["sent", "viewed", "changes_requested"];
   const status = open.includes(row.status) ? row.status : quoteTransitionOrFail(row.status, "extend");
-  const validUntil = addDays(businessToday(), settings?.days ?? 30);
+  const validUntil = addDays(businessToday(), settings?.days ?? 7);
   await ctx.db.batch([
     ctx.db
       .update(schema.quote)
@@ -974,12 +988,17 @@ export async function sendSetup(ctx: Ctx) {
       .from(schema.sequence)
       .where(and(eq(schema.sequence.businessId, ctx.user.businessId), eq(schema.sequence.kind, "quote"))),
     ctx.db
-      .select({ emailTemplates: schema.settings.emailTemplates })
+      .select({
+        emailTemplates: schema.settings.emailTemplates,
+        defaultDepositBp: schema.settings.defaultDepositBp,
+      })
       .from(schema.settings)
       .where(eq(schema.settings.businessId, ctx.user.businessId)),
   ]);
   const defaults = EMAIL_TEMPLATE_DEFAULTS.quote_sent!;
   return {
+    /** The business's deposit when the owner switches a quote to "% of total" (85%). */
+    defaultDepositBp: settings?.defaultDepositBp ?? 8500,
     nextNumber: seq ? `${seq.prefix}${seq.next}` : null,
     wording: settings?.emailTemplates.quote_sent ?? { subject: defaults.subject, body: defaults.body },
   };

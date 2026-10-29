@@ -120,6 +120,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     content: detail.content,
     revisionNo: detail.revisionNo,
     revising: detail.revising,
+    issuedOn: detail.revision?.sentAt ? businessToday(new Date(detail.revision.sentAt)) : null,
     history,
     invoices,
     sendSetup: setup,
@@ -324,7 +325,8 @@ function SentQuote({ data }: { data: LoaderData }) {
     data.client,
     data.site,
   );
-  props.issuedOn = null;
+  // The day it was sent, as the client sees it (validity sentence, FR-QT-11).
+  props.issuedOn = data.issuedOn;
   props.stamp = data.quote.status === "approved" ? "approved" : null;
   const status = data.quote.status;
   const pastDate = isPastValidUntil(data.quote.validUntil, data.today);
@@ -671,6 +673,7 @@ function Builder({ data }: { data: LoaderData }) {
       dispatch={dispatch}
       onClient={(name) => setClient(name ? { name, company: null, address: "", email: null } : null)}
       onSite={setSite}
+      defaultDepositBp={data.sendSetup?.defaultDepositBp ?? 8500}
     />
   );
 
@@ -855,11 +858,13 @@ function HeaderFields({
   dispatch,
   onClient,
   onSite,
+  defaultDepositBp,
 }: {
   draft: Draft;
   dispatch: (action: DraftAction) => void;
   onClient: (name: string | null) => void;
   onSite: (site: { label: string; address: string } | null) => void;
+  defaultDepositBp: number;
 }) {
   const { header } = draft;
   return (
@@ -894,13 +899,21 @@ function HeaderFields({
           value={header.validUntil ?? ""}
           onChange={(e) => dispatch({ type: "header", patch: { validUntil: e.target.value || null } })}
         />
-        <DepositField draft={draft} dispatch={dispatch} />
+        <DepositField draft={draft} dispatch={dispatch} defaultBp={defaultDepositBp} />
       </div>
     </Card>
   );
 }
 
-function DepositField({ draft, dispatch }: { draft: Draft; dispatch: (action: DraftAction) => void }) {
+function DepositField({
+  draft,
+  dispatch,
+  defaultBp,
+}: {
+  draft: Draft;
+  dispatch: (action: DraftAction) => void;
+  defaultBp: number;
+}) {
   const { depositType, depositValue } = draft.header;
   const mode = depositType ?? "none";
   return (
@@ -916,7 +929,7 @@ function DepositField({ draft, dispatch }: { draft: Draft; dispatch: (action: Dr
               next === "none"
                 ? { depositType: null, depositValue: null }
                 : next === "percent"
-                  ? { depositType: "percent", depositValue: 5000 }
+                  ? { depositType: "percent", depositValue: defaultBp }
                   : { depositType: "amount", depositValue: 0 },
           })
         }

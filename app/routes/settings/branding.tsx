@@ -2,10 +2,14 @@ import * as React from "react";
 import { BrandPreview } from "~/components/doc/brand-preview";
 import { SectionHeader } from "~/components/settings/section-header";
 import { SettingsForm, useIntentErrors } from "~/components/settings/settings-form";
+import { Form, useNavigation } from "react-router";
 import { Button } from "~/components/ui/button";
-import { runIntent } from "~/features/settings/action";
-import { brandColorSchema } from "~/features/settings/schema";
-import { loadSettings, updateBrandColor } from "~/features/settings/service";
+import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
+import { TextField } from "~/components/ui/field";
+import { SignaturePad } from "~/components/ui/signature-pad";
+import { runIntent, runService } from "~/features/settings/action";
+import { brandColorSchema, signatureSchema } from "~/features/settings/schema";
+import { loadSettings, removeSignature, saveSignature, updateBrandColor } from "~/features/settings/service";
 import { accessibleBrandColor, normaliseHex } from "~/lib/brand";
 import { onColour } from "~/styles/tokens";
 import { assertSameOrigin, requireOwner } from "~/server/session";
@@ -18,6 +22,9 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     brandColor: business.brandColor,
     businessName: business.tradingName || business.legalName,
     logoUrl: business.logoKey ? `/brand/logo?v=${encodeURIComponent(business.logoKey)}` : undefined,
+    signature: business.signatureSvg
+      ? { svg: business.signatureSvg, name: business.signatoryName, title: business.signatoryTitle }
+      : null,
   };
 }
 
@@ -25,6 +32,18 @@ export async function action({ request, context }: Route.ActionArgs) {
   assertSameOrigin(request);
   const ctx = await requireOwner(context.cloudflare.env, request);
   const form = await request.formData();
+  if (form.get("intent") === "signature") {
+    return runIntent(
+      "signature",
+      signatureSchema,
+      form,
+      (input) => saveSignature(ctx, input),
+      "Signature saved; it's on every quote and invoice",
+    );
+  }
+  if (form.get("intent") === "remove_signature") {
+    return runService("remove_signature", () => removeSignature(ctx), "Signature removed");
+  }
   return runIntent(
     "brand",
     brandColorSchema,
@@ -115,6 +134,88 @@ export default function BrandingSettings({ loaderData }: Route.ComponentProps) {
           />
         </div>
       </div>
+      <SignatureCard current={loaderData.signature} />
+    </div>
+  );
+}
+
+/**
+ * The owner's permanent signature (owner request): drawn once with a finger,
+ * Apple Pencil or mouse, printed with the name and title under "Authorised
+ * signature" on every quote and invoice, in the portal and the PDF.
+ */
+function SignatureCard({
+  current,
+}: {
+  current: { svg: string; name: string | null; title: string | null } | null;
+}) {
+  const errors = useIntentErrors("signature");
+  const navigation = useNavigation();
+  const removing = navigation.state !== "idle" && navigation.formData?.get("intent") === "remove_signature";
+  return (
+    <div className="grid gap-6 desktop:grid-cols-2">
+      <SettingsForm
+        intent="signature"
+        title="Signature"
+        description="Sign once; it's printed under “Authorised signature” on every quote and invoice."
+        submitLabel={current ? "Replace signature" : "Save signature"}
+      >
+        <SignaturePad name="signature" label="Sign here" />
+        {errors.signature && (
+          <p role="alert" className="text-label font-semibold text-danger-ink">
+            {errors.signature}
+          </p>
+        )}
+        <div className="grid gap-4 tablet:grid-cols-2 [&>*]:min-w-0">
+          <TextField
+            label="Name under the signature"
+            name="signatoryName"
+            required
+            autoComplete="name"
+            defaultValue={current?.name ?? ""}
+            error={errors.signatoryName}
+          />
+          <TextField
+            label="Title (optional)"
+            name="signatoryTitle"
+            placeholder="e.g. Managing Director"
+            defaultValue={current?.title ?? ""}
+            error={errors.signatoryTitle}
+          />
+        </div>
+      </SettingsForm>
+      <Card>
+        <CardHeader>
+          <CardTitle>On your documents</CardTitle>
+          <CardDescription>
+            {current
+              ? "This is what clients see."
+              : "No signature yet; documents show none until you save one."}
+          </CardDescription>
+        </CardHeader>
+        {current && (
+          <div className="flex flex-col gap-4">
+            <div className="max-w-xs rounded-control bg-surface p-3" data-testid="signature-preview">
+              <img
+                src={`data:image/svg+xml;utf8,${encodeURIComponent(current.svg)}`}
+                alt={`Signature of ${current.name ?? "the owner"}`}
+                className="bg-white h-20 w-full rounded-control object-contain object-left"
+              />
+              <p className="mt-1 border-t border-primary pt-1 text-micro font-semibold tracking-[0.12em] text-secondary uppercase">
+                Authorised signature
+              </p>
+              {current.name && <p className="font-semibold">{current.name}</p>}
+              {current.title && <p className="text-label text-secondary">{current.title}</p>}
+            </div>
+            <Form method="post">
+              <input type="hidden" name="intent" value="remove_signature" />
+              <Button type="submit" variant="ghost" loading={removing}>
+                Remove signature
+              </Button>
+            </Form>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }

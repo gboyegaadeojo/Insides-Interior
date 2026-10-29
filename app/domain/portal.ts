@@ -34,6 +34,25 @@ export function isPastValidUntil(validUntil: string | null | undefined, today: s
   return !!validUntil && validUntil < today;
 }
 
+/**
+ * The validity sentence that opens every quote's terms (owner request), built
+ * from the quote's own dates so it can never disagree with them:
+ * "This quote is valid for 7 days from the date it was issued (until 5 Nov 2026)."
+ */
+export function validitySentence(
+  issuedOn: string | null | undefined,
+  validUntil: string | null | undefined,
+  format: (date: string) => string,
+): string | null {
+  if (!validUntil) return null;
+  if (!issuedOn) return `This quote is valid until ${format(validUntil)}.`;
+  const days = Math.round(
+    (Date.parse(`${validUntil}T00:00:00Z`) - Date.parse(`${issuedOn}T00:00:00Z`)) / 86_400_000,
+  );
+  if (days < 1) return `This quote is valid until ${format(validUntil)}.`;
+  return `This quote is valid for ${days} day${days === 1 ? "" : "s"} from the date it was issued (until ${format(validUntil)}).`;
+}
+
 /** The drawing area for signatures (FR-QT-15): points are integers in this box. */
 export const SIGNATURE_BOX = { width: 1000, height: 300 } as const;
 
