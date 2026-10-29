@@ -72,6 +72,8 @@ export interface DocumentRendererProps {
   terms?: string | null;
   paymentInstructions?: string[];
   stamp?: "paid" | "void" | "revised" | "approved" | null;
+  /** h2 when the page around the document has its own h1 (portal). */
+  titleAs?: "h1" | "h2";
   /** Optional footer content such as the approval block (portal). */
   children?: React.ReactNode;
   className?: string;
@@ -162,6 +164,7 @@ export function DocumentRenderer(props: DocumentRendererProps) {
     ? `${props.number}${props.revision && props.revision > 1 ? ` · Revised (rev ${props.revision})` : ""}`
     : "Draft";
   const { computed } = totals;
+  const Title = props.titleAs ?? "h1";
 
   return (
     <article
@@ -169,12 +172,6 @@ export function DocumentRenderer(props: DocumentRendererProps) {
       className={cn("doc", props.className)}
       style={{ ["--doc-brand" as string]: brand, ["--doc-on-brand" as string]: brandText }}
     >
-      {props.stamp && (
-        <div className={`doc-stamp doc-stamp-${props.stamp}`}>
-          {props.stamp === "revised" ? "Revised" : props.stamp}
-        </div>
-      )}
-
       <header className="doc-header">
         <div className="doc-business">
           {business.logoUrl ? (
@@ -205,7 +202,7 @@ export function DocumentRenderer(props: DocumentRendererProps) {
           </p>
         </div>
         <div className="doc-title-block">
-          <h1 className="doc-title">{label}</h1>
+          <Title className="doc-title">{label}</Title>
           <p className="doc-number">{numberText}</p>
           <dl className="doc-dates">
             {props.issuedOn && (
@@ -256,7 +253,7 @@ export function DocumentRenderer(props: DocumentRendererProps) {
         </div>
         {site && (
           <div>
-            <h2 className="doc-label">Site</h2>
+            <h2 className="doc-label">Job address</h2>
             <p>
               <strong>{site.label}</strong>
               {site.address && (
@@ -298,6 +295,12 @@ export function DocumentRenderer(props: DocumentRendererProps) {
       )}
 
       <section className="doc-totals" aria-label="Totals">
+        {/* Beside the totals, where the page has room, so it never covers content. */}
+        {props.stamp && (
+          <div className={`doc-stamp doc-stamp-${props.stamp}`}>
+            {props.stamp === "revised" ? "Revised" : props.stamp}
+          </div>
+        )}
         <dl>
           <div>
             <dt>Subtotal</dt>

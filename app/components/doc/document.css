@@ -303,11 +303,17 @@
   color: var(--text-secondary);
 }
 
-/* Status stamps (DS-DOC): a tasteful diagonal stamp. */
+/* Status stamps (DS-DOC): a tasteful diagonal stamp in the empty space to the
+   left of the totals block, so it never covers the header or lines. */
+.doc-totals {
+  position: relative;
+}
+
 .doc-stamp {
   position: absolute;
-  top: 1.6in;
-  right: 0.7in;
+  top: 18pt;
+  right: calc(100% + 0.6in);
+  white-space: nowrap;
   padding: 4pt 14pt;
   border: 3pt solid currentColor;
   border-radius: 6pt;
@@ -332,6 +338,103 @@
 
 .doc-stamp-revised {
   color: var(--indigo-base);
+}
+
+/* Fluid paper for the client portal (SPEC 6.8, DS-PLT-01): the same document
+   reflowed to its container instead of a scaled-down Letter page, so it stays
+   readable on a phone. The PDF still prints the fixed page above. */
+.doc.doc-fluid {
+  width: 100%;
+  max-width: 8.5in;
+  min-height: 0;
+  padding: clamp(20px, 5vw, 0.75in);
+  container-type: inline-size;
+}
+
+@container (max-width: 600px) {
+  .doc-fluid .doc-header {
+    flex-direction: column;
+    gap: 16pt;
+  }
+
+  .doc-fluid .doc-title-block {
+    text-align: left;
+  }
+
+  .doc-fluid .doc-title {
+    font-size: 26pt;
+  }
+
+  .doc-fluid .doc-dates {
+    justify-content: start;
+  }
+
+  .doc-fluid .doc-parties {
+    gap: 14pt 32pt;
+  }
+
+  /* Lines become stacked rows: description on top, qty × price and amount below. */
+  .doc-fluid .doc-table thead {
+    display: none;
+  }
+
+  .doc-fluid .doc-table,
+  .doc-fluid .doc-table tbody {
+    display: block;
+  }
+
+  .doc-fluid .doc-table tr {
+    display: grid;
+    grid-template-columns: auto auto 1fr auto;
+    align-items: baseline;
+    column-gap: 4pt;
+    padding: 10pt 0;
+    border-bottom: 0.5pt solid var(--border);
+  }
+
+  .doc-fluid .doc-table td {
+    width: auto !important;
+    padding: 0 !important;
+    border: 0;
+  }
+
+  .doc-fluid .doc-table td:first-child {
+    grid-column: 1 / -1;
+    margin-bottom: 4pt;
+  }
+
+  .doc-fluid .doc-table td:nth-child(2),
+  .doc-fluid .doc-table td:nth-child(3),
+  .doc-fluid .doc-table td:nth-child(4) {
+    text-align: left;
+    font-size: 9pt;
+    color: var(--text-secondary);
+  }
+
+  .doc-fluid .doc-table td:nth-child(4)::before {
+    content: "× ";
+  }
+
+  .doc-fluid .doc-table td:last-child {
+    font-weight: 600;
+  }
+
+  .doc-fluid .doc-options {
+    padding: 6pt 10pt;
+  }
+
+  .doc-fluid .doc-totals {
+    width: 100%;
+  }
+
+  /* Full-width totals leave no room beside them: the stamp sits above instead. */
+  .doc-fluid .doc-stamp {
+    position: static;
+    display: inline-block;
+    margin: 0 0 14pt 6pt;
+    font-size: 16pt;
+    transform: rotate(-6deg);
+  }
 }
 
 @page {

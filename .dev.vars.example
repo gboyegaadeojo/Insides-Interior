@@ -8,11 +8,12 @@ APP_URL=http://localhost:5173
 # Signs sessions and tokens. Any long random string; production uses its own.
 BETTER_AUTH_SECRET=dev-only-change-me-to-a-long-random-string
 
-# Unlocks /spike/pdf: http://localhost:5173/spike/pdf?key=<SPIKE_KEY>
-SPIKE_KEY=change-me
-
 # Empty = dev email transport (emails, with their links, print in the terminal).
 RESEND_API_KEY=
+
+# Signing secret of the Resend webhook (whsec_...) for /api/webhooks/resend.
+# Empty = the webhook answers 503.
+RESEND_WEBHOOK_SECRET=
 
 # Empty = the "Continue with Google" button is hidden.
 GOOGLE_CLIENT_ID=

@@ -70,5 +70,24 @@ export const saveDraftSchema = z.object({
 });
 
 export type SaveDraftInput = z.output<typeof saveDraftSchema>;
+
+/** "a@b.ng, c@d.ng" → ["a@b.ng", "c@d.ng"]; commas, semicolons or spaces. */
+const emailList = z
+  .string()
+  .optional()
+  .transform((v) => (v ?? "").split(/[\s,;]+/).filter(Boolean))
+  .pipe(z.array(z.email("Check the email addresses")).max(5, "Up to 5 addresses"));
+
+/** Send or re-send (FR-QT-08): recipients, an optional personal note. */
+export const sendQuoteSchema = z.object({
+  /** The draft_version on screen, so what's sent is what the owner saw. */
+  version: z.coerce.number().int().min(0),
+  to: z.email("Enter the client's email address").max(254),
+  cc: emailList,
+  bcc: emailList,
+  note: z.string().trim().max(2000).optional(),
+});
+
+export type SendQuoteInput = z.output<typeof sendQuoteSchema>;
 export type DraftContentInput = z.output<typeof draftContentSchema>;
 export type DraftLine = z.output<typeof lineSchema>;

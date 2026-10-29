@@ -37,15 +37,15 @@ export interface EmailTemplateDefault {
 }
 
 const SAMPLE: MergeValues = {
-  "client.firstName": "Amelia",
-  "client.name": "Amelia Chen",
+  "client.firstName": "Amaka",
+  "client.name": "Amaka Obi",
   "business.name": "Insides Interior",
   "quote.number": "Q-1042",
   "invoice.number": "INV-1042",
-  "amount.total": "$534.67",
-  "amount.due": "$267.33",
-  "date.due": "Nov 12, 2026",
-  link: "https://app.example.ca/i/…",
+  "amount.total": "₦534,670.00",
+  "amount.due": "₦267,335.00",
+  "date.due": "12 Nov 2026",
+  link: "https://app.example.ng/i/…",
 };
 
 // SPEC 9.4 client-facing templates whose wording the owner can change.

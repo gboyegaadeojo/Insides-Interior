@@ -12,7 +12,7 @@ export function createEmailTransport(env: EmailEnv): EmailTransport {
   if (env.RESEND_API_KEY) {
     return createResendTransport({ apiKey: env.RESEND_API_KEY, defaultFrom: env.EMAIL_FROM });
   }
-  return createDevTransport();
+  return createDevTransport(console.log, { redactTokens: env.APP_ENV !== "development" });
 }
 
 export function sendEmail(env: EmailEnv, message: EmailMessage): Promise<SendResult> {

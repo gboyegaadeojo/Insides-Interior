@@ -14,7 +14,7 @@
     "APP_URL": "https://insides-interior.insides-interior.workers.dev",
     // Extra origins allowed to sign in (comma separated, * wildcards).
     "TRUSTED_ORIGINS": "",
-    "BUSINESS_TIMEZONE": "America/Winnipeg",
+    "BUSINESS_TIMEZONE": "Africa/Lagos",
     // Resend's shared sender until mail.<domain> is verified (SPEC 9.1).
     "EMAIL_FROM": "Insides Interior <onboarding@resend.dev>",
   },
@@ -39,6 +39,10 @@
     "consumers": [{ "queue": "insides-jobs", "max_batch_size": 10, "max_retries": 5 }],
   },
   "browser": { "binding": "BROWSER" },
+  // Portal routes: 30 requests a minute per IP (SPEC 11.1).
+  "ratelimits": [
+    { "name": "PORTAL_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } },
+  ],
   "triggers": {
     // Placeholders (handlers are no-ops until phase 8). Daily job runs at 08:00
     // America/Winnipeg: both candidate UTC hours are scheduled and the handler
@@ -54,7 +58,7 @@
         "APP_ENV": "preview",
         "APP_URL": "https://insides-interior-preview.insides-interior.workers.dev",
         "TRUSTED_ORIGINS": "https://*-insides-interior-preview.insides-interior.workers.dev",
-        "BUSINESS_TIMEZONE": "America/Winnipeg",
+        "BUSINESS_TIMEZONE": "Africa/Lagos",
         "EMAIL_FROM": "Insides Interior <onboarding@resend.dev>",
       },
       "d1_databases": [
@@ -74,6 +78,9 @@
         "consumers": [{ "queue": "insides-jobs-preview", "max_batch_size": 10, "max_retries": 5 }],
       },
       "browser": { "binding": "BROWSER" },
+      "ratelimits": [
+        { "name": "PORTAL_LIMITER", "namespace_id": "1002", "simple": { "limit": 30, "period": 60 } },
+      ],
       "triggers": { "crons": [] },
     },
   },

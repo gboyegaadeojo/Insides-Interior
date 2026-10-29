@@ -24,6 +24,9 @@ export function createResendTransport(options: {
         body: JSON.stringify({
           from: message.from ?? options.defaultFrom,
           to: Array.isArray(message.to) ? message.to : [message.to],
+          cc: message.cc?.length ? message.cc : undefined,
+          bcc: message.bcc?.length ? message.bcc : undefined,
+          attachments: message.attachments?.length ? message.attachments : undefined,
           subject: message.subject,
           html: message.html,
           text: message.text,

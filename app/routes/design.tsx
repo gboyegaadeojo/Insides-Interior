@@ -29,6 +29,7 @@ import { EmptyState, ErrorState, Loading, Skeleton } from "~/components/ui/state
 import { STATUSES, StatusBadge } from "~/components/ui/status-badge";
 import { SwipeRow } from "~/components/ui/swipe-row";
 import { MoneyText } from "~/components/ui/text";
+import { SignaturePad } from "~/components/ui/signature-pad";
 import { toast } from "~/components/ui/toast";
 import { cn } from "~/lib/utils";
 import { HUES, MOTION, NEUTRALS, PALETTE, RADII, STATUS_EXTRA, TYPE_SCALE } from "~/styles/tokens";
@@ -465,6 +466,10 @@ function Showcase() {
           </Button>
           <Celebration show={celebrate} label="Approved" onDone={() => setCelebrate(false)} />
         </div>
+      </Section>
+
+      <Section title="Signature pad (FR-QT-15)">
+        <SignaturePad name="design-signature" className="max-w-xl" />
       </Section>
 
       <Section title="Save status">

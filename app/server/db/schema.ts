@@ -393,6 +393,13 @@ export interface DocumentContent {
   taxRates: { id: string; name: string; rateBp: number }[];
   notes?: string;
   terms?: string;
+  /** Header as sent; kept on revisions so discarding a revision restores it. */
+  header?: {
+    title: string | null;
+    clientId: string | null;
+    siteId: string | null;
+    validUntil: string | null;
+  };
 }
 
 const QUOTE_STATUS_VALUES = [
@@ -439,6 +446,8 @@ export const quote = sqliteTable(
     /** Legacy default; always written explicitly from domain/locale CURRENCY. */
     currency: text().notNull().default("CAD"),
     shareTokenHash: text(),
+    /** Random salt for the HMAC share token (server/tokens.ts); new salt = new link. */
+    shareTokenSalt: text(),
     followUpPaused: integer({ mode: "boolean" }).notNull().default(false),
   },
   (t) => [
@@ -509,6 +518,8 @@ export const invoice = sqliteTable(
     /** Legacy default; always written explicitly from domain/locale CURRENCY. */
     currency: text().notNull().default("CAD"),
     shareTokenHash: text(),
+    /** Random salt for the HMAC share token (server/tokens.ts); new salt = new link. */
+    shareTokenSalt: text(),
     remindersPaused: integer({ mode: "boolean" }).notNull().default(false),
     requiresApproval: integer({ mode: "boolean" }).notNull().default(false),
     voidedAt: text(),

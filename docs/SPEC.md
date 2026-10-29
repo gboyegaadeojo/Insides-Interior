@@ -451,7 +451,7 @@ Definitions used everywhere: **Invoiced** = total of sent, non-void invoices in 
 
 ### 5.13 Document lifecycles
 
-Only the server performs transitions; the state machines live in `app/domain/lifecycle.ts` with exhaustive tests.
+Only the server performs transitions; the state machines live in `app/domain/lifecycle.ts` with exhaustive tests. Beyond the quote diagram: `revise` takes a sent, viewed, changes-requested or expired quote back to an editable draft that keeps its number (FR-QT-09), and `extend` returns an expired quote to `sent` (FR-QT-11).
 
 ```mermaid
 stateDiagram-v2

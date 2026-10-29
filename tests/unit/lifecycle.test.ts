@@ -23,6 +23,12 @@ const QUOTE_ALLOWED: Record<string, string> = {
   "viewed:decline": "declined",
   "sent:expire": "expired",
   "viewed:expire": "expired",
+  // FR-QT-09 revisions and FR-QT-11 extend (docs/decisions.md, phase 5).
+  "sent:revise": "draft",
+  "viewed:revise": "draft",
+  "changes_requested:revise": "draft",
+  "expired:revise": "draft",
+  "expired:extend": "sent",
 };
 
 const INVOICE_ALLOWED: Record<string, string> = {
@@ -66,8 +72,8 @@ describe("quote lifecycle (SPEC 5.13)", () => {
     }
   }
 
-  it("approved, declined and expired are terminal", () => {
-    for (const from of ["approved", "declined", "expired"] as const) {
+  it("approved and declined are terminal", () => {
+    for (const from of ["approved", "declined"] as const) {
       for (const event of QUOTE_EVENTS) expect(() => quoteTransition(from, event)).toThrow();
     }
   });

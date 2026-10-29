@@ -20,6 +20,11 @@ export const QUOTE_EVENTS = [
   "send_revision",
   "decline",
   "expire",
+  // Owner reopens a sent quote as a draft for revision N+1 (FR-QT-09); it
+  // keeps its number and goes out again with `send`.
+  "revise",
+  // Owner extends the valid-until date of an expired quote (FR-QT-11).
+  "extend",
 ] as const;
 export type QuoteEvent = (typeof QUOTE_EVENTS)[number];
 
@@ -51,7 +56,7 @@ type Machine<S extends string, E extends string> = Partial<Record<S, Partial<Rec
 
 export const QUOTE_MACHINE: Machine<QuoteStatus, QuoteEvent> = {
   draft: { send: "sent" },
-  sent: { view: "viewed", request_changes: "changes_requested", expire: "expired" },
+  sent: { view: "viewed", request_changes: "changes_requested", expire: "expired", revise: "draft" },
   viewed: {
     // A client re-opening the link keeps the quote viewed.
     view: "viewed",
@@ -59,8 +64,10 @@ export const QUOTE_MACHINE: Machine<QuoteStatus, QuoteEvent> = {
     request_changes: "changes_requested",
     decline: "declined",
     expire: "expired",
+    revise: "draft",
   },
-  changes_requested: { send_revision: "sent", request_changes: "changes_requested" },
+  changes_requested: { send_revision: "sent", request_changes: "changes_requested", revise: "draft" },
+  expired: { extend: "sent", revise: "draft" },
 };
 
 export const INVOICE_MACHINE: Machine<InvoiceStatus, InvoiceEvent> = {
