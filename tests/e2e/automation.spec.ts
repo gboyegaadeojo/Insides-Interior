@@ -61,7 +61,8 @@ test("the command palette creates a client and finds it again (FR-SYS-01)", asyn
   await shot(page, "palette");
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(/\/clients\/cli_/);
-  await expect(page.getByText(name).first()).toBeVisible();
+  // Phones show the profile in place of the list, so only one copy of the name is visible.
+  await expect(page.getByText(name).locator("visible=true").first()).toBeVisible();
 
   // Destinations still filter on the device.
   palette = await openPalette(page);
