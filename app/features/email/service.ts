@@ -7,6 +7,8 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import { documentPdf } from "~/features/documents/pdf";
+import { loadEmailBrand } from "~/features/settings/doc-business";
+import { bounceAlertEmail } from "~/server/email/templates";
 import { newId } from "~/lib/ids";
 import { activityInsert } from "~/server/audit";
 import { type Db, getDb, schema } from "~/server/db";
@@ -252,24 +254,53 @@ export async function applyResendEvent(env: Env, event: z.output<typeof resendEv
     }),
   ];
 
-  // SPEC 9.3 step 5: flag a bounced address on the client and tell the owners.
+  // SPEC 9.3 step 5: flag a bounced address on the client and tell the owners,
+  // in the app and by email (SPEC 9.4 bounce alert).
+  const jobs: EmailJob[] = [];
   if (status === "bounced" || status === "complained") {
     const addresses = row.to.split(",").map((a) => a.trim().toLowerCase());
     const clients = await db
-      .select({ id: schema.client.id, email: schema.client.email })
+      .select({ id: schema.client.id, email: schema.client.email, name: schema.client.displayName })
       .from(schema.client)
       .where(eq(schema.client.businessId, row.businessId));
-    for (const c of clients) {
-      if (c.email && addresses.includes(c.email.toLowerCase())) {
-        statements.push(
-          db
-            .update(schema.client)
-            .set({ emailBouncedAt: now, updatedAt: now })
-            .where(eq(schema.client.id, c.id)),
-        );
+    const flagged = clients.filter((c) => c.email && addresses.includes(c.email.toLowerCase()));
+    for (const c of flagged) {
+      statements.push(
+        db
+          .update(schema.client)
+          .set({ emailBouncedAt: now, updatedAt: now })
+          .where(eq(schema.client.id, c.id)),
+      );
+    }
+    const owners = await activeOwners(db, row.businessId);
+    // An alert about an owner's own mail would bounce in a loop; alerts go to clients' bounces only.
+    if (flagged.length > 0) {
+      const brand = await loadEmailBrand(db, env, row.businessId);
+      const url = new URL(`/clients/${flagged[0]!.id}`, env.APP_URL).toString();
+      for (const owner of owners) {
+        const message = {
+          ...bounceAlertEmail(brand, {
+            to: row.to,
+            subject: row.subject,
+            complained: status === "complained",
+            clientName: flagged[0]!.name,
+            url,
+          }),
+          to: [owner.email],
+          idempotencyKey: `bounce:${row.id}:${owner.id}`,
+        };
+        const email = emailInsert(db, {
+          businessId: row.businessId,
+          entityType: "client",
+          entityId: flagged[0]!.id,
+          template: "bounce_alert",
+          message,
+        });
+        statements.push(email.insert);
+        jobs.push({ kind: "email", emailId: email.id, businessId: row.businessId, message });
       }
     }
-    for (const owner of await activeOwners(db, row.businessId)) {
+    for (const owner of owners) {
       statements.push(
         db.insert(schema.notification).values({
           id: newId("ntf"),
@@ -283,5 +314,6 @@ export async function applyResendEvent(env: Env, event: z.output<typeof resendEv
     }
   }
   await db.batch(statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
+  await enqueue(env, jobs);
   return { applied: true as const, status };
 }

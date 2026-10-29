@@ -1,5 +1,4 @@
-import * as Popover from "@radix-ui/react-popover";
-import { Bell, Ellipsis, type LucideIcon, PanelLeftClose, PanelLeftOpen, Plus, Search } from "lucide-react";
+import { Ellipsis, type LucideIcon, PanelLeftClose, PanelLeftOpen, Plus, Search } from "lucide-react";
 import * as React from "react";
 import { Link, NavLink, useFetcher, useLocation } from "react-router";
 import { cn } from "~/lib/utils";
@@ -8,6 +7,7 @@ import { Avatar } from "../ui/avatar";
 import { CommandPalette, useCommandShortcut } from "./command-palette";
 import { type Destination, isActive, MORE, PRIMARY } from "./nav";
 import { NewSheet } from "./new-sheet";
+import { NotificationsBell } from "./notifications";
 
 // AppShell (SPEC 6.1, 6.2): left rail on tablet and desktop (248px, collapsible
 // to 80px; always 80px on tablet portrait), bottom tab bar with a raised + New
@@ -21,6 +21,8 @@ export interface AppShellProps {
   railCollapsed: boolean;
   /** Unread Inbox count; shown on Inbox and on the phone More tab. */
   inboxUnread?: number;
+  /** Unread notifications, on the bell (FR-SYS-02). */
+  notificationsUnread?: number;
   accountName: string;
   children: React.ReactNode;
 }
@@ -30,6 +32,7 @@ export function AppShell({
   module,
   railCollapsed,
   inboxUnread = 0,
+  notificationsUnread = 0,
   accountName,
   children,
 }: AppShellProps) {
@@ -53,7 +56,12 @@ export function AppShell({
           !railCollapsed && "wide:pl-[var(--rail-expanded)]",
         )}
       >
-        <TopBar title={title} accountName={accountName} onSearch={openPalette} />
+        <TopBar
+          title={title}
+          accountName={accountName}
+          notificationsUnread={notificationsUnread}
+          onSearch={openPalette}
+        />
         <main
           id="main"
           tabIndex={-1}
@@ -223,10 +231,12 @@ function UnreadBadge({ count, className }: { count: number; className?: string }
 function TopBar({
   title,
   accountName,
+  notificationsUnread,
   onSearch,
 }: {
   title: string;
   accountName: string;
+  notificationsUnread: number;
   onSearch: () => void;
 }) {
   return (
@@ -244,24 +254,7 @@ function TopBar({
           <kbd className="hidden rounded border border-border px-1.5 text-micro desktop:inline">Ctrl K</kbd>
           <span className="sr-only wide:hidden">Search</span>
         </button>
-        <Popover.Root>
-          <Popover.Trigger
-            className="inline-flex size-11 items-center justify-center rounded-control text-secondary hover:bg-surface-2 hover:text-primary"
-            aria-label="Notifications"
-          >
-            <Bell className="size-5" aria-hidden />
-          </Popover.Trigger>
-          <Popover.Portal>
-            <Popover.Content
-              align="end"
-              sideOffset={6}
-              className="z-50 w-72 rounded-card border border-border bg-surface p-4 text-primary shadow-sheet"
-            >
-              <p className="font-semibold">You're all caught up</p>
-              <p className="mt-1 text-secondary">Approvals, payments and messages will appear here.</p>
-            </Popover.Content>
-          </Popover.Portal>
-        </Popover.Root>
+        <NotificationsBell unread={notificationsUnread} />
         <Link to="/settings" className="rounded-full" aria-label={`Account: ${accountName}`}>
           <Avatar name={accountName} size="md" />
         </Link>

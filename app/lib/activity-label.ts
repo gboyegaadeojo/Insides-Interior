@@ -57,6 +57,13 @@ const LABELS: Record<string, string> = {
   "invoice.voided": "Voided",
   "invoice.link_rotated": "New client link made",
   "invoice.email_retried": "Email retried",
+  "invoice.overdue": "Marked overdue",
+  "invoice.reminder_sent": "Payment reminder sent",
+  "invoice.reminders_paused": "Automatic reminders paused",
+  "invoice.reminders_resumed": "Automatic reminders resumed",
+  "quote.follow_up_sent": "Follow-up sent",
+  "quote.follow_ups_paused": "Follow-ups paused",
+  "quote.follow_ups_resumed": "Follow-ups resumed",
   "payment.recorded": "Payment recorded",
   "payment.deleted": "Payment deleted",
 };
@@ -85,6 +92,16 @@ const DETAIL: Record<string, (data: Record<string, unknown>) => string | undefin
       ? `: ${formatCents(d.amountCents)}${typeof d.whtCents === "number" && d.whtCents > 0 ? ` + WHT ${formatCents(d.whtCents)}` : ""}`
       : undefined,
   "payment.deleted": (d) => (d.reason ? `: ${d.reason}` : undefined),
+  "invoice.reminder_sent": (d) =>
+    d.manual
+      ? "by you"
+      : typeof d.step === "number"
+        ? d.step === 0
+          ? "(due date)"
+          : `(${Math.abs(d.step)} day${Math.abs(d.step) === 1 ? "" : "s"} ${d.step < 0 ? "before" : "after"} due)`
+        : undefined,
+  "quote.follow_up_sent": (d) =>
+    typeof d.step === "number" ? `(${d.step} day${d.step === 1 ? "" : "s"} after sending)` : undefined,
 };
 
 export function activityLabel(action: string, data?: Record<string, unknown> | null): string {

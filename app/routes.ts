@@ -51,6 +51,8 @@ export default [
   route("api/quotes/:id/draft", "routes/api.quotes.$id.draft.ts"),
   route("api/invoices/:id/draft", "routes/api.invoices.$id.draft.ts"),
   route("api/threads/:entity/:id", "routes/api.threads.$entity.$id.ts"),
+  route("api/notifications", "routes/api.notifications.ts"),
+  route("api/search", "routes/api.search.ts"),
   route("api/auth/*", "routes/api.auth.$.ts"),
   route("api/preferences", "routes/api.preferences.ts"),
   route("api/test/sign-in", "routes/api.test.sign-in.ts"),

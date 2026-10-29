@@ -248,18 +248,26 @@ async function requireClient(ctx: Ctx, id: string) {
 }
 
 export async function updateClient(ctx: RequestContext, id: string, input: z.output<typeof clientSchema>) {
-  await requireClient(ctx, id);
+  const current = await requireClient(ctx, id);
   const { line1, line2, city, state, postalCode, ...rest } = input;
+  // A new address hasn't bounced (SPEC 9.3 step 5: the owner fixes the address).
+  const emailChanged = (current.email ?? "").toLowerCase() !== (input.email ?? "").toLowerCase();
   await ctx.db.batch([
     ctx.db
       .update(schema.client)
       .set({
         ...rest,
         billingAddress: toAddress({ line1, line2, city, state, postalCode }),
+        ...(emailChanged && { emailBouncedAt: null }),
         updatedAt: nowIso(),
       })
       .where(eq(schema.client.id, id)),
-    audit(ctx, id, "client.updated"),
+    audit(
+      ctx,
+      id,
+      "client.updated",
+      emailChanged && current.emailBouncedAt ? { bounceCleared: true } : undefined,
+    ),
   ]);
 }
 

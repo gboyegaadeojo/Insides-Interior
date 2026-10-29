@@ -545,7 +545,7 @@ describe("invoices (FR-MSG-06, 07)", () => {
   it("reminders never go out while a request is open, paid or not", async () => {
     const ctx = ownerContext();
     const { id, token, revisionId } = await sentInvoice();
-    const remindable = async () => (await remindableInvoices(ctx)).map((r) => r.id);
+    const remindable = async () => (await remindableInvoices(ctx.db, ctx.user.businessId)).map((r) => r.id);
     expect(await remindable()).toContain(id);
 
     await raiseChangeRequest(

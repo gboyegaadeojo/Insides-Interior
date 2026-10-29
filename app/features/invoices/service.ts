@@ -45,7 +45,7 @@ import { newId } from "~/lib/ids";
 import { likeTerm } from "~/lib/like";
 import { EMAIL_TEMPLATE_DEFAULTS } from "~/lib/merge-fields";
 import { activityInsert } from "~/server/audit";
-import { type DocumentContent, schema } from "~/server/db";
+import { type Db, type DocumentContent, schema } from "~/server/db";
 import { invoiceSentEmail, paymentReceiptEmail, type RevisionChanges } from "~/server/email/templates";
 import type { RequestContext } from "~/server/session";
 import { hashShareToken, newShareSalt, portalPath, sha256Hex, shareToken } from "~/server/tokens";
@@ -633,6 +633,7 @@ export async function listInvoices(
       kind: i.kind,
       status: i.status,
       dueDate: i.dueDate,
+      remindersPaused: i.remindersPaused,
       updatedAt: i.updatedAt,
       clientName: schema.client.displayName,
       revisionTotalCents: schema.invoiceRevision.totalCents,
@@ -1590,33 +1591,51 @@ export async function invoicesPaid(ctx: Ctx, ids: string[]) {
 /**
  * Invoices a payment reminder may go to today (SPEC 5.9): outstanding, not
  * paused, something due, and no open change request on the thread (FR-MSG-07).
- * Phase 8's daily job sends from this list; the rule is domain/reminders.ts.
+ * The daily job (features/automation) sends from this list; the rule is
+ * domain/reminders.ts. Takes a business id: the job runs with no signed-in user.
  */
-export async function remindableInvoices(ctx: Ctx) {
+export async function remindableInvoices(db: Db, businessId: string) {
   const i = schema.invoice;
   const openRequests = sql<number>`(select count(*) from ${schema.changeRequest} join ${schema.conversation} on ${schema.conversation.id} = ${schema.changeRequest.conversationId} where ${schema.conversation.entityType} = 'invoice' and ${schema.conversation.entityId} = ${i.id} and ${schema.changeRequest.status} = 'open')`;
-  const rows = await ctx.db
+  const rows = await db
     .select({
       id: i.id,
       number: i.number,
       status: i.status,
       remindersPaused: i.remindersPaused,
+      issueDate: i.issueDate,
+      dueDate: i.dueDate,
+      shareTokenSalt: i.shareTokenSalt,
+      clientName: schema.client.displayName,
+      clientEmail: schema.client.email,
       totalCents: schema.invoiceRevision.totalCents,
       paidCents: paidSql,
       openRequests,
     })
     .from(i)
     .innerJoin(schema.invoiceRevision, eq(schema.invoiceRevision.id, i.currentRevisionId))
-    .where(and(eq(i.businessId, ctx.user.businessId), inArray(i.status, OUTSTANDING)));
-  return rows.filter(
-    (r) =>
-      reminderBlock({
-        status: r.status,
-        remindersPaused: r.remindersPaused,
-        openRequests: r.openRequests,
-        balanceCents: r.totalCents - r.paidCents,
-      }) === null,
-  );
+    .leftJoin(schema.client, eq(schema.client.id, i.clientId))
+    .where(and(eq(i.businessId, businessId), inArray(i.status, OUTSTANDING)));
+  return rows
+    .map((r) => ({ ...r, balanceCents: r.totalCents - r.paidCents }))
+    .filter((r) => reminderBlock(r) === null);
+}
+
+/** FR-AUTO-02: pause or resume automatic reminders for one invoice. */
+export async function setRemindersPaused(ctx: RequestContext, id: string, paused: boolean) {
+  const [row] = await ctx.db
+    .select({ paused: schema.invoice.remindersPaused })
+    .from(schema.invoice)
+    .where(and(eq(schema.invoice.id, id), eq(schema.invoice.businessId, ctx.user.businessId)));
+  if (!row) throw new ServiceError("This invoice no longer exists");
+  if (row.paused === paused) return;
+  await ctx.db.batch([
+    ctx.db
+      .update(schema.invoice)
+      .set({ remindersPaused: paused, updatedAt: nowIso() })
+      .where(eq(schema.invoice.id, id)),
+    audit(ctx, id, paused ? "invoice.reminders_paused" : "invoice.reminders_resumed"),
+  ]);
 }
 
 export { canInvoice };

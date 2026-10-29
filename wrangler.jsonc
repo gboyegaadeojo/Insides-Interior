@@ -44,10 +44,10 @@
     { "name": "PORTAL_LIMITER", "namespace_id": "1001", "simple": { "limit": 30, "period": 60 } },
   ],
   "triggers": {
-    // Placeholders (handlers are no-ops until phase 8). Daily job runs at 08:00
-    // America/Winnipeg: both candidate UTC hours are scheduled and the handler
-    // checks local time (SPEC 14.4, phase 8). Weekly digest Monday 07:30.
-    "crons": ["0 13 * * *", "0 14 * * *", "30 12 * * 1", "30 13 * * 1"],
+    // Africa/Lagos is UTC+1 all year (no DST): the daily job at 08:00 Lagos is
+    // 07:00 UTC; the weekly digest Monday 07:30 Lagos is 06:30 UTC (SPEC 14.4
+    // phase 8). features/automation CRON_JOBS maps each expression to its job.
+    "crons": ["0 7 * * *", "30 6 * * 1"],
   },
   "env": {
     // PR previews (SPEC 13): a separate Worker with its own D1, R2 and queue,

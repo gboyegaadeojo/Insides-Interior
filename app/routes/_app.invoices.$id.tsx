@@ -1,4 +1,16 @@
-import { Ban, Banknote, ChevronLeft, FileDown, Lock, PencilLine, Send, Trash2, Undo2 } from "lucide-react";
+import {
+  Ban,
+  Banknote,
+  BellOff,
+  BellRing,
+  ChevronLeft,
+  FileDown,
+  Lock,
+  PencilLine,
+  Send,
+  Trash2,
+  Undo2,
+} from "lucide-react";
 import * as React from "react";
 import { data, Form, Link, redirect, useActionData, useNavigation, useRevalidator } from "react-router";
 import { DocumentRenderer, type DocumentRendererProps } from "~/components/doc/document-renderer";
@@ -55,8 +67,10 @@ import {
   reviseInvoice,
   rotateInvoiceLink,
   sendInvoice,
+  setRemindersPaused,
   voidInvoice,
 } from "~/features/invoices/service";
+import { sendReminderNow } from "~/features/automation/service";
 import { RecordPaymentSheet } from "~/features/invoices/ui/record-payment-sheet";
 import { SiteSelect } from "~/features/projects/ui/site-select";
 import { sendQuoteSchema } from "~/features/quotes/schema";
@@ -231,6 +245,14 @@ export async function action({ request, params, context }: Route.ActionArgs) {
       case "retry_email":
         await retryInvoiceEmail(ctx, params.id);
         return done("Email queued again");
+      case "pause_reminders":
+      case "resume_reminders":
+        await setRemindersPaused(ctx, params.id, intent === "pause_reminders");
+        return done(
+          intent === "pause_reminders" ? "Automatic reminders paused" : "Automatic reminders back on",
+        );
+      case "send_reminder":
+        return done(`Reminder sent to ${await sendReminderNow(ctx, params.id)}`);
     }
   } catch (error) {
     if (error instanceof InvoiceConflictError) {
@@ -502,6 +524,7 @@ function BalanceCard({ data, total }: { data: LoaderData; total: number }) {
           {formatDate(data.invoice.dueDate)}
         </p>
       )}
+      <RemindersRow data={data} />
       {(data.quote || data.reissueOf) && (
         <p className="mt-3 text-label text-secondary">
           {INVOICE_KIND_LABEL[data.invoice.kind]}
@@ -524,6 +547,69 @@ function BalanceCard({ data, total }: { data: LoaderData; total: number }) {
         </p>
       )}
     </Card>
+  );
+}
+
+/**
+ * FR-AUTO-02: automatic reminders on or paused for this invoice, and a reminder
+ * sent now. Shown while something is owed.
+ */
+function RemindersRow({ data }: { data: LoaderData }) {
+  const navigation = useNavigation();
+  const busy = (intent: string) =>
+    navigation.state !== "idle" && navigation.formData?.get("intent") === intent;
+  const outstanding = ["sent", "viewed", "changes_requested", "partially_paid", "overdue"].includes(
+    data.invoice.status,
+  );
+  if (!outstanding || data.balanceCents <= 0) return null;
+  const paused = data.invoice.remindersPaused;
+  const waiting = data.invoice.status === "changes_requested" || (data.thread?.openRequests ?? 0) > 0;
+  return (
+    <div className="mt-4 flex flex-col gap-3 border-t border-border pt-4" data-testid="reminders">
+      <div className="flex items-start gap-3">
+        <span
+          className={
+            paused || waiting
+              ? "mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full bg-saffron-tint px-2 py-0.5 text-micro font-semibold text-saffron-ink"
+              : "mt-0.5 inline-flex shrink-0 items-center gap-1 rounded-full bg-sage-tint px-2 py-0.5 text-micro font-semibold text-sage-ink"
+          }
+        >
+          {paused ? (
+            <BellOff className="size-3.5" aria-hidden />
+          ) : (
+            <BellRing className="size-3.5" aria-hidden />
+          )}
+          {paused ? "Reminders paused" : waiting ? "Reminders waiting" : "Reminders on"}
+        </span>
+        <p className="text-label text-secondary">
+          {paused
+            ? "No automatic reminders go to the client until you resume them."
+            : waiting
+              ? "They resume once the client's change request is resolved."
+              : "Sent at 8 a.m. on the days set in Settings → Reminders."}
+        </p>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <Form method="post">
+          <input type="hidden" name="intent" value={paused ? "resume_reminders" : "pause_reminders"} />
+          <Button
+            type="submit"
+            variant="secondary"
+            loading={busy("pause_reminders") || busy("resume_reminders")}
+          >
+            {paused ? <BellRing aria-hidden /> : <BellOff aria-hidden />}
+            {paused ? "Resume reminders" : "Pause reminders"}
+          </Button>
+        </Form>
+        <Form method="post">
+          <input type="hidden" name="intent" value="send_reminder" />
+          <Button type="submit" variant="ghost" loading={busy("send_reminder")}>
+            <Send aria-hidden />
+            Send a reminder now
+          </Button>
+        </Form>
+      </div>
+    </div>
   );
 }
 

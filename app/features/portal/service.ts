@@ -20,6 +20,7 @@ import {
 } from "~/domain/portal";
 import { conversationOf, type ThreadEntity, threadMessages } from "~/features/conversations/requests";
 import { activeOwners, emailInsert, enqueue, type EmailJob } from "~/features/email/service";
+import { ownerNotices } from "~/features/notifications/service";
 import { loadEmailBrand } from "~/features/settings/doc-business";
 import { businessToday } from "~/lib/dates";
 import { newId } from "~/lib/ids";
@@ -176,6 +177,13 @@ export async function recordQuoteView(env: Env, portal: PortalQuote, meta: Visit
       clientActivity(db, quote.businessId, quote.id, "quote.viewed", {
         revision: portal.revision.revisionNo,
       }),
+      // FR-SYS-02: the owner hears about the first look at each revision.
+      ...(await ownerNotices(db, quote.businessId, {
+        type: "quote.viewed",
+        entityType: "quote",
+        entityId: quote.id,
+        title: `${portal.client.displayName} opened quote ${quote.number}`,
+      })),
     );
   }
   await db.batch(statements as Batch);
@@ -434,6 +442,12 @@ export async function recordInvoiceView(env: Env, portal: PortalInvoice, meta: V
         action: "invoice.viewed",
         data: { revision: portal.revision.revisionNo },
       }),
+      ...(await ownerNotices(db, invoice.businessId, {
+        type: "invoice.viewed",
+        entityType: "invoice",
+        entityId: invoice.id,
+        title: `${portal.client.displayName} opened invoice ${invoice.number}`,
+      })),
     );
   }
   await db.batch(statements as Batch);

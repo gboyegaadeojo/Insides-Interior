@@ -270,7 +270,13 @@ describe("portal approval (FR-QT-10, FR-QT-12)", () => {
       .db.select()
       .from(schema.notification)
       .where(eq(schema.notification.entityId, id));
-    expect(notes.map((n) => n.type)).toEqual(["quote.approved", "quote.approved"]);
+    // One per owner for the first view (phase 8, FR-SYS-02) and for the approval.
+    expect(notes.map((n) => n.type).sort()).toEqual([
+      "quote.approved",
+      "quote.approved",
+      "quote.viewed",
+      "quote.viewed",
+    ]);
 
     // Approving twice is refused.
     await expect(

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { applyChangeRequests, kindsFor, resolutionsFor } from "~/domain/change-requests";
 import { describeDiff, diffContent, hasChanges } from "~/domain/diff";
-import { reminderBlock } from "~/domain/reminders";
+import { daysPastDue, dueStep, dueWording, reminderBlock } from "~/domain/reminders";
 
 // SPEC 5.14 (FR-MSG-03, 05, 06, 07): applying accepted change requests, the
 // What changed summary, and the reminder rule.
@@ -188,5 +188,39 @@ describe("reminderBlock (FR-MSG-07)", () => {
     expect(reminderBlock({ ...due, status: "sent", balanceCents: 0 })).toBe("nothing_due");
     expect(reminderBlock({ ...due, status: "paid" })).toBe("status");
     expect(reminderBlock({ ...due, status: "draft" })).toBe("status");
+  });
+});
+
+describe("dueStep: one email per cadence step (FR-AUTO-01)", () => {
+  const cadence = { base: "2026-11-20", steps: [-3, 0, 7, 14], notBefore: "2026-11-06", max: 4 };
+
+  it("sends each step on its day, once", () => {
+    expect(dueStep({ ...cadence, today: "2026-11-16", sent: [] })).toBeNull();
+    expect(dueStep({ ...cadence, today: "2026-11-17", sent: [] })).toBe(-3);
+    expect(dueStep({ ...cadence, today: "2026-11-18", sent: [-3] })).toBeNull();
+    expect(dueStep({ ...cadence, today: "2026-11-20", sent: [-3] })).toBe(0);
+    expect(dueStep({ ...cadence, today: "2026-11-27", sent: [-3, 0] })).toBe(7);
+  });
+
+  it("after missed days sends only the latest step, never an older one later", () => {
+    expect(dueStep({ ...cadence, today: "2026-12-10", sent: [-3] })).toBe(14);
+    expect(dueStep({ ...cadence, today: "2026-12-11", sent: [-3, 14] })).toBeNull();
+  });
+
+  it("skips steps on or before the day the invoice went out, and stops at the maximum", () => {
+    expect(dueStep({ ...cadence, notBefore: "2026-11-18", today: "2026-11-18", sent: [] })).toBeNull();
+    expect(dueStep({ ...cadence, notBefore: "2026-11-18", today: "2026-11-20", sent: [] })).toBe(0);
+    expect(dueStep({ ...cadence, max: 2, today: "2026-12-04", sent: [-3, 0] })).toBeNull();
+    expect(dueStep({ base: "2026-11-01", steps: [3, 7], today: "2026-11-04", sent: [] })).toBe(3);
+  });
+
+  it("words where the invoice stands", () => {
+    expect(daysPastDue("2026-11-20", "2026-11-17")).toBe(-3);
+    expect(daysPastDue("2026-11-20", "2026-12-04")).toBe(14);
+    expect(dueWording(-3)).toBe("due in 3 days");
+    expect(dueWording(-1)).toBe("due in 1 day");
+    expect(dueWording(0)).toBe("due today");
+    expect(dueWording(1)).toBe("1 day overdue");
+    expect(dueWording(14)).toBe("14 days overdue");
   });
 });
