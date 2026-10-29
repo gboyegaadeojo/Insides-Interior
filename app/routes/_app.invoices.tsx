@@ -1,4 +1,4 @@
-import { Receipt, Search } from "lucide-react";
+import { BellOff, Receipt, Search } from "lucide-react";
 import * as React from "react";
 import { Form, Link, Outlet, redirect, useLocation, useSearchParams, useSubmit } from "react-router";
 import { ModuleHeader } from "~/components/shell/module-header";
@@ -187,12 +187,19 @@ export default function Invoices({ loaderData }: Route.ComponentProps) {
                       </span>
                     )}
                   </span>
-                  <span className="col-span-3 justify-self-start @2xl:col-span-1 @2xl:justify-self-end">
+                  <span className="col-span-3 flex flex-wrap items-center gap-1.5 justify-self-start @2xl:col-span-1 @2xl:justify-self-end">
                     <StatusBadge
                       status={inv.status}
                       size="sm"
                       percentPaid={percentPaid(inv.totalCents, inv.paidCents)}
                     />
+                    {/* FR-AUTO-02: a paused invoice says so in the list. */}
+                    {open && inv.remindersPaused && (
+                      <span className="inline-flex h-6 items-center gap-1 rounded-full bg-saffron-tint px-2 text-micro font-semibold text-saffron-ink">
+                        <BellOff className="size-3.5" aria-hidden />
+                        Reminders paused
+                      </span>
+                    )}
                   </span>
                 </Link>
               </li>

@@ -23,9 +23,19 @@ export default {
     return requestHandler(request, { cloudflare: { env, ctx } });
   },
 
-  // Placeholder until phase 8 (daily and weekly jobs, SPEC 5.9).
-  async scheduled(controller) {
-    console.log(`cron ${controller.cron}: no jobs registered yet`);
+  // Daily reminders and the weekly digest (SPEC 5.9). Loaded on demand, like
+  // the queue consumer. Each run is idempotent (job_run + email keys).
+  async scheduled(controller, env, ctx) {
+    const { CRON_JOBS, runDailyJob, runWeeklyDigest } = await import("~/features/automation/service");
+    const job = CRON_JOBS[controller.cron];
+    if (!job) {
+      console.warn(`cron ${controller.cron}: no job`);
+      return;
+    }
+    const now = new Date(controller.scheduledTime);
+    const run = job === "daily" ? runDailyJob(env, now) : runWeeklyDigest(env, now);
+    ctx.waitUntil(run.then((result) => console.log(`cron ${job}`, JSON.stringify(result))));
+    await run;
   },
 
   // Email (with PDF attachments) off the request path (SPEC 9.3). Loaded on

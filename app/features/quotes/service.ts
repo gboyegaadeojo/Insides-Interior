@@ -949,6 +949,23 @@ export async function rotateQuoteLink(ctx: RequestContext, id: string) {
   ]);
 }
 
+/** Pause or resume automatic follow-ups for one quote (SPEC 5.9, `follow_up_paused`). */
+export async function setFollowUpPaused(ctx: RequestContext, id: string, paused: boolean) {
+  const [row] = await ctx.db
+    .select({ paused: schema.quote.followUpPaused })
+    .from(schema.quote)
+    .where(and(eq(schema.quote.id, id), eq(schema.quote.businessId, ctx.user.businessId)));
+  if (!row) throw new ServiceError("This quote no longer exists");
+  if (row.paused === paused) return;
+  await ctx.db.batch([
+    ctx.db
+      .update(schema.quote)
+      .set({ followUpPaused: paused, updatedAt: nowIso() })
+      .where(eq(schema.quote.id, id)),
+    audit(ctx, id, paused ? "quote.follow_ups_paused" : "quote.follow_ups_resumed"),
+  ]);
+}
+
 /** For the Send sheet: the number a first send will most likely get, and the email wording. */
 export async function sendSetup(ctx: Ctx) {
   const [[seq], [settings]] = await Promise.all([

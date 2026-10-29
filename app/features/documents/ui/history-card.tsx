@@ -105,6 +105,8 @@ const EMAIL_LABEL: Record<string, string> = {
   invoice_message_owner: "New message notice",
   invoice_owner_reply: "Reply to client",
   payment_receipt: "Payment receipt",
+  payment_reminder: "Payment reminder",
+  quote_follow_up: "Follow-up",
 };
 
 const EMAIL_STATUS: Record<string, { label: string; tone: string }> = {

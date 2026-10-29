@@ -441,3 +441,158 @@ export function paymentReceiptEmail(
   });
   return { subject: renderMergeFields(wording.subject, values), html, text };
 }
+
+/**
+ * Payment reminder before, on or after the due date (SPEC 9.4, FR-AUTO-01).
+ * The owner's wording (Settings → Email) opens it; the headline says where the
+ * invoice stands ("due in 3 days", "7 days overdue").
+ */
+export function paymentReminderEmail(
+  brand: Brand,
+  opts: {
+    clientName: string;
+    number: string;
+    due: string;
+    dueDate: string;
+    /** From domain/reminders dueWording. */
+    standing: string;
+    overdue: boolean;
+    url: string;
+    override?: EmailTemplateOverride;
+    defaults: EmailTemplateOverride;
+  },
+): RenderedEmail {
+  const values: MergeValues = {
+    "client.firstName": firstName(opts.clientName),
+    "client.name": opts.clientName,
+    "business.name": brand.name,
+    "invoice.number": opts.number,
+    "amount.due": opts.due,
+    "date.due": opts.dueDate,
+    link: opts.url,
+  };
+  const wording = opts.override ?? opts.defaults;
+  const { html, text } = layout(brand, {
+    preheader: `${opts.due} on ${opts.number}, ${opts.standing}.`,
+    headline: `Invoice ${opts.number} is ${opts.standing}`,
+    body: paragraphs(renderMergeFields(wording.body, values)),
+    facts: [
+      ["Invoice", opts.number],
+      ["Amount due", opts.due],
+      [opts.overdue ? "Was due" : "Due", opts.dueDate],
+    ],
+    button: { label: "View and pay", url: opts.url },
+    footnote: "Already paid? Thank you, please ignore this; it can take a day or two to show.",
+  });
+  return { subject: renderMergeFields(wording.subject, values), html, text };
+}
+
+/** Quote follow-up while the client hasn't answered (SPEC 9.4). */
+export function quoteFollowUpEmail(
+  brand: Brand,
+  opts: {
+    clientName: string;
+    number: string;
+    total: string;
+    validUntil?: string;
+    url: string;
+    override?: EmailTemplateOverride;
+    defaults: EmailTemplateOverride;
+  },
+): RenderedEmail {
+  const values: MergeValues = {
+    "client.firstName": firstName(opts.clientName),
+    "client.name": opts.clientName,
+    "business.name": brand.name,
+    "quote.number": opts.number,
+    "amount.total": opts.total,
+    link: opts.url,
+  };
+  const wording = opts.override ?? opts.defaults;
+  const { html, text } = layout(brand, {
+    preheader: `Quote ${opts.number} · ${opts.total}${opts.validUntil ? ` · valid until ${opts.validUntil}` : ""}`,
+    headline: "A quick follow-up on your quote",
+    body: paragraphs(renderMergeFields(wording.body, values)),
+    facts: [
+      ["Quote", opts.number],
+      ["Total", opts.total],
+      ...(opts.validUntil ? ([["Valid until", opts.validUntil]] as [string, string][]) : []),
+    ],
+    button: { label: "Review your quote", url: opts.url },
+    footnote: "You can approve online, or ask for a change right from the quote.",
+  });
+  return { subject: renderMergeFields(wording.subject, values), html, text };
+}
+
+export interface DigestFacts {
+  overdue: { count: number; total: string };
+  awaiting: { count: number; total: string };
+  openRequests: number;
+  expiring: { count: number; numbers: string[] };
+}
+
+/** Weekly digest to each owner, Monday 07:30 Lagos (SPEC 9.4, FR-AUTO-03). */
+export function weeklyDigestEmail(
+  brand: Brand,
+  opts: { ownerName: string; weekOf: string; facts: DigestFacts; url: string },
+): RenderedEmail {
+  const { facts } = opts;
+  const lines: string[] = [];
+  if (facts.overdue.count > 0)
+    lines.push(
+      `${facts.overdue.count} overdue invoice${facts.overdue.count === 1 ? "" : "s"}, ${facts.overdue.total} outstanding.`,
+    );
+  if (facts.awaiting.count > 0)
+    lines.push(
+      `${facts.awaiting.count} quote${facts.awaiting.count === 1 ? "" : "s"} awaiting an answer, ${facts.awaiting.total} in total.`,
+    );
+  if (facts.openRequests > 0)
+    lines.push(
+      `${facts.openRequests} conversation${facts.openRequests === 1 ? "" : "s"} with open change requests.`,
+    );
+  if (facts.expiring.count > 0)
+    lines.push(
+      `${facts.expiring.count} quote${facts.expiring.count === 1 ? "" : "s"} expiring this week: ${facts.expiring.numbers.join(", ")}.`,
+    );
+  const { html, text } = layout(brand, {
+    preheader: lines[0] ?? "Your week at a glance.",
+    headline: `Your week, ${opts.weekOf}`,
+    body: [
+      `Good morning ${firstName(opts.ownerName)},`,
+      "Here's what needs you this week:",
+      ...lines.map((l) => `• ${l}`),
+    ],
+    facts: [
+      ["Overdue", `${facts.overdue.count} · ${facts.overdue.total}`],
+      ["Awaiting answer", `${facts.awaiting.count} · ${facts.awaiting.total}`],
+      ["Open change requests", String(facts.openRequests)],
+      ["Expiring this week", String(facts.expiring.count)],
+    ],
+    button: { label: "Open Home", url: opts.url },
+  });
+  return {
+    subject: `Your week at ${brand.name}: ${lines.length} thing${lines.length === 1 ? "" : "s"} need you`,
+    html,
+    text,
+  };
+}
+
+/** An email to a client bounced or was marked as spam (SPEC 9.3 step 4, 9.4). */
+export function bounceAlertEmail(
+  brand: Brand,
+  opts: { to: string; subject: string; complained: boolean; clientName?: string; url: string },
+): RenderedEmail {
+  const what = opts.complained ? "was marked as spam" : "bounced";
+  const { html, text } = layout(brand, {
+    preheader: `“${opts.subject}” to ${opts.to} ${what}.`,
+    headline: opts.complained ? "An email was marked as spam" : "An email bounced",
+    body: [
+      `The email “${opts.subject}” to ${opts.to}${opts.clientName ? ` (${opts.clientName})` : ""} ${what}.`,
+      opts.complained
+        ? "The client may not want these emails. Check with them before sending more."
+        : "Check the address on the client's profile. Until it changes, the app warns you before sending to it.",
+    ],
+    button: { label: "Fix email address", url: opts.url },
+  });
+  return { subject: `Email to ${opts.to} ${what}`, html, text };
+}

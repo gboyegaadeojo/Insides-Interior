@@ -1,4 +1,6 @@
 import {
+  BellOff,
+  BellRing,
   CalendarPlus,
   Check,
   ChevronLeft,
@@ -53,6 +55,7 @@ import {
   rotateQuoteLink,
   sendQuote,
   sendSetup,
+  setFollowUpPaused,
 } from "~/features/quotes/service";
 import { ownerThread, threadPanelData } from "~/features/conversations/service";
 import {
@@ -190,6 +193,10 @@ export async function action({ request, params, context }: Route.ActionArgs) {
       case "rotate_link":
         await rotateQuoteLink(ctx, params.id);
         return done("New link made. The old link no longer works.");
+      case "pause_follow_ups":
+      case "resume_follow_ups":
+        await setFollowUpPaused(ctx, params.id, intent === "pause_follow_ups");
+        return done(intent === "pause_follow_ups" ? "Follow-ups paused" : "Follow-ups back on");
       case "retry_email":
         await retryQuoteEmail(ctx, params.id);
         return done("Email queued again");
@@ -382,6 +389,9 @@ function SentQuote({ data }: { data: LoaderData }) {
           <>
             {acceptance && <ApprovalCard acceptance={acceptance} projectId={data.quote.projectId} />}
             {status === "approved" && <QuoteInvoicesCard data={data} />}
+            {(status === "sent" || status === "viewed") && !pastDate && (
+              <FollowUpsCard paused={data.quote.followUpPaused} busy={busy} />
+            )}
           </>
         }
         thread={
@@ -522,6 +532,39 @@ function QuoteInvoicesCard({ data }: { data: LoaderData }) {
         {!has("final") && createButton("final", "Final invoice")}
         {live.length === 0 && createButton("full", "Invoice in full")}
       </div>
+    </Card>
+  );
+}
+
+/** Automatic follow-ups while the client hasn't answered (SPEC 5.9). */
+function FollowUpsCard({ paused, busy }: { paused: boolean; busy: (intent: string) => boolean }) {
+  return (
+    <Card data-testid="follow-ups">
+      <h2 className="flex items-center gap-2 font-display text-title">
+        {paused ? (
+          <BellOff className="size-5 text-saffron-ink" aria-hidden />
+        ) : (
+          <BellRing className="size-5 text-sage-ink" aria-hidden />
+        )}
+        Follow-ups {paused ? "paused" : "on"}
+      </h2>
+      <p className="mt-1 text-label text-secondary">
+        {paused
+          ? "The client won't get automatic follow-up emails about this quote."
+          : "If the client hasn't answered, a friendly follow-up goes at 8 a.m. on the days set in Settings → Reminders."}
+      </p>
+      <Form method="post" className="mt-3">
+        <input type="hidden" name="intent" value={paused ? "resume_follow_ups" : "pause_follow_ups"} />
+        <Button
+          type="submit"
+          variant="secondary"
+          className="w-full"
+          loading={busy("pause_follow_ups") || busy("resume_follow_ups")}
+        >
+          {paused ? <BellRing aria-hidden /> : <BellOff aria-hidden />}
+          {paused ? "Resume follow-ups" : "Pause follow-ups"}
+        </Button>
+      </Form>
     </Card>
   );
 }
