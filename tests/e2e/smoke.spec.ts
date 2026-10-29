@@ -3,7 +3,8 @@ import { expect, test } from "@playwright/test";
 test("home renders", async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("heading", { level: 1, name: "Home" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Get set up" })).toBeVisible();
+  // Setup steps show only on a brand-new account; the figures always do.
+  await expect(page.getByRole("region", { name: "Key figures" })).toBeVisible();
 });
 
 test("health reports ok", async ({ request }) => {

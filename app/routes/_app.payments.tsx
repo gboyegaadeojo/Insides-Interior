@@ -10,7 +10,7 @@ import { MoneyText } from "~/components/ui/text";
 import { formatCents } from "~/domain/money";
 import { PAYMENT_METHOD_LABEL, PAYMENT_PAGE_SIZE } from "~/features/invoices/constants";
 import { listPayments } from "~/features/invoices/service";
-import { formatDate } from "~/lib/dates";
+import { formatDate, isIsoDate } from "~/lib/dates";
 import type { AppHandle } from "~/lib/route-handle";
 import { requireUser } from "~/server/session";
 import type { Route } from "./+types/_app.payments";
@@ -23,8 +23,16 @@ export function meta() {
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const ctx = await requireUser(context.cloudflare.env, request);
-  const limit = Math.max(PAYMENT_PAGE_SIZE, Number(new URL(request.url).searchParams.get("show")) || 0);
-  return { ...(await listPayments(ctx, { limit })), limit };
+  const url = new URL(request.url);
+  const limit = Math.max(PAYMENT_PAGE_SIZE, Number(url.searchParams.get("show")) || 0);
+  // FR-RPT-06: Home's "Paid this month" opens this list from the 1st; the filter is in the URL.
+  const from = url.searchParams.get("from");
+  const to = url.searchParams.get("to");
+  const range = {
+    from: from && isIsoDate(from) ? from : null,
+    to: to && isIsoDate(to) ? to : null,
+  };
+  return { ...(await listPayments(ctx, { limit, ...range })), limit, ...range };
 }
 
 /**
@@ -41,6 +49,23 @@ export default function Payments({ loaderData }: Route.ComponentProps) {
         eyebrow="Payments"
         summary={`${formatCents(loaderData.monthCents)} received this month`}
       />
+      {(loaderData.from || loaderData.to) && (
+        <p className="mb-4 flex flex-wrap items-center gap-2 text-secondary">
+          <span className="inline-flex h-9 items-center rounded-full bg-ocean-tint px-3 font-semibold text-ocean-ink">
+            {loaderData.from && loaderData.to
+              ? `${formatDate(loaderData.from)} to ${formatDate(loaderData.to)}`
+              : loaderData.from
+                ? `Received since ${formatDate(loaderData.from)}`
+                : `Received up to ${formatDate(loaderData.to)}`}
+          </span>
+          <Link
+            to="/payments"
+            className="inline-flex min-h-11 items-center px-2 font-semibold text-ocean-ink hover:underline"
+          >
+            Show all payments
+          </Link>
+        </p>
+      )}
       {payments.length === 0 ? (
         <EmptyState
           icon={Banknote}

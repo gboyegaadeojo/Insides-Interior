@@ -16,6 +16,8 @@ async function shot(page: Page, name: string) {
 
 test("create a client, add a site and find them by search", async ({ page }) => {
   const name = unique("Amelia Chen");
+  // A street only this run uses, so the address search finds one client on a long-used database.
+  const street = unique("Bourdillon Rd").replaceAll(" ", "-");
   await page.goto("/clients");
   await page.getByRole("button", { name: "New client" }).first().click();
   const sheet = page.getByRole("dialog", { name: "New client" });
@@ -30,13 +32,13 @@ test("create a client, add a site and find them by search", async ({ page }) => 
 
   await page.getByRole("button", { name: "Add job address" }).click();
   await page.getByLabel("Address name").fill("Cottage");
-  await page.getByLabel("Street address").fill("4 Bourdillon Rd, Ikoyi");
+  await page.getByLabel("Street address").fill(`4 ${street}, Ikoyi`);
   await page.getByRole("button", { name: "Save address" }).click();
-  await expect(page.getByText("4 Bourdillon Rd, Ikoyi")).toBeVisible();
+  await expect(page.getByText(`4 ${street}, Ikoyi`)).toBeVisible();
   await shot(page, "client-profile");
 
   await page.goto("/clients");
-  await page.getByRole("searchbox", { name: "Search clients" }).fill("bourdillon");
+  await page.getByRole("searchbox", { name: "Search clients" }).fill(street.toLowerCase());
   await expect(page.getByRole("list", { name: "Clients" }).getByText(name)).toBeVisible();
 });
 
@@ -56,6 +58,9 @@ test("create a catalogue item with cost and markup", async ({ page }) => {
   await page.getByRole("button", { name: "Add to catalogue" }).click();
 
   await expect(page.getByText("Item added to your catalogue")).toBeVisible();
+  // Search for it: on a long-used database it may not be on the first page.
+  await page.getByRole("searchbox", { name: "Search catalogue" }).fill(name);
+  await expect(page).toHaveURL(/q=/);
   const card = page
     .getByRole("list", { name: "Catalogue items" })
     .getByRole("button", { name: new RegExp(name) });

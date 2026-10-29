@@ -20,6 +20,23 @@ export function roundHalfUpDiv(numerator: number, denominator: number): number {
   return Number(negative ? -q : q);
 }
 
+/**
+ * `a × b / d` rounded half away from zero, with the product in BigInt so two
+ * large amounts (₦ millions in kobo) can be multiplied without losing precision.
+ */
+export function mulDivRound(a: number, b: number, d: number): number {
+  if (!Number.isSafeInteger(a) || !Number.isSafeInteger(b) || !Number.isSafeInteger(d) || d === 0) {
+    throw new RangeError(`mulDivRound needs safe integers, got ${a}×${b}/${d}`);
+  }
+  const n = BigInt(a) * BigInt(b);
+  const den = BigInt(d);
+  const negative = n < 0n !== den < 0n;
+  const an = n < 0n ? -n : n;
+  const ad = den < 0n ? -den : den;
+  const q = (an * 2n + ad) / (ad * 2n);
+  return Number(negative ? -q : q);
+}
+
 /** Line amount = round_half_up(qty_milli × unit_price_cents / 1000) (SPEC 10.1). */
 export function lineAmountCents(qtyMilli: number, unitPriceCents: number): number {
   return roundHalfUpDiv(qtyMilli * unitPriceCents, 1000);

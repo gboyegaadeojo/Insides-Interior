@@ -29,12 +29,15 @@ export function KpiCard({
         <span className="text-label font-semibold text-secondary">{label}</span>
         <IconChip icon={icon} tone={tone} size="sm" />
       </div>
-      <span className="mt-3 block text-kpi font-[650] tabular">{value}</span>
+      {/* Scales to the card (container query) so a long naira amount is never cut off. */}
+      <span className="mt-3 block text-section font-[650] [overflow-wrap:anywhere] tabular @[12rem]:text-title @[16rem]:text-kpi">
+        {value}
+      </span>
       {detail && <span className="mt-1 block text-label font-normal text-secondary">{detail}</span>}
     </>
   );
   const className =
-    "relative block overflow-hidden rounded-card border border-border bg-surface p-5 text-primary shadow-card";
+    "@container relative block overflow-hidden rounded-card border border-border bg-surface p-4 text-primary shadow-card tablet:p-5";
   return to ? (
     <Link
       to={to}

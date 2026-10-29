@@ -85,6 +85,13 @@
       "when": 1793287568119,
       "tag": "0011_owner_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "6",
+      "when": 1793298958613,
+      "tag": "0012_expenses_billing",
+      "breakpoints": true
     }
   ]
 }
