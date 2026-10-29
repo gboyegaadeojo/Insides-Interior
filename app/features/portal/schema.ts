@@ -1,10 +1,15 @@
 import { z } from "zod";
+import { CHANGE_KINDS } from "~/domain/change-requests";
+import { parseQuantityToMilli } from "~/domain/money";
 
 // The only writes a portal visitor can make (CLAUDE.md, SPEC 11): approve, post
 // a message, raise a change request. Everything is bounded; totals never come
 // from the browser.
 
 const id = z.string().min(1).max(64);
+
+/** FR-MSG-02: plain text, up to 2,000 characters (SPEC 11.1). */
+export const MESSAGE_MAX = 2000;
 
 export const approveSchema = z.object({
   intent: z.literal("approve"),
@@ -27,18 +32,58 @@ export const approveSchema = z.object({
     .transform((v) => (v ? v : undefined)),
 });
 
-export const requestChangesSchema = z.object({
-  intent: z.literal("request_changes"),
+const name = z.string().trim().min(2, "Tell us your name").max(120);
+
+/** A message in the document's conversation (FR-MSG-02). */
+export const messageSchema = z.object({
+  intent: z.literal("message"),
   revisionId: id,
-  name: z.string().trim().min(2, "Tell us your name").max(120),
-  message: z
-    .string()
-    .trim()
-    .min(1, "Tell us what you'd like to change")
-    .max(2000, "Use 2,000 characters or fewer"),
+  name,
+  message: z.string().trim().min(1, "Write your message").max(MESSAGE_MAX, "Use 2,000 characters or fewer"),
 });
 
-export const portalActionSchema = z.discriminatedUnion("intent", [approveSchema, requestChangesSchema]);
+/**
+ * "Request a change" on a line, or on the whole document (FR-MSG-03). Change
+ * quantity needs the new quantity; a question or Other needs words.
+ */
+const changeRequestFields = z.object({
+  intent: z.literal("change_request"),
+  revisionId: id,
+  name,
+  lineRef: id,
+  kind: z.enum(CHANGE_KINDS, { message: "Choose what you'd like" }),
+  quantity: z.string().trim().max(20).optional().default(""),
+  note: z.string().trim().max(MESSAGE_MAX, "Use 2,000 characters or fewer").default(""),
+});
+
+export const changeRequestSchema = changeRequestFields.transform((v, ctx) => {
+  let proposedQtyMilli: number | null = null;
+  if (v.kind === "quantity") {
+    proposedQtyMilli = parseQuantityToMilli(v.quantity);
+    if (proposedQtyMilli === null || proposedQtyMilli <= 0) {
+      ctx.addIssue({ code: "custom", path: ["quantity"], message: "Enter the quantity you'd like, e.g. 2" });
+      return z.NEVER;
+    }
+  }
+  if ((v.kind === "question" || v.kind === "other") && v.note.length === 0) {
+    ctx.addIssue({
+      code: "custom",
+      path: ["note"],
+      message: v.kind === "question" ? "Write your question" : "Tell us what you'd like to change",
+    });
+    return z.NEVER;
+  }
+  const { quantity: _quantity, ...rest } = v;
+  return { ...rest, proposedQtyMilli };
+});
+
+/** Every portal write; anything else is refused before it reaches a service. */
+export const portalActionSchema = z.discriminatedUnion("intent", [
+  approveSchema,
+  messageSchema,
+  changeRequestFields,
+]);
 
 export type ApproveInput = z.output<typeof approveSchema>;
-export type RequestChangesInput = z.output<typeof requestChangesSchema>;
+export type MessageInput = z.output<typeof messageSchema>;
+export type ChangeRequestInput = z.output<typeof changeRequestSchema>;

@@ -17,7 +17,8 @@ test("navigation matches the device class (SPEC 6.1)", async ({ page }, testInfo
   await expect(nav).toHaveCount(1);
   if (isPhone(testInfo.project.name)) {
     // Tab bar: Home, Quotes, + New, Invoices, More.
-    await expect(nav.getByRole("link")).toHaveText(["Home", "Quotes", "Invoices", "More"]);
+    // More carries the Inbox badge when conversations are waiting ("More 3 unread").
+    await expect(nav.getByRole("link")).toHaveText(["Home", "Quotes", "Invoices", /^More/]);
     await expect(nav.getByRole("button", { name: "New" })).toBeVisible();
   } else {
     await expect(nav.getByRole("link", { name: "Clients" })).toBeVisible();

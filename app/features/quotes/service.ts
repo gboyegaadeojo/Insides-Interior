@@ -4,12 +4,27 @@
 // drafts can be hard-deleted (SPEC 8.1).
 
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import type { BatchItem } from "drizzle-orm/batch";
 import { canonicalJson, type Json } from "~/domain/canonical";
+import { describeDiff, diffContent } from "~/domain/diff";
 import { computeContent, depositFrom, type DocumentTotals } from "~/domain/document";
-import { type QuoteEvent, type QuoteStatus, quoteTransition, TransitionError } from "~/domain/lifecycle";
+import {
+  canQuote,
+  type QuoteEvent,
+  type QuoteStatus,
+  quoteTransition,
+  TransitionError,
+} from "~/domain/lifecycle";
 import { CURRENCY } from "~/domain/locale";
 import { formatCents } from "~/domain/money";
 import { isPastValidUntil } from "~/domain/portal";
+import {
+  acceptOpenIn,
+  openRequestCount,
+  pendingAccepted,
+  reopenAccepted,
+  resolveAcceptedIn,
+} from "~/features/conversations/requests";
 import { emailInsert, enqueue, NUMBER_PLACEHOLDER, type OutgoingEmail } from "~/features/email/service";
 import { loadEmailBrand } from "~/features/settings/doc-business";
 import { ServiceError } from "~/features/settings/service";
@@ -19,7 +34,7 @@ import { likeTerm } from "~/lib/like";
 import { EMAIL_TEMPLATE_DEFAULTS } from "~/lib/merge-fields";
 import { activityInsert } from "~/server/audit";
 import { type DocumentContent, schema } from "~/server/db";
-import { quoteSentEmail } from "~/server/email/templates";
+import { quoteSentEmail, type RevisionChanges } from "~/server/email/templates";
 import type { RequestContext } from "~/server/session";
 import { hashShareToken, newShareSalt, portalPath, sha256Hex, shareToken } from "~/server/tokens";
 import type { SaveDraftInput, SendQuoteInput } from "./schema";
@@ -480,6 +495,7 @@ async function quoteSentMessage(
     cc: string[];
     bcc: string[];
     note?: string;
+    changes?: RevisionChanges;
   },
 ): Promise<OutgoingEmail> {
   const [brand, [settings]] = await Promise.all([
@@ -495,6 +511,7 @@ async function quoteSentMessage(
     url: opts.url,
     revision: opts.revisionNo,
     note: opts.note,
+    changes: opts.changes,
     override: settings?.emailTemplates.quote_sent,
     defaults: { subject: defaults.subject, body: defaults.body },
     facts: {
@@ -551,13 +568,34 @@ export async function sendQuote(ctx: RequestContext, id: string, input: SendQuot
   const totals = computeContent(content, depositFrom(row.depositType, row.depositValue));
 
   let revisionNo = 1;
+  let changes: RevisionChanges | undefined;
   if (row.currentRevisionId) {
     const [previous] = await ctx.db
-      .select({ revisionNo: schema.quoteRevision.revisionNo })
+      .select()
       .from(schema.quoteRevision)
       .where(eq(schema.quoteRevision.id, row.currentRevisionId));
     revisionNo = (previous?.revisionNo ?? 0) + 1;
+    if (previous) {
+      // FR-MSG-06: the revised email says what changed and the total before and after.
+      const diff = diffContent(previous.content, content, {
+        before: depositFrom(previous.depositType, previous.depositValue),
+        after: depositFrom(row.depositType, row.depositValue),
+      });
+      changes = {
+        lines: describeDiff(diff, 6),
+        totalBefore: formatCents(diff.totalBeforeCents),
+        totalAfter: formatCents(diff.totalAfterCents),
+      };
+    }
   }
+  // Requests still open when a revision goes out keep the quote in changes
+  // requested (FR-MSG-07), unless the owner says this revision deals with them.
+  const open = await openRequestCount(ctx.db, "quote", id);
+  const closeOpen = open > 0 && !!input.resolveOpen;
+  const status =
+    open > 0 && !closeOpen
+      ? quoteTransitionOrFail("sent", "request_changes")
+      : quoteTransitionOrFail("draft", "send");
   const revisionId = newId("qrv");
   const contentHash = await sha256Hex(
     canonicalJson({
@@ -583,6 +621,7 @@ export async function sendQuote(ctx: RequestContext, id: string, input: SendQuot
     cc: input.cc,
     bcc: input.bcc,
     note: input.note,
+    changes,
   });
   const email = emailInsert(ctx.db, {
     businessId: ctx.user.businessId,
@@ -603,7 +642,7 @@ export async function sendQuote(ctx: RequestContext, id: string, input: SendQuot
       ctx.db
         .update(schema.quote)
         .set({
-          status: quoteTransitionOrFail("draft", "send"),
+          status,
           number: row.number ?? nextNumber,
           currentRevisionId: revisionId,
           shareTokenHash: await hashShareToken(token),
@@ -644,6 +683,8 @@ export async function sendQuote(ctx: RequestContext, id: string, input: SendQuot
         sentAt: now,
         createdBy: ctx.user.id,
       }),
+      resolveAcceptedIn(ctx.db, "quote", id, revisionId),
+      ...(closeOpen ? [acceptOpenIn(ctx.db, "quote", id, revisionId, revisionNo)] : []),
       email.insert,
       audit(ctx, id, revisionNo > 1 ? "quote.revision_sent" : "quote.sent", {
         revision: revisionNo,
@@ -652,6 +693,7 @@ export async function sendQuote(ctx: RequestContext, id: string, input: SendQuot
         bcc: input.bcc,
         note: input.note || undefined,
         totalCents: totals.computed.totalCents,
+        requestsClosed: closeOpen ? open : undefined,
       }),
     ]);
   } catch (error) {
@@ -754,22 +796,58 @@ export async function retryQuoteEmail(ctx: RequestContext, id: string) {
 export async function reviseQuote(ctx: RequestContext, id: string) {
   const detail = await getQuote(ctx, id);
   if (!detail) throw new ServiceError("This quote no longer exists");
+  quoteTransitionOrFail(detail.quote.status, "revise");
+  await reviseQuoteWith(ctx, detail, (content) => content, []);
+}
+
+type QuoteContent = Omit<DocumentContent, "header">;
+
+/**
+ * The draft revision with `change` applied (FR-MSG-05: accepted change
+ * requests), in one batch with `extra`. A sent quote is reopened as the next
+ * revision; a quote already being revised has its draft updated, guarded by the
+ * draft version so an open builder tab sees a conflict instead of overwriting.
+ */
+export async function reviseQuoteWith(
+  ctx: RequestContext,
+  detail: QuoteDetail,
+  change: (content: QuoteContent) => QuoteContent,
+  extra: BatchItem<"sqlite">[],
+) {
   const { quote } = detail;
-  quoteTransitionOrFail(quote.status, "revise");
-  const { header: _header, ...content } = detail.content;
+  const { header: _header, ...current } = detail.content;
+  const content = change(current);
+  const draftTotalCents = computeContent(content, depositFrom(quote.depositType, quote.depositValue)).computed
+    .totalCents;
+  const reopening = quote.status !== "draft";
+  if (reopening) quoteTransitionOrFail(quote.status, "revise");
   await ctx.db.batch([
     ctx.db
       .update(schema.quote)
       .set({
         status: "draft",
         draftContent: content,
-        draftTotalCents: detail.totals.computed.totalCents,
+        draftTotalCents,
         draftVersion: sql`${schema.quote.draftVersion} + 1`,
         updatedAt: nowIso(),
       })
-      .where(and(eq(schema.quote.id, id), eq(schema.quote.status, quote.status))),
-    requireChanged(ctx, id),
-    audit(ctx, id, "quote.revision_started", { from: quote.status, revision: (detail.revisionNo ?? 0) + 1 }),
+      .where(
+        and(
+          eq(schema.quote.id, quote.id),
+          eq(schema.quote.status, quote.status),
+          eq(schema.quote.draftVersion, quote.draftVersion),
+        ),
+      ),
+    requireChanged(ctx, quote.id),
+    ...(reopening
+      ? [
+          audit(ctx, quote.id, "quote.revision_started", {
+            from: quote.status,
+            revision: (detail.revisionNo ?? 0) + 1,
+          }),
+        ]
+      : []),
+    ...extra,
   ]);
 }
 
@@ -798,9 +876,14 @@ export async function discardRevision(ctx: RequestContext, id: string) {
     )
     .orderBy(desc(schema.activity.at))
     .limit(1);
-  const previous = (started?.data?.from as QuoteStatus | undefined) ?? "sent";
+  const before = (started?.data?.from as QuoteStatus | undefined) ?? "sent";
+  // Requests accepted into this revision weren't sent: they are open again.
+  const reopened = (await pendingAccepted(ctx.db, "quote", id)).length;
+  const previous: QuoteStatus =
+    reopened > 0 && canQuote(before, "request_changes") ? "changes_requested" : before;
   const header = revision.content.header;
   await ctx.db.batch([
+    reopenAccepted(ctx.db, "quote", id),
     ctx.db
       .update(schema.quote)
       .set({
@@ -819,7 +902,7 @@ export async function discardRevision(ctx: RequestContext, id: string) {
       })
       .where(and(eq(schema.quote.id, id), eq(schema.quote.status, "draft"))),
     requireChanged(ctx, id),
-    audit(ctx, id, "quote.revision_discarded", { back_to: previous }),
+    audit(ctx, id, "quote.revision_discarded", { back_to: previous, reopened: reopened || undefined }),
   ]);
 }
 

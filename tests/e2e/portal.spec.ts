@@ -151,8 +151,9 @@ test("a client can ask for changes; the owner revises and the old link stops wor
 
   const client = await clientPage(browser);
   await client.goto(link);
-  await client.getByRole("button", { name: /Request changes|Changes/ }).click();
-  const sheet = client.getByRole("dialog", { name: "Request changes" });
+  await client.getByRole("button", { name: "Request changes" }).click();
+  const sheet = client.getByRole("dialog", { name: "Request a change" });
+  await sheet.getByRole("radio", { name: "Other" }).check();
   await sheet.getByLabel("What would you like to change?").fill("Could the sofa be in green velvet?");
   await sheet.getByRole("button", { name: "Send request" }).click();
   await expect(client.getByText("We've got your request")).toBeVisible({ timeout: 15_000 });
@@ -168,6 +169,8 @@ test("a client can ask for changes; the owner revises and the old link stops wor
 
   await page.getByRole("button", { name: "Send revision" }).click();
   const send = page.getByRole("dialog", { name: "Send revision 2" });
+  // The owner made the change by hand: sending says this revision deals with the request.
+  await expect(send.getByRole("checkbox", { name: /deals with the 1 open request/ })).toBeChecked();
   await send.getByRole("button", { name: /^Send ₦/ }).click();
   await expect(page.getByText(/\(rev 2\) sent to/)).toBeVisible({ timeout: 15_000 });
 

@@ -35,6 +35,19 @@ export function formatDate(date: string | null | undefined): string {
   }).format(new Date(Date.UTC(y, m - 1, d)));
 }
 
+const DATE_TIME = new Intl.DateTimeFormat(LOCALE, {
+  day: "numeric",
+  month: "short",
+  hour: "numeric",
+  minute: "2-digit",
+  timeZone: BUSINESS_TZ,
+});
+
+/** "29 Oct, 2:05 pm" in Lagos time for a UTC instant (thread timestamps, FR-MSG-01). */
+export function formatDateTime(iso: string): string {
+  return DATE_TIME.format(new Date(iso));
+}
+
 export function isIsoDate(value: string): boolean {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
   const [y, m, d] = value.split("-").map(Number) as [number, number, number];

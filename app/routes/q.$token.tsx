@@ -4,7 +4,7 @@ import { data, Form, redirect, useActionData, useNavigation, useParams, useSearc
 import { DocumentRenderer } from "~/components/doc/document-renderer";
 import { Button } from "~/components/ui/button";
 import { Celebration } from "~/components/ui/celebration";
-import { TextField, Textarea } from "~/components/ui/field";
+import { TextField } from "~/components/ui/field";
 import { Sheet, SheetContent } from "~/components/ui/sheet";
 import { SignaturePad } from "~/components/ui/signature-pad";
 import { MoneyText } from "~/components/ui/text";
@@ -12,15 +12,26 @@ import { toast } from "~/components/ui/toast";
 import { computeContent, depositFrom } from "~/domain/document";
 import { formatCents, lineAmountCents } from "~/domain/money";
 import { applySelection, selectedOptionIds } from "~/domain/portal";
+import { WHOLE_DOCUMENT } from "~/domain/change-requests";
 import { formatAddress } from "~/features/clients/service";
-import { portalActionSchema } from "~/features/portal/schema";
+import { openLineRefs } from "~/features/conversations/requests";
+import { conversationAction } from "~/features/portal/action";
+import { approveSchema } from "~/features/portal/schema";
 import {
   approveQuote,
   loadPortalQuote,
   PortalError,
+  portalThread,
+  portalWhatChanged,
   recordQuoteView,
-  requestQuoteChanges,
 } from "~/features/portal/service";
+import {
+  ChangeRequestSheet,
+  lineActionFor,
+  type PortalResult,
+  PortalThread,
+  WhatChanged,
+} from "~/features/portal/ui/portal-conversation";
 import { loadDocBusiness } from "~/features/settings/doc-business";
 import { businessToday, formatDate } from "~/lib/dates";
 import { cn } from "~/lib/utils";
@@ -58,7 +69,11 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     if (status === "sent") status = "viewed";
   }
   const { quote, revision, client, site, acceptance } = portal;
-  const business = await loadDocBusiness(getDb(env), quote.businessId);
+  const [business, thread, whatChanged] = await Promise.all([
+    loadDocBusiness(getDb(env), quote.businessId),
+    print ? [] : portalThread(env, "quote", quote.id),
+    print ? null : portalWhatChanged(env, "quote", quote.id, revision),
+  ]);
   const content = revision.content;
   const state =
     status === "approved"
@@ -107,9 +122,33 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
             selected: acceptance.selectedOptionLineIds,
           }
         : null,
+      thread: threadView(thread),
+      flaggedLines: openLineRefs(thread).filter((ref) => ref !== WHOLE_DOCUMENT),
+      whatChanged,
     },
     { headers: PORTAL_HEADERS },
   );
+}
+
+/** Only what the portal shows of a thread (no revision or request ids beyond the card). */
+function threadView(thread: Awaited<ReturnType<typeof portalThread>>) {
+  return thread.map((m) => ({
+    id: m.id,
+    from: m.from,
+    authorName: m.authorName,
+    body: m.body,
+    createdAt: m.createdAt,
+    hidden: false,
+    request: m.request && {
+      id: m.request.id,
+      kind: m.request.kind,
+      lineRef: m.request.lineRef,
+      lineLabel: m.request.lineLabel,
+      proposedQtyMilli: m.request.proposedQtyMilli,
+      status: m.request.status,
+      resolutionNote: m.request.resolutionNote,
+    },
+  }));
 }
 
 export async function action({ request, params, context }: Route.ActionArgs) {
@@ -119,10 +158,13 @@ export async function action({ request, params, context }: Route.ActionArgs) {
   const form = await request.formData();
   const intent = form.get("intent");
   // CLAUDE.md: the portal allows approve, message and change request, nothing else.
-  if (intent !== "approve" && intent !== "request_changes") {
+  if (intent !== "approve" && intent !== "message" && intent !== "change_request") {
     throw new Response("Not allowed", { status: 400 });
   }
-  const parsed = portalActionSchema.safeParse({
+  if (intent !== "approve") {
+    return conversationAction(env, "quote", params.token, form, visitorMeta(request));
+  }
+  const parsed = approveSchema.safeParse({
     intent,
     revisionId: form.get("revisionId"),
     options: form.getAll("option"),
@@ -130,8 +172,6 @@ export async function action({ request, params, context }: Route.ActionArgs) {
     signerEmail: form.get("signerEmail") ?? "",
     agree: form.get("agree") ?? undefined,
     signature: form.get("signature") ?? undefined,
-    name: form.get("name") ?? "",
-    message: form.get("message") ?? "",
   });
   if (!parsed.success) {
     const fieldErrors: Record<string, string> = {};
@@ -139,12 +179,8 @@ export async function action({ request, params, context }: Route.ActionArgs) {
     return data({ ok: false as const, intent, fieldErrors, error: null, code: "input" }, { status: 400 });
   }
   try {
-    if (parsed.data.intent === "approve") {
-      await approveQuote(env, params.token, parsed.data, visitorMeta(request));
-      return redirect(`/q/${params.token}?approved=1`, { headers: PORTAL_HEADERS });
-    }
-    await requestQuoteChanges(env, params.token, parsed.data, visitorMeta(request));
-    return data({ ok: true as const, intent, fieldErrors: {}, error: null, code: null });
+    await approveQuote(env, params.token, parsed.data, visitorMeta(request));
+    return redirect(`/q/${params.token}?approved=1`, { headers: PORTAL_HEADERS });
   } catch (error) {
     if (error instanceof PortalError) {
       return data(
@@ -212,23 +248,39 @@ function Portal({ d }: { d: LoaderData }) {
   );
   const { sections, totals } = useDocument(d, selected);
   const [sheet, setSheet] = React.useState<null | "approve" | "changes">(null);
-  const actionData = useActionData<typeof action>();
+  const [lineRef, setLineRef] = React.useState<string>(WHOLE_DOCUMENT);
+  const actionData = useActionData<typeof action>() as PortalResult | undefined;
   const options = d.sections.flatMap((s) =>
     s.lines.filter((l) => l.optional).map((l) => ({ ...l, room: s.title })),
   );
+  const requestable = d.sections.flatMap((s) =>
+    s.lines.map((l) => ({
+      id: l.id,
+      description: l.description,
+      room: s.title,
+      qtyMilli: l.qtyMilli,
+      unit: l.unit,
+    })),
+  );
   const canApprove = d.state === "open";
-  const canMessage = d.state === "open" || d.state === "changes_requested";
+  const canRequest = d.state === "open" || d.state === "changes_requested";
+  const canMessage = d.state !== "closed";
+  const composerRef = React.useRef<HTMLTextAreaElement>(null);
+  const requestChange = (ref: string) => {
+    setLineRef(ref);
+    setSheet("changes");
+  };
 
   // A change request went through: close the sheet (during render, as React
   // recommends for state derived from a new result) and say so.
   const [handled, setHandled] = React.useState(actionData);
   if (actionData !== handled) {
     setHandled(actionData);
-    if (actionData?.ok && actionData.intent === "request_changes") setSheet(null);
+    if (actionData?.ok && actionData.intent === "change_request") setSheet(null);
   }
   React.useEffect(() => {
-    if (actionData?.ok && actionData.intent === "request_changes") {
-      toast("Your request was sent", {
+    if (actionData?.ok && actionData.intent !== "approve") {
+      toast(actionData.intent === "change_request" ? "Your request was sent" : "Message sent", {
         tone: "success",
         description: `${d.business.name} will reply by email.`,
       });
@@ -258,7 +310,7 @@ function Portal({ d }: { d: LoaderData }) {
         </div>
       </header>
 
-      <main className={cn("mx-auto max-w-[8.5in] px-4 pt-6 tablet:px-6", canMessage ? "pb-40" : "pb-12")}>
+      <main className={cn("mx-auto max-w-[8.5in] px-4 pt-6 tablet:px-6", canRequest ? "pb-40" : "pb-12")}>
         <p className="text-micro font-semibold tracking-[0.12em] text-secondary uppercase">
           Quote {d.number}
           {d.revisionNo > 1 && ` · Revised (rev ${d.revisionNo})`}
@@ -270,6 +322,8 @@ function Portal({ d }: { d: LoaderData }) {
         </p>
 
         <StatusBanner d={d} />
+
+        {d.whatChanged && <WhatChanged data={d.whatChanged} revisionNo={d.revisionNo} />}
 
         {options.length > 0 && canApprove && (
           <section
@@ -326,11 +380,25 @@ function Portal({ d }: { d: LoaderData }) {
             totals={totals}
             titleAs="h2"
             className="doc-fluid"
+            lineAction={lineActionFor(requestChange, canRequest)}
+            flaggedLines={d.flaggedLines}
           />
         </div>
+
+        <PortalThread
+          noun="quote"
+          businessName={d.business.name}
+          clientName={d.client.name}
+          messages={d.thread}
+          revisionId={d.revisionId}
+          canMessage={canMessage}
+          closedReason={`This quote is closed. Contact ${d.business.name} if you have questions.`}
+          result={actionData}
+          composerRef={composerRef}
+        />
       </main>
 
-      {canMessage && (
+      {canRequest && (
         <div className="fixed inset-x-0 bottom-0 z-30 border-t border-border bg-surface pt-3 pb-[max(env(safe-area-inset-bottom),0.75rem)] shadow-sheet">
           {/* Phone: the total on its own row, buttons sharing the row below; tablet up: one row. */}
           <div className="mx-auto flex max-w-[8.5in] flex-wrap items-center gap-2 px-4 tablet:flex-nowrap tablet:gap-3 tablet:px-6">
@@ -349,7 +417,7 @@ function Portal({ d }: { d: LoaderData }) {
               variant="secondary"
               size="lg"
               className="flex-1 tablet:flex-none"
-              onClick={() => setSheet("changes")}
+              onClick={() => requestChange(WHOLE_DOCUMENT)}
             >
               <MessageSquareText aria-hidden />
               Request changes
@@ -379,11 +447,17 @@ function Portal({ d }: { d: LoaderData }) {
         depositCents={totals.depositCents}
         result={actionData?.intent === "approve" ? actionData : undefined}
       />
-      <ChangesSheet
-        open={sheet === "changes" && canMessage}
+      <ChangeRequestSheet
+        open={sheet === "changes" && canRequest}
         onOpenChange={(open) => setSheet(open ? "changes" : null)}
-        d={d}
-        result={actionData?.intent === "request_changes" && !actionData.ok ? actionData : undefined}
+        noun="quote"
+        businessName={d.business.name}
+        clientName={d.client.name}
+        lines={requestable}
+        lineRef={lineRef}
+        onLineRef={setLineRef}
+        revisionId={d.revisionId}
+        result={actionData}
       />
       <Celebration
         show={params.get("approved") === "1"}
@@ -581,91 +655,6 @@ function ApproveSheet({
               </p>
             )}
           </div>
-        </Form>
-      </SheetContent>
-    </Sheet>
-  );
-}
-
-const NAME_KEY = "insides.portal.name";
-const noSubscribe = () => () => {};
-
-function readRememberedName() {
-  try {
-    return localStorage.getItem(NAME_KEY);
-  } catch {
-    return null;
-  }
-}
-
-function ChangesSheet({
-  open,
-  onOpenChange,
-  d,
-  result,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  d: LoaderData;
-  result?: { fieldErrors: Record<string, string>; error: string | null };
-}) {
-  const navigation = useNavigation();
-  const submitting = navigation.state !== "idle" && navigation.formData?.get("intent") === "request_changes";
-  const formId = React.useId();
-  // FR-MSG-02: the name is asked once and remembered on this device.
-  const remembered = React.useSyncExternalStore(noSubscribe, readRememberedName, () => null);
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent
-        title="Request changes"
-        description={`Tell ${d.business.name} what you'd like to change. Nothing changes until they send a revised quote.`}
-        footer={
-          <Button type="submit" form={formId} size="lg" className="w-full" loading={submitting}>
-            Send request
-          </Button>
-        }
-      >
-        <Form
-          method="post"
-          id={formId}
-          className="flex flex-col gap-5"
-          preventScrollReset
-          onSubmit={(e) => {
-            try {
-              localStorage.setItem(NAME_KEY, String(new FormData(e.currentTarget).get("name") ?? ""));
-            } catch {
-              // Private browsing: nothing to remember.
-            }
-          }}
-        >
-          <input type="hidden" name="intent" value="request_changes" />
-          <input type="hidden" name="revisionId" value={d.revisionId} />
-          {result?.error && (
-            <p
-              role="alert"
-              className="rounded-card border border-danger-base bg-danger-tint p-3 font-semibold text-danger-ink"
-            >
-              {result.error}
-            </p>
-          )}
-          <TextField
-            label="Your name"
-            name="name"
-            autoComplete="name"
-            required
-            key={remembered ?? "client"}
-            defaultValue={remembered || d.client.name}
-            error={result?.fieldErrors.name}
-          />
-          <Textarea
-            label="What would you like to change?"
-            name="message"
-            required
-            maxLength={2000}
-            className="min-h-36"
-            hint="For example: remove the cushions, or a different fabric for the curtains"
-            error={result?.fieldErrors.message}
-          />
         </Form>
       </SheetContent>
     </Sheet>

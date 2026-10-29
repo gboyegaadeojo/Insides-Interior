@@ -8,6 +8,7 @@
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { canonicalJson, type Json } from "~/domain/canonical";
+import { describeDiff, diffContent } from "~/domain/diff";
 import { computeContent, depositFrom, type DocumentTotals } from "~/domain/document";
 import { balanceCents, checkPayment, deriveInvoiceStatus, settledCents } from "~/domain/invoice";
 import {
@@ -20,7 +21,15 @@ import {
 import { CURRENCY } from "~/domain/locale";
 import { formatBp, formatCents } from "~/domain/money";
 import { applySelection } from "~/domain/portal";
+import { reminderBlock } from "~/domain/reminders";
 import { buildFinalInvoiceLines, buildPortionLines, type Discount } from "~/domain/tax";
+import {
+  acceptOpenIn,
+  openRequestCount,
+  pendingAccepted,
+  reopenAccepted,
+  resolveAcceptedIn,
+} from "~/features/conversations/requests";
 import {
   emailInsert,
   enqueue,
@@ -37,7 +46,7 @@ import { likeTerm } from "~/lib/like";
 import { EMAIL_TEMPLATE_DEFAULTS } from "~/lib/merge-fields";
 import { activityInsert } from "~/server/audit";
 import { type DocumentContent, schema } from "~/server/db";
-import { invoiceSentEmail, paymentReceiptEmail } from "~/server/email/templates";
+import { invoiceSentEmail, paymentReceiptEmail, type RevisionChanges } from "~/server/email/templates";
 import type { RequestContext } from "~/server/session";
 import { hashShareToken, newShareSalt, portalPath, sha256Hex, shareToken } from "~/server/tokens";
 import type { SendQuoteInput } from "~/features/quotes/schema";
@@ -705,6 +714,7 @@ async function invoiceSentMessage(
     cc: string[];
     bcc: string[];
     note?: string;
+    changes?: RevisionChanges;
   },
 ): Promise<OutgoingEmail> {
   const [brand, settings] = await Promise.all([
@@ -717,6 +727,7 @@ async function invoiceSentMessage(
     url: opts.url,
     revision: opts.revisionNo,
     note: opts.note,
+    changes: opts.changes,
     override: settings.emailTemplates.invoice_sent,
     defaults: { subject: defaults.subject, body: defaults.body },
     facts: {
@@ -827,16 +838,35 @@ export async function sendInvoice(ctx: RequestContext, id: string, input: SendQu
   const totalCents = totals.computed.totalCents;
   // A reissued invoice brings the payments of the one it replaces.
   const settled = settledCents((await moneyOf(ctx, id)).settlement(totalCents));
+  // Requests still open when a revision goes out keep it in changes requested
+  // (FR-MSG-07), unless the owner says this revision deals with them.
+  const open = await openRequestCount(ctx.db, "invoice", id);
+  const closeOpen = open > 0 && !!input.resolveOpen;
   const status = deriveInvoiceStatus({
     totalCents,
     settledCents: settled,
     viewed: false,
     pastDue: false,
-    openRequest: false,
+    openRequest: open > 0 && !closeOpen,
   });
   transitionOrFail("draft", "send");
 
   const revisionNo = (detail.revision?.revisionNo ?? 0) + 1;
+  let changes: RevisionChanges | undefined;
+  if (detail.revision) {
+    const [previous] = await ctx.db
+      .select({ content: schema.invoiceRevision.content })
+      .from(schema.invoiceRevision)
+      .where(eq(schema.invoiceRevision.id, detail.revision.id));
+    if (previous) {
+      const diff = diffContent(previous.content, content);
+      changes = {
+        lines: describeDiff(diff, 6),
+        totalBefore: formatCents(diff.totalBeforeCents),
+        totalAfter: formatCents(diff.totalAfterCents),
+      };
+    }
+  }
   const revisionId = newId("irv");
   const contentHash = await sha256Hex(canonicalJson({ content, currency: CURRENCY } as unknown as Json));
   const salt = newShareSalt();
@@ -855,6 +885,7 @@ export async function sendInvoice(ctx: RequestContext, id: string, input: SendQu
     cc: input.cc,
     bcc: input.bcc,
     note: input.note,
+    changes,
   });
   const email = emailInsert(ctx.db, {
     businessId: ctx.user.businessId,
@@ -917,6 +948,8 @@ export async function sendInvoice(ctx: RequestContext, id: string, input: SendQu
         createdBy: ctx.user.id,
       }),
       ...reportingLines(ctx, id, revisionId, content, totals),
+      resolveAcceptedIn(ctx.db, "invoice", id, revisionId),
+      ...(closeOpen ? [acceptOpenIn(ctx.db, "invoice", id, revisionId, revisionNo)] : []),
       email.insert,
       audit(ctx, id, revisionNo > 1 ? "invoice.revision_sent" : "invoice.sent", {
         revision: revisionNo,
@@ -925,6 +958,7 @@ export async function sendInvoice(ctx: RequestContext, id: string, input: SendQu
         bcc: input.bcc,
         note: input.note || undefined,
         totalCents,
+        requestsClosed: closeOpen ? open : undefined,
       }),
     ] as Batch);
   } catch (error) {
@@ -958,25 +992,61 @@ export async function sendInvoice(ctx: RequestContext, id: string, input: SendQu
 export async function reviseInvoice(ctx: RequestContext, id: string) {
   const detail = await getInvoice(ctx, id);
   if (!detail) throw new ServiceError("This invoice no longer exists");
+  if (detail.settledCents > 0)
+    throw new ServiceError("This invoice has payments; void and reissue it instead");
+  transitionOrFail(detail.invoice.status, "revise");
+  await reviseInvoiceWith(ctx, detail, (content) => content, []);
+}
+
+type InvoiceContent = Omit<DocumentContent, "header">;
+
+/**
+ * The draft revision with `change` applied (accepted change requests,
+ * FR-MSG-05), in one batch with `extra`. Only an unpaid invoice is revised in
+ * place; one with payments is voided and reissued (`voidInvoice`). An invoice
+ * already being revised has its draft updated under the draft-version guard.
+ */
+export async function reviseInvoiceWith(
+  ctx: RequestContext,
+  detail: InvoiceDetail,
+  change: (content: InvoiceContent) => InvoiceContent,
+  extra: BatchItem<"sqlite">[],
+) {
   const { invoice: row } = detail;
   if (detail.settledCents > 0)
     throw new ServiceError("This invoice has payments; void and reissue it instead");
-  transitionOrFail(row.status, "revise");
-  const { header: _header, ...content } = detail.content;
+  const reopening = row.status !== "draft";
+  if (reopening) transitionOrFail(row.status, "revise");
+  const { header: _header, ...current } = detail.content;
+  const content = change(current);
   await ctx.db.batch([
     ctx.db
       .update(schema.invoice)
       .set({
         status: "draft",
         draftContent: content,
-        draftTotalCents: detail.totals.computed.totalCents,
+        draftTotalCents: computeContent(content).computed.totalCents,
         draftVersion: sql`${schema.invoice.draftVersion} + 1`,
         updatedAt: nowIso(),
       })
-      .where(and(eq(schema.invoice.id, id), eq(schema.invoice.status, row.status))),
-    requireChanged(ctx, id),
-    audit(ctx, id, "invoice.revision_started", { from: row.status, revision: (detail.revisionNo ?? 0) + 1 }),
-  ]);
+      .where(
+        and(
+          eq(schema.invoice.id, row.id),
+          eq(schema.invoice.status, row.status),
+          eq(schema.invoice.draftVersion, row.draftVersion),
+        ),
+      ),
+    requireChanged(ctx, row.id),
+    ...(reopening
+      ? [
+          audit(ctx, row.id, "invoice.revision_started", {
+            from: row.status,
+            revision: (detail.revisionNo ?? 0) + 1,
+          }),
+        ]
+      : []),
+    ...extra,
+  ] as Batch);
 }
 
 /** Throw away an unsent revision: back to the revision the client has. */
@@ -1004,9 +1074,14 @@ export async function discardInvoiceRevision(ctx: RequestContext, id: string) {
     )
     .orderBy(desc(schema.activity.at))
     .limit(1);
-  const previous = (started?.data?.from as InvoiceStatus | undefined) ?? "sent";
+  const before = (started?.data?.from as InvoiceStatus | undefined) ?? "sent";
+  // Requests accepted into this revision weren't sent: they are open again.
+  const reopened = (await pendingAccepted(ctx.db, "invoice", id)).length;
+  const previous: InvoiceStatus =
+    reopened > 0 && canInvoice(before, "request_changes") ? "changes_requested" : before;
   const header = revision.content.header;
   await ctx.db.batch([
+    reopenAccepted(ctx.db, "invoice", id),
     ctx.db
       .update(schema.invoice)
       .set({
@@ -1024,7 +1099,7 @@ export async function discardInvoiceRevision(ctx: RequestContext, id: string) {
       })
       .where(and(eq(schema.invoice.id, id), eq(schema.invoice.status, "draft"))),
     requireChanged(ctx, id),
-    audit(ctx, id, "invoice.revision_discarded", { back_to: previous }),
+    audit(ctx, id, "invoice.revision_discarded", { back_to: previous, reopened: reopened || undefined }),
   ]);
 }
 
@@ -1037,10 +1112,13 @@ export async function voidInvoice(
   ctx: RequestContext,
   id: string,
   input: { reason: string; reissue: boolean },
+  /** Accepted change requests: the reissue gets `change` applied, in the same batch as `extra`. */
+  opts: { change?: (content: InvoiceContent) => InvoiceContent; extra?: BatchItem<"sqlite">[] } = {},
 ) {
   const detail = await getInvoice(ctx, id);
   if (!detail) throw new ServiceError("This invoice no longer exists");
   const { invoice: row } = detail;
+  if (row.status === "draft") throw new ServiceError("A draft can't be voided; discard it instead");
   transitionOrFail(row.status, "void");
   if (detail.settledCents > 0 && !input.reissue)
     throw new ServiceError("This invoice has payments, so it has to be reissued; tick Reissue");
@@ -1055,7 +1133,8 @@ export async function voidInvoice(
     audit(ctx, id, "invoice.voided", { reason: input.reason, reissuedAs: reissueId ?? undefined }),
   ];
   if (reissueId) {
-    const { header: _header, ...content } = detail.content;
+    const { header: _header, ...current } = detail.content;
+    const content = opts.change ? opts.change(current) : current;
     statements.push(
       ctx.db.insert(schema.invoice).values({
         id: reissueId,
@@ -1073,7 +1152,7 @@ export async function voidInvoice(
         currency: CURRENCY,
         status: "draft",
         draftContent: content,
-        draftTotalCents: detail.totals.computed.totalCents,
+        draftTotalCents: computeContent(content).computed.totalCents,
         draftVersion: 1,
         reissueOfId: id,
       }),
@@ -1084,6 +1163,7 @@ export async function voidInvoice(
       audit(ctx, reissueId, "invoice.created", { kind: row.kind, reissueOf: row.number }),
     );
   }
+  statements.push(...(opts.extra ?? []));
   await ctx.db.batch(statements as Batch);
   return reissueId;
 }
@@ -1489,6 +1569,54 @@ export async function invoicesForQuote(ctx: Ctx, quoteId: string) {
     .from(schema.invoice)
     .where(and(eq(schema.invoice.quoteId, quoteId), eq(schema.invoice.businessId, ctx.user.businessId)))
     .orderBy(schema.invoice.createdAt);
+}
+
+/** Which of these invoices have live payments (they're voided and reissued, not revised). */
+export async function invoicesPaid(ctx: Ctx, ids: string[]) {
+  if (ids.length === 0) return new Set<string>();
+  const rows = await ctx.db
+    .selectDistinct({ id: schema.payment.invoiceId })
+    .from(schema.payment)
+    .where(
+      and(
+        inArray(schema.payment.invoiceId, ids),
+        eq(schema.payment.businessId, ctx.user.businessId),
+        isNull(schema.payment.deletedAt),
+      ),
+    );
+  return new Set(rows.map((r) => r.id));
+}
+
+/**
+ * Invoices a payment reminder may go to today (SPEC 5.9): outstanding, not
+ * paused, something due, and no open change request on the thread (FR-MSG-07).
+ * Phase 8's daily job sends from this list; the rule is domain/reminders.ts.
+ */
+export async function remindableInvoices(ctx: Ctx) {
+  const i = schema.invoice;
+  const openRequests = sql<number>`(select count(*) from ${schema.changeRequest} join ${schema.conversation} on ${schema.conversation.id} = ${schema.changeRequest.conversationId} where ${schema.conversation.entityType} = 'invoice' and ${schema.conversation.entityId} = ${i.id} and ${schema.changeRequest.status} = 'open')`;
+  const rows = await ctx.db
+    .select({
+      id: i.id,
+      number: i.number,
+      status: i.status,
+      remindersPaused: i.remindersPaused,
+      totalCents: schema.invoiceRevision.totalCents,
+      paidCents: paidSql,
+      openRequests,
+    })
+    .from(i)
+    .innerJoin(schema.invoiceRevision, eq(schema.invoiceRevision.id, i.currentRevisionId))
+    .where(and(eq(i.businessId, ctx.user.businessId), inArray(i.status, OUTSTANDING)));
+  return rows.filter(
+    (r) =>
+      reminderBlock({
+        status: r.status,
+        remindersPaused: r.remindersPaused,
+        openRequests: r.openRequests,
+        balanceCents: r.totalCents - r.paidCents,
+      }) === null,
+  );
 }
 
 export { canInvoice };
