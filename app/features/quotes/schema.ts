@@ -30,6 +30,11 @@ export const lineSchema = z.object({
   discount: discountSchema.optional(),
   optional: z.boolean().optional(),
   selected: z.boolean().optional(),
+  /**
+   * Marks a server-generated invoice line. Only a hint: the invoice service
+   * swaps every locked line for its own stored copy, and quotes drop the flag.
+   */
+  locked: z.boolean().optional(),
 });
 
 export const sectionSchema = z.object({
@@ -47,7 +52,7 @@ export const draftContentSchema = z
   })
   .refine(
     (c) => c.sections.reduce((n, s) => n + s.lines.length, 0) <= 400,
-    "A quote can have up to 400 lines",
+    "A document can have up to 400 lines",
   );
 
 export const draftHeaderSchema = z.object({

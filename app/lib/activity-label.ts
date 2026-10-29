@@ -1,6 +1,7 @@
 // Human wording for activity rows (timelines on client, project and document pages).
 
 import { BUSINESS_TZ, LOCALE } from "~/domain/locale";
+import { formatCents } from "~/domain/money";
 
 const LABELS: Record<string, string> = {
   "client.created": "Client added",
@@ -32,6 +33,18 @@ const LABELS: Record<string, string> = {
   "quote.extended": "Valid-until date extended",
   "quote.link_rotated": "New client link made",
   "quote.email_retried": "Email retried",
+  "invoice.created": "Draft started",
+  "invoice.sent": "Sent",
+  "invoice.revision_started": "Revision started",
+  "invoice.revision_discarded": "Revision discarded",
+  "invoice.revision_sent": "Revision sent",
+  "invoice.viewed": "Opened by the client",
+  "invoice.changes_requested": "Client sent a message",
+  "invoice.voided": "Voided",
+  "invoice.link_rotated": "New client link made",
+  "invoice.email_retried": "Email retried",
+  "payment.recorded": "Payment recorded",
+  "payment.deleted": "Payment deleted",
 };
 
 const DETAIL: Record<string, (data: Record<string, unknown>) => string | undefined> = {
@@ -39,12 +52,24 @@ const DETAIL: Record<string, (data: Record<string, unknown>) => string | undefin
   "quote.revision_sent": (d) => (d.revision ? `rev ${d.revision}${d.to ? ` to ${d.to}` : ""}` : undefined),
   "quote.approved": (d) => (d.signer ? `by ${d.signer}` : undefined),
   "quote.changes_requested": (d) => (d.name ? `by ${d.name}` : undefined),
+  "invoice.sent": (d) => (d.to ? `to ${d.to}` : undefined),
+  "invoice.revision_sent": (d) => (d.revision ? `rev ${d.revision}${d.to ? ` to ${d.to}` : ""}` : undefined),
+  "invoice.changes_requested": (d) => (d.name ? `(${d.name})` : undefined),
+  "invoice.voided": (d) => (d.reason ? `: ${d.reason}` : undefined),
+  "invoice.created": (d) =>
+    d.fromQuote ? `from quote ${d.fromQuote}` : d.reissueOf ? `reissuing ${d.reissueOf}` : undefined,
+  "payment.recorded": (d) =>
+    typeof d.amountCents === "number"
+      ? `: ${formatCents(d.amountCents)}${typeof d.whtCents === "number" && d.whtCents > 0 ? ` + WHT ${formatCents(d.whtCents)}` : ""}`
+      : undefined,
+  "payment.deleted": (d) => (d.reason ? `: ${d.reason}` : undefined),
 };
 
 export function activityLabel(action: string, data?: Record<string, unknown> | null): string {
   const base = LABELS[action] ?? action.replaceAll(/[._]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
   const extra = data ? DETAIL[action]?.(data) : undefined;
-  if (extra) return `${base} ${extra}`;
+  // "Voided: reason" joins without a space; "Sent to x" with one.
+  if (extra) return extra.startsWith(":") ? `${base}${extra}` : `${base} ${extra}`;
   const detail = (data?.contact ?? data?.site) as string | undefined;
   return detail ? `${base}: ${detail}` : base;
 }

@@ -1,5 +1,6 @@
 import * as React from "react";
 import { formatCentsPlain, formatQuantity, parseMoneyToCents, parseQuantityToMilli } from "~/domain/money";
+import { CURRENCY_SYMBOL } from "~/domain/locale";
 import { cn } from "~/lib/utils";
 import { controlClass, Field, type FieldProps } from "./field";
 
@@ -88,7 +89,7 @@ export function MoneyField({
             className="pointer-events-none absolute inset-y-0 left-3.5 flex items-center text-secondary"
             aria-hidden
           >
-            $
+            {CURRENCY_SYMBOL}
           </span>
           <input
             id={id}

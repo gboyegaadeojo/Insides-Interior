@@ -59,6 +59,7 @@ export function CatalogueSheet({
   defaultTaxIds,
   onAddLines,
   onAddSection,
+  noun = "quote",
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -67,6 +68,8 @@ export function CatalogueSheet({
   defaultTaxIds: string[];
   onAddLines: (lines: DraftLine[]) => void;
   onAddSection: (section: DraftSection) => void;
+  /** "quote" or "invoice", for the title. */
+  noun?: string;
 }) {
   const [tab, setTab] = React.useState<"items" | "templates">("items");
   const [query, setQuery] = React.useState("");
@@ -85,7 +88,7 @@ export function CatalogueSheet({
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent
-        title="Add to the quote"
+        title={`Add to the ${noun}`}
         description="Prices are copied in; editing them here doesn't change your catalogue."
       >
         <SegmentedControl

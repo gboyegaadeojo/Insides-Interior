@@ -1,6 +1,6 @@
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { ArrowDown, ArrowUp, ChevronDown, GripVertical, Trash2 } from "lucide-react";
+import { ArrowDown, ArrowUp, ChevronDown, GripVertical, Lock, Trash2 } from "lucide-react";
 import * as React from "react";
 import { Button } from "~/components/ui/button";
 import { TextField } from "~/components/ui/field";
@@ -12,7 +12,7 @@ import { MoneyText } from "~/components/ui/text";
 import { formatBp, parseMoneyToCents } from "~/domain/money";
 import type { ComputedLine } from "~/domain/tax";
 import { cn } from "~/lib/utils";
-import type { DraftAction, DraftLine } from "./use-draft";
+import type { DraftLine, SectionAction } from "./use-draft";
 
 // Tiptap only runs in the browser and only once a line's options are open, so
 // it loads on demand and stays out of the Worker bundle (CPU limit, error 1102).
@@ -35,7 +35,7 @@ export function LineEditor({
   sectionId: string;
   computed?: ComputedLine;
   taxRates: { id: string; name: string; rateBp: number }[];
-  dispatch: (action: DraftAction) => void;
+  dispatch: (action: SectionAction) => void;
 }) {
   const [open, setOpen] = React.useState(false);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
@@ -44,6 +44,39 @@ export function LineEditor({
     dispatch({ type: "updateLine", sectionId, lineId: line.id, patch });
   const discountMode = line.discount?.type ?? "none";
   const name = line.description || "this line";
+
+  // Billed portions, approved quote lines and credits come from the server and
+  // are shown read only, so the amounts always reconcile (SPEC 10.2).
+  if (line.locked) {
+    return (
+      <li
+        ref={setNodeRef}
+        style={{ transform: CSS.Transform.toString(transform), transition }}
+        className={cn("bg-surface-2/40", isDragging && "relative z-10 shadow-sheet")}
+      >
+        <div className="flex items-center gap-1 px-2 py-3">
+          <button
+            type="button"
+            ref={setActivatorNodeRef}
+            {...attributes}
+            {...listeners}
+            aria-label={`Drag to reorder ${name}`}
+            className="inline-flex size-11 shrink-0 cursor-grab touch-none items-center justify-center rounded-control text-tertiary hover:bg-surface-2 hover:text-primary active:cursor-grabbing"
+          >
+            <GripVertical className="size-5" aria-hidden />
+          </button>
+          <div className="min-w-0 flex-1 px-1">
+            <p className="font-semibold">{line.description}</p>
+            <p className="flex items-center gap-1.5 text-label text-secondary">
+              <Lock className="size-3.5" aria-hidden />
+              From the approved quote; can't be edited here
+            </p>
+          </div>
+          <MoneyText cents={computed?.netCents ?? 0} className="shrink-0 px-2 font-semibold" />
+        </div>
+      </li>
+    );
+  }
 
   return (
     <li

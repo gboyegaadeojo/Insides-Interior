@@ -58,6 +58,11 @@ const INVOICE_ALLOWED: Record<string, string> = {
   // Beyond the diagram, required by SPEC 0.2 (void and reissue when paid).
   "viewed:void": "void",
   "partially_paid:void": "void",
+  // FR-INV-06: unpaid invoices are revised under the same number.
+  "sent:revise": "draft",
+  "viewed:revise": "draft",
+  "changes_requested:revise": "draft",
+  "overdue:revise": "draft",
 };
 
 describe("quote lifecycle (SPEC 5.13)", () => {

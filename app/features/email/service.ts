@@ -6,12 +6,13 @@
 import { and, eq, isNull, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
-import { quotePdf } from "~/features/quotes/pdf";
+import { documentPdf } from "~/features/documents/pdf";
 import { newId } from "~/lib/ids";
 import { activityInsert } from "~/server/audit";
 import { type Db, getDb, schema } from "~/server/db";
 import { createEmailTransport } from "~/server/email";
 import { PdfUnavailableError, pdfEnabled, toBase64 } from "~/server/pdf.server";
+import type { ShareEntity } from "~/server/tokens";
 
 export interface OutgoingEmail {
   to: string[];
@@ -30,10 +31,10 @@ export interface EmailJob {
   emailId: string;
   businessId: string;
   message: OutgoingEmail;
-  /** Attach the PDF of this quote revision (skipped if superseded or in development). */
-  pdf?: { entity: "quote"; id: string; revisionId: string };
-  /** Replace NUMBER_PLACEHOLDER with this quote's number, allocated in the send batch. */
-  numberFrom?: { entity: "quote"; id: string };
+  /** Attach the PDF of this revision (skipped if superseded or in development). */
+  pdf?: { entity: ShareEntity; id: string; revisionId: string };
+  /** Replace NUMBER_PLACEHOLDER with this document's number, allocated in the send batch. */
+  numberFrom?: { entity: ShareEntity; id: string };
 }
 
 /**
@@ -64,13 +65,14 @@ export function emailInsert(
     entityId: string;
     template: string;
     message: OutgoingEmail;
-    /** Fill NUMBER_PLACEHOLDER in the stored subject from this quote, inside the batch. */
-    numberFromQuoteId?: string;
+    /** Fill NUMBER_PLACEHOLDER in the stored subject from this document, inside the batch. */
+    numberFrom?: { entity: ShareEntity; id: string };
   },
 ) {
   const id = newId("eml");
-  const subject = entry.numberFromQuoteId
-    ? sql<string>`replace(${entry.message.subject}, ${NUMBER_PLACEHOLDER}, (select ${schema.quote.number} from ${schema.quote} where ${schema.quote.id} = ${entry.numberFromQuoteId}))`
+  const table = entry.numberFrom?.entity === "invoice" ? schema.invoice : schema.quote;
+  const subject = entry.numberFrom
+    ? sql<string>`replace(${entry.message.subject}, ${NUMBER_PLACEHOLDER}, (select ${table.number} from ${table} where ${table.id} = ${entry.numberFrom.id}))`
     : entry.message.subject;
   return {
     id,
@@ -132,16 +134,17 @@ export async function processEmailJob(env: Env, job: EmailJob, opts: { lastAttem
   try {
     let message = job.message;
     if (job.numberFrom) {
-      const [quote] = await db
-        .select({ number: schema.quote.number })
-        .from(schema.quote)
-        .where(eq(schema.quote.id, job.numberFrom.id));
-      if (!quote?.number) throw new Error("The quote has no number yet");
-      message = fillNumber(message, quote.number);
+      const table = job.numberFrom.entity === "invoice" ? schema.invoice : schema.quote;
+      const [doc] = await db
+        .select({ number: table.number })
+        .from(table)
+        .where(eq(table.id, job.numberFrom.id));
+      if (!doc?.number) throw new Error("The document has no number yet");
+      message = fillNumber(message, doc.number);
     }
     const attachments = [];
     if (job.pdf && pdfEnabled(env)) {
-      const pdf = await quotePdf(env, job.pdf.id, { revisionId: job.pdf.revisionId });
+      const pdf = await documentPdf(env, job.pdf.entity, job.pdf.id, { revisionId: job.pdf.revisionId });
       if (pdf) attachments.push({ filename: pdf.filename, content: toBase64(pdf.bytes) });
     }
     const result = await createEmailTransport(env).send({ ...message, attachments });

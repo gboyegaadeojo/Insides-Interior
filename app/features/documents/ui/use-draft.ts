@@ -18,25 +18,40 @@ export interface DraftHeader {
 
 export type Discount = { type: "percent"; bp: number } | { type: "amount"; cents: number };
 
+/** Invoice header (FR-INV-03); the issue date is set when it's sent. */
+export interface InvoiceDraftHeader {
+  title: string | null;
+  clientId: string | null;
+  siteId: string | null;
+  poReference: string | null;
+  /** Days from the issue date; null when the owner picked a due date. */
+  termsDays: number | null;
+  dueDate: string | null;
+}
+
 export interface DraftLine extends DocLine {
   itemId?: string;
   itemType?: "service" | "product" | "fee" | "allowance";
+  /** Server-generated (portions, approved quote lines, credits): read only. */
+  locked?: boolean;
+  fixedTaxes?: Record<string, number>;
 }
 
 export interface DraftSection extends Omit<DocSection, "lines"> {
   lines: DraftLine[];
 }
 
-export interface Draft {
-  header: DraftHeader;
+/** A quote or invoice in the builder; only the header differs. */
+export interface Draft<H = DraftHeader> {
+  header: H;
   sections: DraftSection[];
   documentDiscount?: Discount;
   notes?: string;
   terms?: string;
 }
 
-export type DraftAction =
-  | { type: "header"; patch: Partial<DraftHeader> }
+/** Edits to rooms and lines, the same for every document kind. */
+export type SectionAction =
   | { type: "addSection"; section: DraftSection }
   | { type: "renameSection"; sectionId: string; title: string }
   | { type: "removeSection"; sectionId: string }
@@ -46,8 +61,10 @@ export type DraftAction =
   | { type: "removeLine"; sectionId: string; lineId: string }
   | { type: "moveLine"; sectionId: string; from: number; to: number }
   | { type: "documentDiscount"; discount: Discount | undefined }
-  | { type: "text"; field: "notes" | "terms"; value: string }
-  | { type: "replace"; draft: Draft };
+  | { type: "text"; field: "notes" | "terms"; value: string };
+
+export type DraftAction<H = DraftHeader> =
+  SectionAction | { type: "header"; patch: Partial<H> } | { type: "replace"; draft: Draft<H> };
 
 function move<T>(list: T[], from: number, to: number): T[] {
   if (from === to || to < 0 || to >= list.length) return list;
@@ -57,11 +74,11 @@ function move<T>(list: T[], from: number, to: number): T[] {
   return next;
 }
 
-function mapSection(draft: Draft, sectionId: string, fn: (s: DraftSection) => DraftSection): Draft {
+function mapSection<H>(draft: Draft<H>, sectionId: string, fn: (s: DraftSection) => DraftSection): Draft<H> {
   return { ...draft, sections: draft.sections.map((s) => (s.id === sectionId ? fn(s) : s)) };
 }
 
-export function draftReducer(draft: Draft, action: DraftAction): Draft {
+export function draftReducer<H>(draft: Draft<H>, action: DraftAction<H>): Draft<H> {
   switch (action.type) {
     case "header":
       return { ...draft, header: { ...draft.header, ...action.patch } };
@@ -70,7 +87,9 @@ export function draftReducer(draft: Draft, action: DraftAction): Draft {
     case "renameSection":
       return mapSection(draft, action.sectionId, (s) => ({ ...s, title: action.title }));
     case "removeSection":
-      return draft.sections.length <= 1
+      // Keep at least one room, and never drop server-generated lines.
+      return draft.sections.length <= 1 ||
+        draft.sections.find((s) => s.id === action.sectionId)?.lines.some((l) => l.locked)
         ? draft
         : { ...draft, sections: draft.sections.filter((s) => s.id !== action.sectionId) };
     case "moveSection":
@@ -80,12 +99,12 @@ export function draftReducer(draft: Draft, action: DraftAction): Draft {
     case "updateLine":
       return mapSection(draft, action.sectionId, (s) => ({
         ...s,
-        lines: s.lines.map((l) => (l.id === action.lineId ? { ...l, ...action.patch } : l)),
+        lines: s.lines.map((l) => (l.id === action.lineId && !l.locked ? { ...l, ...action.patch } : l)),
       }));
     case "removeLine":
       return mapSection(draft, action.sectionId, (s) => ({
         ...s,
-        lines: s.lines.filter((l) => l.id !== action.lineId),
+        lines: s.lines.filter((l) => l.id !== action.lineId || l.locked),
       }));
     case "moveLine":
       return mapSection(draft, action.sectionId, (s) => ({
@@ -111,8 +130,14 @@ type SaveError = { ok: false; conflict?: { serverVersion: number }; error?: stri
 
 const AUTOSAVE_DELAY_MS = 2000;
 
-export function useDraft(opts: { quoteId: string; initial: Draft; version: number; savedAt: string }) {
-  const [draft, rawDispatch] = React.useReducer(draftReducer, opts.initial);
+export function useDraft<H>(opts: {
+  /** Autosave endpoint, e.g. /api/quotes/:id/draft. */
+  endpoint: string;
+  initial: Draft<H>;
+  version: number;
+  savedAt: string;
+}) {
+  const [draft, rawDispatch] = React.useReducer(draftReducer<H>, opts.initial);
   const [status, setStatus] = React.useState<SaveState>({ state: "saved", at: new Date(opts.savedAt) });
   const [conflict, setConflict] = React.useState<{ serverVersion: number } | null>(null);
   const [fieldError, setFieldError] = React.useState<{ field: string; message: string } | null>(null);
@@ -139,7 +164,7 @@ export function useDraft(opts: { quoteId: string; initial: Draft; version: numbe
     const { header, ...content } = draftRef.current;
     const sent = draftRef.current;
     try {
-      const response = await fetch(`/api/quotes/${opts.quoteId}/draft`, {
+      const response = await fetch(opts.endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ version: versionRef.current, header, content }),
@@ -172,10 +197,10 @@ export function useDraft(opts: { quoteId: string; initial: Draft; version: numbe
         timer.current = setTimeout(() => void save(), AUTOSAVE_DELAY_MS);
       }
     }
-  }, [opts.quoteId]);
+  }, [opts.endpoint]);
 
   const dispatch = React.useCallback(
-    (action: DraftAction) => {
+    (action: DraftAction<H>) => {
       rawDispatch(action);
       setStatus({ state: "unsaved" });
       clearTimeout(timer.current);

@@ -49,6 +49,9 @@ export const INVOICE_EVENTS = [
   "partial_payment",
   "full_payment",
   "mark_overdue",
+  // Owner reopens an unpaid invoice as a draft; it goes out again under the
+  // same number as "Revised (rev N)" (FR-INV-06). The service checks "unpaid".
+  "revise",
 ] as const;
 export type InvoiceEvent = (typeof INVOICE_EVENTS)[number];
 
@@ -79,6 +82,7 @@ export const INVOICE_MACHINE: Machine<InvoiceStatus, InvoiceEvent> = {
     full_payment: "paid",
     mark_overdue: "overdue",
     void: "void",
+    revise: "draft",
   },
   viewed: {
     view: "viewed",
@@ -89,6 +93,7 @@ export const INVOICE_MACHINE: Machine<InvoiceStatus, InvoiceEvent> = {
     // Not drawn in the 5.13 diagram, but an unpaid invoice the client has
     // opened must still be voidable (docs/decisions.md).
     void: "void",
+    revise: "draft",
   },
   changes_requested: {
     request_changes: "changes_requested",
@@ -99,6 +104,7 @@ export const INVOICE_MACHINE: Machine<InvoiceStatus, InvoiceEvent> = {
     // the request stays open until the owner resolves it.
     partial_payment: "changes_requested",
     full_payment: "paid",
+    revise: "draft",
   },
   partially_paid: {
     partial_payment: "partially_paid",
@@ -111,6 +117,7 @@ export const INVOICE_MACHINE: Machine<InvoiceStatus, InvoiceEvent> = {
     partial_payment: "overdue",
     full_payment: "paid",
     void: "void",
+    revise: "draft",
   },
 };
 
