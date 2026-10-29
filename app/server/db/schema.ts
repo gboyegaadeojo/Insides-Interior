@@ -854,6 +854,22 @@ export const jobRun = sqliteTable(
   (t) => [uniqueIndex("job_run_key_uq").on(t.job, t.runKey)],
 );
 
+/** SPEC 12: which old-app record became which row, so an import never runs twice. */
+export const legacyImport = sqliteTable(
+  "legacy_import",
+  {
+    businessId: text()
+      .notNull()
+      .references(() => business.id),
+    /** customers, items, quotes, invoices, payments, expenses. */
+    kind: text().notNull(),
+    legacyId: text().notNull(),
+    entityId: text().notNull(),
+    importedAt: text().notNull().default(now),
+  },
+  (t) => [uniqueIndex("legacy_import_uq").on(t.businessId, t.kind, t.legacyId)],
+);
+
 // ---------- Views (migration 0002_views.sql; SPEC 8.3 derived values) ----------
 
 export const clientBalance = sqliteView("client_balance", {

@@ -14,3 +14,7 @@ test-results/
 Thumbs.db
 coverage/
 tests/e2e/.auth/
+
+# Old-app exports and import reports (SPEC 12); real client data, never committed.
+migration-data/
+wrangler.migrate.*.json

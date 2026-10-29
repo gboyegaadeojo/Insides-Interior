@@ -9,10 +9,12 @@
 
 import { and, eq, gte, inArray, lt, lte, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
+import { backupStale, newestBackup } from "~/domain/backups";
 import { daysPastDue, dueStep, dueWording } from "~/domain/reminders";
 import { formatCents } from "~/domain/money";
 import { activeOwners, emailInsert, enqueue, type EmailJob } from "~/features/email/service";
 import { getInvoice, invoiceShareUrl, remindableInvoices } from "~/features/invoices/service";
+import { ownerNotices } from "~/features/notifications/service";
 import { quoteShareUrl } from "~/features/quotes/service";
 import { loadEmailBrand } from "~/features/settings/doc-business";
 import { ServiceError } from "~/features/settings/service";
@@ -170,6 +172,8 @@ export interface DailyResult {
   expired: number;
   reminders: number;
   followUps: number;
+  /** Production only: the nightly backup is missing or old (SPEC 11.3). */
+  backupStale?: boolean;
 }
 
 /**
@@ -398,9 +402,40 @@ export async function runDailyJob(env: Env, now = new Date()): Promise<DailyResu
     }
   }
 
+  if (env.APP_ENV === "production") result.backupStale = await checkBackups(env, db, today);
+
   await enqueueAll(env, jobs);
   await finishRun(db, run, { ...result });
   return result;
+}
+
+/**
+ * SPEC 11.3: the nightly export (GitHub Actions, docs/runbook.md) runs outside
+ * the Worker; if it stops, every owner gets one notice a day until it's fixed.
+ */
+export async function checkBackups(env: Env, db: Db, today: string) {
+  const keys: string[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await env.BACKUPS.list({ prefix: "daily/", cursor });
+    keys.push(...page.objects.map((o) => o.key));
+    cursor = page.truncated ? page.cursor : undefined;
+  } while (cursor);
+  const newest = newestBackup(keys);
+  if (!backupStale(newest, today)) return false;
+  const businesses = await db.select({ id: schema.business.id }).from(schema.business);
+  for (const { id } of businesses) {
+    const notices = await ownerNotices(db, id, {
+      type: "backup_stale",
+      entityType: "backup",
+      entityId: today,
+      title: newest
+        ? `Backups have stopped: the newest is from ${formatDate(newest)}. See the runbook.`
+        : "No database backup has been made yet. See the runbook.",
+    });
+    if (notices.length) await db.batch(notices as [(typeof notices)[number], ...typeof notices]);
+  }
+  return true;
 }
 
 /**

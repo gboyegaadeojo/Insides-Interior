@@ -6,7 +6,6 @@ import { formatDate } from "~/lib/dates";
 import { isEmptyRichText, sanitizeRichText } from "~/lib/rich-text";
 import { cn } from "~/lib/utils";
 import { onColour, PALETTE } from "~/styles/tokens";
-import "./document.css";
 
 // The document is the product (SPEC 6.10, DS-DOC): one tree for the builder
 // preview, the client portal and the PDF. Client-facing documents use the

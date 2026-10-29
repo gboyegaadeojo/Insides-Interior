@@ -842,7 +842,7 @@ function chunk<T>(list: T[], size: number): T[][] {
 }
 
 /** invoice_line and invoice_line_tax rows of a revision, for reports (SPEC 8.2). */
-function reportingLines(
+export function reportingLines(
   ctx: Ctx,
   invoiceId: string,
   revisionId: string,
