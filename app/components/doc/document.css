@@ -174,9 +174,23 @@
   white-space: nowrap;
 }
 
+/* Qty | Description | Price per unit | Amount (owner's order, docs/decisions.md). */
+.doc-table .doc-qty {
+  width: 1%;
+  padding-right: 10pt;
+  white-space: nowrap;
+}
+
+.doc-table .doc-desc {
+  width: 52%;
+}
+
+.doc-unit {
+  color: var(--text-secondary);
+}
+
 .doc-table th:first-child,
 .doc-table td:first-child {
-  width: 52%;
   padding-left: 0;
 }
 
@@ -351,6 +365,41 @@
   color: var(--text-secondary);
 }
 
+/* The validity sentence opens a quote's terms, a little stronger than the rest. */
+.doc-validity {
+  margin-bottom: 4pt !important;
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+/* The owner's permanent signature (Settings → Branding). */
+.doc-signature {
+  width: 2.6in;
+  margin-top: 26pt;
+}
+
+.doc-signature-img {
+  display: block;
+  width: 100%;
+  max-height: 0.8in;
+  object-fit: contain;
+  object-position: left bottom;
+}
+
+.doc-signature-rule {
+  margin-top: 2pt !important;
+  padding-top: 4pt;
+  border-top: 0.75pt solid var(--text-primary);
+}
+
+.doc-signature-rule .doc-label {
+  margin: 0;
+}
+
+.doc-signature-name {
+  font-weight: 600;
+}
+
 .doc-footer {
   margin-top: 32pt;
   padding-top: 10pt;
@@ -442,7 +491,11 @@
 
   .doc-fluid .doc-table tr {
     display: grid;
-    grid-template-columns: auto auto 1fr auto;
+    /* Description on top; quantity, × price and the amount below. */
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas:
+      "desc desc desc"
+      "qty price amount";
     align-items: baseline;
     column-gap: 4pt;
     padding: 10pt 0;
@@ -455,25 +508,33 @@
     border: 0;
   }
 
-  .doc-fluid .doc-table td:first-child {
-    grid-column: 1 / -1;
+  .doc-fluid .doc-table .doc-desc {
+    grid-area: desc;
     margin-bottom: 4pt;
   }
 
-  .doc-fluid .doc-table td:nth-child(2),
-  .doc-fluid .doc-table td:nth-child(3),
-  .doc-fluid .doc-table td:nth-child(4) {
+  .doc-fluid .doc-table .doc-qty {
+    grid-area: qty;
+  }
+
+  .doc-fluid .doc-table .doc-price {
+    grid-area: price;
+  }
+
+  .doc-fluid .doc-table .doc-amount {
+    grid-area: amount;
+    font-weight: 600;
+  }
+
+  .doc-fluid .doc-table .doc-qty,
+  .doc-fluid .doc-table .doc-price {
     text-align: left;
     font-size: 9pt;
     color: var(--text-secondary);
   }
 
-  .doc-fluid .doc-table td:nth-child(4)::before {
+  .doc-fluid .doc-table .doc-price::before {
     content: "× ";
-  }
-
-  .doc-fluid .doc-table td:last-child {
-    font-weight: 600;
   }
 
   .doc-fluid .doc-options {
@@ -481,7 +542,7 @@
   }
 
   /* Stacked rows drop cell padding: the open-request rule moves to the row. */
-  .doc-fluid .doc-line-flagged {
+  .doc-fluid .doc-table tr.doc-line-flagged {
     padding-left: 9pt;
     box-shadow: inset 3pt 0 0 var(--saffron-base);
   }

@@ -150,6 +150,11 @@ export const business = sqliteTable("business", {
   timezone: text().notNull().default("America/Winnipeg"),
   currency: text().notNull().default("CAD"),
   brandColor: text().notNull().default("#0F766E"),
+  /** The owner's signature on every quote and invoice, as SVG made on the server from pad strokes. */
+  signatureSvg: text(),
+  signatoryName: text(),
+  /** e.g. "Managing Director". */
+  signatoryTitle: text(),
   ...stamps,
 });
 
@@ -187,6 +192,8 @@ export const settings = sqliteTable("settings", {
     .primaryKey()
     .references(() => business.id),
   paymentTermsDays: integer().notNull().default(14),
+  // The business uses 7 days and 85% (migration 0011, seed); these column
+  // defaults predate that and are never relied on (no table rebuild on D1).
   quoteValidDays: integer().notNull().default(30),
   defaultDepositBp: integer().notNull().default(5000),
   defaultNotes: text(),

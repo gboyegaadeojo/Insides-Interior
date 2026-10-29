@@ -4,6 +4,7 @@
 import { and, asc, eq, isNull, lte } from "drizzle-orm";
 import type { z } from "zod";
 import { validateNextNumber } from "~/domain/numbering";
+import { signatureSvg } from "~/domain/portal";
 import { accessibleBrandColor } from "~/lib/brand";
 import { newId } from "~/lib/ids";
 import { EMAIL_TEMPLATE_DEFAULTS } from "~/lib/merge-fields";
@@ -12,6 +13,7 @@ import { schema } from "~/server/db";
 import type { RequestContext } from "~/server/session";
 import type {
   brandColorSchema,
+  signatureSchema,
   businessProfileSchema,
   documentDefaultsSchema,
   emailTemplateSchema,
@@ -250,6 +252,44 @@ export async function updateBrandColor(ctx: RequestContext, input: z.output<type
     audit(ctx, "business", ctx.user.businessId, "settings.brand_color_updated", {
       brandColor: input.brandColor,
     }),
+  ]);
+}
+
+/**
+ * The owner's permanent signature on every quote and invoice (owner request).
+ * Strokes become SVG with the same generator as client signatures (SPEC 11.1).
+ */
+export async function saveSignature(ctx: RequestContext, input: z.output<typeof signatureSchema>) {
+  let svg: string | null;
+  try {
+    svg = signatureSvg(JSON.parse(input.signature));
+  } catch {
+    svg = null;
+  }
+  if (!svg) throw new ServiceError("That signature couldn't be read; clear it and sign again", "signature");
+  await ctx.db.batch([
+    ctx.db
+      .update(schema.business)
+      .set({
+        signatureSvg: svg,
+        signatoryName: input.signatoryName,
+        signatoryTitle: input.signatoryTitle,
+        updatedAt: nowIso(),
+      })
+      .where(eq(schema.business.id, ctx.user.businessId)),
+    audit(ctx, "business", ctx.user.businessId, "settings.signature_updated", {
+      name: input.signatoryName,
+    }),
+  ]);
+}
+
+export async function removeSignature(ctx: RequestContext) {
+  await ctx.db.batch([
+    ctx.db
+      .update(schema.business)
+      .set({ signatureSvg: null, signatoryName: null, signatoryTitle: null, updatedAt: nowIso() })
+      .where(eq(schema.business.id, ctx.user.businessId)),
+    audit(ctx, "business", ctx.user.businessId, "settings.signature_removed"),
   ]);
 }
 

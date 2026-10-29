@@ -1,5 +1,23 @@
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
+import { validitySentence } from "~/domain/portal";
+
+describe("validitySentence (owner request: every quote states its validity)", () => {
+  const fmt = (d: string) => `<${d}>`;
+  it("counts the days from the issue date to valid-until", () => {
+    expect(validitySentence("2026-10-29", "2026-11-05", fmt)).toBe(
+      "This quote is valid for 7 days from the date it was issued (until <2026-11-05>).",
+    );
+    expect(validitySentence("2026-10-29", "2026-10-30", fmt)).toBe(
+      "This quote is valid for 1 day from the date it was issued (until <2026-10-30>).",
+    );
+  });
+  it("falls back to the date alone, and says nothing without one", () => {
+    expect(validitySentence(null, "2026-11-05", fmt)).toBe("This quote is valid until <2026-11-05>.");
+    expect(validitySentence("2026-11-05", "2026-11-05", fmt)).toBe("This quote is valid until <2026-11-05>.");
+    expect(validitySentence("2026-10-29", null, fmt)).toBeNull();
+  });
+});
 import { canonicalJson, type Json } from "~/domain/canonical";
 import { computeContent, type ContentForTotals } from "~/domain/document";
 import {

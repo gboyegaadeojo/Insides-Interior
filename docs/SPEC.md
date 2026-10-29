@@ -375,14 +375,14 @@ Each requirement has an ID used by prompts, commits and tests.
 | FR-QT-02 | Line item: description (rich text: bold, bullets), quantity, unit, unit price, taxes, optional flag, image (Should) | Must | Totals update in under 50 ms per keystroke |
 | FR-QT-03 | Optional items are excluded from the total until the client (or owner) selects them | Must | Portal shows "Base total" and "Your selection" |
 | FR-QT-04 | Discount per line or per document (amount or %), shown before tax | Must | Discount never pushes a line below zero |
-| FR-QT-05 | Deposit terms: none, % of total, or fixed amount | Must | Shown on quote; drives the deposit invoice |
+| FR-QT-05 | Deposit terms: none, % of total (85% by default), or fixed amount | Must | Shown on quote; drives the deposit invoice |
 | FR-QT-06 | Autosave drafts every 2 s of inactivity, with truthful status: "Saving…", "Saved just now", "Couldn't save — Retry" | Must | Status never says Saved before the server confirms; two tabs editing the same draft get a "newer version exists" warning |
 | FR-QT-07 | Number assigned on first send, not on draft creation | Must | No gaps from abandoned drafts |
 | FR-QT-08 | Send by email via Resend with PDF attached and portal link; CC/BCC; preview before send | Must | Status becomes `sent`; email event logged; send button disabled while sending |
 | FR-QT-09 | Revising a sent quote creates revision 2, 3… and invalidates prior approval links | Must | Portal shows only the latest revision; history kept |
 | FR-QT-10 | Client portal: view, choose options, approve with typed full name + checkbox, or request changes line by line in the quote's thread (FR-MSG) | Must | Approval records name, timestamp, IP, user agent and a hash of the exact revision approved |
-| FR-QT-11 | Expiry: after valid-until date the portal shows "expired, contact us" and blocks approval | Must | Owner can extend with one tap |
-| FR-QT-12 | On approval: notify owner (email + in-app), create project, offer "Create deposit invoice" | Must | Deposit invoice is a draft by default; setting can auto-send |
+| FR-QT-11 | Expiry: quotes are valid 7 days from sending by default, and every quote states it ("This quote is valid for 7 days from the date it was issued"); after valid-until the portal shows "expired, contact us" and blocks approval | Must | Owner can extend with one tap |
+| FR-QT-12 | On approval: notify owner (email + in-app), create project, and draft the deposit invoice automatically (an invoice for the total when there is no deposit) | Must | The invoice stays a draft until the owner sends it |
 | FR-QT-13 | Duplicate quote; convert to invoice (full) | Must | Conversion copies only selected optional items and explains what will happen first |
 | FR-QT-14 | Follow-up reminder if not viewed or not answered after N days | Should | Stops on approval, decline or expiry |
 | FR-QT-15 | Optional drawn signature on the approval step when the client approves on a tablet in person | Could | Stored as SVG with the acceptance record |

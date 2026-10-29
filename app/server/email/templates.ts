@@ -237,7 +237,7 @@ export function quoteApprovedOwnerEmail(
     preheader: `${opts.facts.total} approved by ${opts.signerName}.`,
     headline: `${opts.facts.number} is approved`,
     body: [
-      `${opts.signerName} approved the quote for ${opts.clientName}. A project has been created; the next step is the deposit invoice.`,
+      `${opts.signerName} approved the quote for ${opts.clientName}. A project has been created and ${opts.facts.deposit ? "the deposit invoice" : "an invoice for the approved total"} is drafted for you to check and send.`,
     ],
     facts: [
       ["Approved total", opts.facts.total],

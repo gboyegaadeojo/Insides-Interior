@@ -1,4 +1,5 @@
 import type { DocumentTotals } from "~/domain/document";
+import { validitySentence } from "~/domain/portal";
 import { formatBp, formatCents, formatQuantity, lineAmountCents } from "~/domain/money";
 import type { ComputedLine } from "~/domain/tax";
 import { formatDate } from "~/lib/dates";
@@ -23,6 +24,8 @@ export interface DocBusiness {
   tin?: string | null;
   rcNumber?: string | null;
   brandColor: string;
+  /** The owner's permanent signature (Settings → Branding), on every quote and invoice. */
+  signature?: { svg: string; name: string | null; title: string | null } | null;
 }
 
 export interface DocParty {
@@ -107,15 +110,17 @@ function LineTable({
     <table className="doc-table">
       <thead>
         <tr>
-          <th scope="col">Description</th>
-          <th scope="col" className="num">
+          {/* Owner's order: quantity first, then what it is, the unit price and the amount. */}
+          <th scope="col" className="doc-qty">
             Qty
           </th>
-          <th scope="col">Unit</th>
-          <th scope="col" className="num">
-            Price
+          <th scope="col" className="doc-desc">
+            Description
           </th>
-          <th scope="col" className="num">
+          <th scope="col" className="doc-price num">
+            Price per unit
+          </th>
+          <th scope="col" className="doc-amount num">
             Amount
           </th>
         </tr>
@@ -158,7 +163,11 @@ function LineRow({
       className={cn(line.optional && !line.selected && "doc-excluded", flagged && "doc-line-flagged")}
       data-line-id={line.id}
     >
-      <td>
+      <td className="doc-qty">
+        {formatQuantity(line.qtyMilli)}
+        {line.unit && <span className="doc-unit"> {line.unit}</span>}
+      </td>
+      <td className="doc-desc">
         <span className="doc-line-title">{line.description || "Untitled line"}</span>
         {flagged && <span className="doc-flag">Change requested</span>}
         {!isEmptyRichText(line.details) && (
@@ -175,10 +184,8 @@ function LineRow({
         )}
         {extras.lineAction?.(line)}
       </td>
-      <td className="num">{formatQuantity(line.qtyMilli)}</td>
-      <td>{line.unit}</td>
-      <td className="num">{formatCents(line.unitPriceCents)}</td>
-      <td className="num">{formatCents(amount)}</td>
+      <td className="doc-price num">{formatCents(line.unitPriceCents)}</td>
+      <td className="doc-amount num">{formatCents(amount)}</td>
     </tr>
   );
 }
@@ -195,6 +202,7 @@ export function DocumentRenderer(props: DocumentRendererProps) {
   const { computed } = totals;
   const Title = props.titleAs ?? "h1";
   const extras: LineExtras = { lineAction: props.lineAction, flagged: new Set(props.flaggedLines) };
+  const validity = kind === "quote" ? validitySentence(props.issuedOn, props.untilDate, formatDate) : null;
 
   return (
     <article
@@ -419,10 +427,25 @@ export function DocumentRenderer(props: DocumentRendererProps) {
           <p className="doc-prewrap">{props.notes}</p>
         </section>
       )}
-      {props.terms && (
+      {(props.terms || validity) && (
         <section className="doc-block doc-terms">
           <h2 className="doc-label">Terms</h2>
-          <p className="doc-prewrap">{props.terms}</p>
+          {validity && <p className="doc-validity">{validity}</p>}
+          {props.terms && <p className="doc-prewrap">{props.terms}</p>}
+        </section>
+      )}
+      {business.signature && (
+        <section className="doc-block doc-signature" aria-label="Authorised signature">
+          <img
+            src={`data:image/svg+xml;utf8,${encodeURIComponent(business.signature.svg)}`}
+            alt={`Signature of ${business.signature.name ?? business.name}`}
+            className="doc-signature-img"
+          />
+          <p className="doc-signature-rule">
+            <span className="doc-label">Authorised signature</span>
+          </p>
+          {business.signature.name && <p className="doc-signature-name">{business.signature.name}</p>}
+          {business.signature.title && <p className="doc-muted">{business.signature.title}</p>}
         </section>
       )}
       {props.children}
