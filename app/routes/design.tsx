@@ -5,6 +5,7 @@ import { Avatar } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { Celebration } from "~/components/ui/celebration";
+import { ColumnChart, compactNaira } from "~/components/ui/column-chart";
 import { Combobox } from "~/components/ui/combobox";
 import { ConfirmDialog } from "~/components/ui/confirm-dialog";
 import {
@@ -28,6 +29,9 @@ import { Sheet, SheetContent, SheetTrigger } from "~/components/ui/sheet";
 import { EmptyState, ErrorState, Loading, Skeleton } from "~/components/ui/states";
 import { STATUSES, StatusBadge } from "~/components/ui/status-badge";
 import { SwipeRow } from "~/components/ui/swipe-row";
+import { ReceiptViewer } from "~/components/ui/receipt-viewer";
+import { ToneChip } from "~/components/ui/tone-chip";
+import { formatCents } from "~/domain/money";
 import { MoneyText } from "~/components/ui/text";
 import { SignaturePad } from "~/components/ui/signature-pad";
 import { toast } from "~/components/ui/toast";
@@ -569,6 +573,39 @@ function Showcase() {
         </div>
       </Section>
 
+      <Section title="Charts and chips (DS-COL-09, Reports)">
+        <div className="flex flex-col gap-4">
+          <ColumnChart
+            title="Revenue and expenses, sample"
+            categories={["May", "Jun", "Jul", "Aug", "Sep", "Oct"]}
+            series={[
+              {
+                key: "r",
+                label: "Revenue",
+                tone: "teal",
+                values: [420_000_00, 615_500_00, 380_000_00, 902_250_00, 770_000_00, 655_000_00],
+              },
+              {
+                key: "e",
+                label: "Expenses",
+                tone: "roseclay",
+                values: [180_000_00, 240_000_00, 95_000_00, 410_000_00, 300_500_00, 220_000_00],
+              },
+            ]}
+            format={formatCents}
+            formatAxis={compactNaira}
+          />
+          <div className="flex flex-wrap gap-2">
+            <ToneChip tone="plum" label="Fabric" />
+            <ToneChip tone="terracotta" label="Materials" />
+            <ToneChip tone="saffron" label="Billable" />
+            <ToneChip tone="indigo" label="Billed on INV-1042" />
+            <ToneChip tone="slate" label="Other" />
+          </div>
+          <ReceiptDemo />
+        </div>
+      </Section>
+
       <Section title="States">
         <div className="grid gap-4">
           <Loading>
@@ -603,6 +640,31 @@ function Showcase() {
           </Card>
         </div>
       </Section>
+    </>
+  );
+}
+
+const SAMPLE_RECEIPT = (label: string) =>
+  `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="300" height="420"><rect width="300" height="420" fill="white"/><text x="24" y="48" font-family="sans-serif" font-size="20">${label}</text><text x="24" y="380" font-family="sans-serif" font-size="16">Total 12,500.00</text></svg>`)}`;
+
+function ReceiptDemo() {
+  const [index, setIndex] = React.useState<number | null>(null);
+  const receipts = [
+    { url: SAMPLE_RECEIPT("Balogun Market"), title: "Balogun Market, 12 Oct 2026" },
+    { url: SAMPLE_RECEIPT("Bolt ride"), title: "Bolt, 13 Oct 2026" },
+  ];
+  return (
+    <>
+      <Button variant="secondary" className="self-start" onClick={() => setIndex(0)}>
+        <Receipt aria-hidden />
+        Open receipt viewer
+      </Button>
+      <ReceiptViewer
+        receipts={receipts}
+        index={index}
+        onIndexChange={setIndex}
+        onClose={() => setIndex(null)}
+      />
     </>
   );
 }

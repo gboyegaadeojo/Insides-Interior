@@ -40,6 +40,7 @@ import {
 } from "~/features/conversations/ui/conversation-sheet";
 import { ThreadPanel } from "~/features/conversations/ui/thread-panel";
 import { BuilderWorkspace } from "~/features/documents/ui/builder-workspace";
+import { expensesOnInvoice } from "~/features/expenses/service";
 import type { BuilderItem } from "~/features/documents/ui/catalogue-sheet";
 import { ClientLinkCard, HistoryCard } from "~/features/documents/ui/history-card";
 import { SendSheet } from "~/features/documents/ui/send-sheet";
@@ -96,7 +97,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const detail = await getInvoice(ctx, params.id);
   if (!detail) throw new Response("Not found", { status: 404 });
   const isDraft = detail.invoice.status === "draft";
-  const [business, items, templates, rates, history, setup, shareUrl, instructions, thread] =
+  const [business, items, templates, rates, history, setup, shareUrl, instructions, thread, fromExpenses] =
     await Promise.all([
       loadDocBusiness(ctx.db, ctx.user.businessId),
       isDraft ? builderCatalogue(ctx) : [],
@@ -109,6 +110,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
         : null,
       paymentInstructions(ctx),
       detail.invoice.number ? ownerThread(ctx, "invoice", params.id) : null,
+      expensesOnInvoice(ctx, params.id),
     ]);
   const builderItems: BuilderItem[] = await Promise.all(
     items.map(async (i) => ({
@@ -125,6 +127,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   const { shareTokenHash: _hash, shareTokenSalt: _salt, draftContent: _draft, ...invoice } = detail.invoice;
   return {
     invoice,
+    fromExpenses,
     content: detail.content,
     revisionNo: detail.revisionNo,
     revising: detail.revising,
@@ -884,6 +887,21 @@ function InvoiceBuilder({ data }: { data: LoaderData }) {
             {data.reissueOf.number}
           </Link>
           ; its payments ({formatCents(data.settledCents)}) carry over.
+        </p>
+      )}
+
+      {data.fromExpenses.length > 0 && (
+        <p className="text-label text-secondary">
+          Lines from expenses:{" "}
+          {data.fromExpenses.map((e, n) => (
+            <React.Fragment key={e.id}>
+              {n > 0 && ", "}
+              <Link to={`/expenses?expense=${e.id}`} className="font-semibold text-primary underline">
+                {e.supplier}, {formatDate(e.date)}
+              </Link>
+            </React.Fragment>
+          ))}
+          . Removing a line makes its expense billable again.
         </p>
       )}
 

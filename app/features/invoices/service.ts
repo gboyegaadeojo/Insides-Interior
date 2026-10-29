@@ -518,6 +518,35 @@ export function mergeLockedLines(
   return sections;
 }
 
+/** Expenses billed onto this invoice and the line each became (FR-EXP-02). */
+function billedExpenseLines(ctx: Ctx, invoiceId: string) {
+  return ctx.db
+    .select({ id: schema.expense.id, lineId: schema.expense.billedInvoiceLineId })
+    .from(schema.expense)
+    .where(eq(schema.expense.billedInvoiceId, invoiceId));
+}
+
+/**
+ * Frees expenses from a draft (their line was removed, or the draft deleted).
+ * With `version`, only if the draft is at that version, i.e. the save won.
+ */
+function releaseExpenses(ctx: Ctx, invoiceId: string, expenseIds: string[], version: number | null) {
+  return chunk(expenseIds, 90).map((ids) =>
+    ctx.db
+      .update(schema.expense)
+      .set({ billedInvoiceId: null, billedInvoiceLineId: null, updatedAt: nowIso() })
+      .where(
+        and(
+          inArray(schema.expense.id, ids),
+          eq(schema.expense.billedInvoiceId, invoiceId),
+          version === null
+            ? undefined
+            : sql`exists (select 1 from ${schema.invoice} where ${schema.invoice.id} = ${invoiceId} and ${schema.invoice.draftVersion} = ${version})`,
+        ),
+      ),
+  );
+}
+
 export async function saveInvoiceDraft(ctx: RequestContext, id: string, input: SaveInvoiceDraftInput) {
   const [row] = await ctx.db
     .select()
@@ -569,28 +598,40 @@ export async function saveInvoiceDraft(ctx: RequestContext, id: string, input: S
   };
   const totals = computeContent(content);
   const nextVersion = input.version + 1;
-  const updated = await ctx.db
-    .update(schema.invoice)
-    .set({
-      title: header.title,
-      clientId: header.clientId,
-      siteId: header.siteId,
-      poReference: header.poReference,
-      termsDays: header.termsDays,
-      dueDate: header.termsDays === null ? header.dueDate : null,
-      draftContent: content,
-      draftTotalCents: totals.computed.totalCents,
-      draftVersion: nextVersion,
-      updatedAt: nowIso(),
-    })
-    .where(
-      and(
-        eq(schema.invoice.id, id),
-        eq(schema.invoice.draftVersion, input.version),
-        eq(schema.invoice.status, "draft"),
-      ),
-    )
-    .returning({ id: schema.invoice.id });
+  const lineIds = new Set(content.sections.flatMap((s) => s.lines.map((l) => l.id)));
+  const released = (await billedExpenseLines(ctx, id)).filter((b) => !lineIds.has(b.lineId ?? ""));
+  const [updated] = await ctx.db.batch([
+    ctx.db
+      .update(schema.invoice)
+      .set({
+        title: header.title,
+        clientId: header.clientId,
+        siteId: header.siteId,
+        poReference: header.poReference,
+        termsDays: header.termsDays,
+        dueDate: header.termsDays === null ? header.dueDate : null,
+        draftContent: content,
+        draftTotalCents: totals.computed.totalCents,
+        draftVersion: nextVersion,
+        updatedAt: nowIso(),
+      })
+      .where(
+        and(
+          eq(schema.invoice.id, id),
+          eq(schema.invoice.draftVersion, input.version),
+          eq(schema.invoice.status, "draft"),
+        ),
+      )
+      .returning({ id: schema.invoice.id }),
+    // A billed expense whose line was removed from the draft is billable again
+    // (FR-EXP-02); only when this save won, hence the version check.
+    ...releaseExpenses(
+      ctx,
+      id,
+      released.map((r) => r.id),
+      nextVersion,
+    ),
+  ]);
   if (updated.length === 0) {
     const [latest] = await ctx.db
       .select({ v: schema.invoice.draftVersion })
@@ -614,12 +655,20 @@ export async function deleteInvoiceDraft(ctx: RequestContext, id: string) {
     .from(schema.payment)
     .where(eq(schema.payment.invoiceId, id));
   if ((paid?.n ?? 0) > 0) throw new ServiceError("This reissued invoice carries payments; send it instead");
+  const billed = await billedExpenseLines(ctx, id);
   await ctx.db.batch([
     ctx.db
       .delete(schema.invoice)
       .where(
         and(eq(schema.invoice.id, id), eq(schema.invoice.status, "draft"), isNull(schema.invoice.number)),
       ),
+    // Its billed expenses are billable again (FR-EXP-02).
+    ...releaseExpenses(
+      ctx,
+      id,
+      billed.map((b) => b.id),
+      null,
+    ),
     audit(ctx, id, "invoice.draft_deleted"),
   ]);
 }
@@ -1497,7 +1546,10 @@ export async function deletePayment(ctx: RequestContext, input: { paymentId: str
 }
 
 /** FR-PAY-05: every payment with its invoice and client; deleted ones stay visible. */
-export async function listPayments(ctx: Ctx, opts: { limit?: number } = {}) {
+export async function listPayments(
+  ctx: Ctx,
+  opts: { limit?: number; from?: string | null; to?: string | null } = {},
+) {
   const limit = Math.min(Math.max(opts.limit ?? PAYMENT_PAGE_SIZE, 1), 500);
   const p = schema.payment;
   const rows = await ctx.db
@@ -1520,7 +1572,13 @@ export async function listPayments(ctx: Ctx, opts: { limit?: number } = {}) {
     .from(p)
     .innerJoin(schema.invoice, eq(schema.invoice.id, p.invoiceId))
     .innerJoin(schema.client, eq(schema.client.id, p.clientId))
-    .where(eq(p.businessId, ctx.user.businessId))
+    .where(
+      and(
+        eq(p.businessId, ctx.user.businessId),
+        opts.from ? sql`${p.receivedOn} >= ${opts.from}` : undefined,
+        opts.to ? sql`${p.receivedOn} <= ${opts.to}` : undefined,
+      ),
+    )
     .orderBy(desc(p.receivedOn), desc(p.createdAt))
     .limit(limit + 1);
   const [totals] = await ctx.db

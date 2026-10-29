@@ -66,6 +66,12 @@ const LABELS: Record<string, string> = {
   "quote.follow_ups_resumed": "Follow-ups resumed",
   "payment.recorded": "Payment recorded",
   "payment.deleted": "Payment deleted",
+  "expense.created": "Expense logged",
+  "expense.updated": "Expense updated",
+  "expense.deleted": "Expense deleted",
+  "expense.billed": "Expense added to an invoice",
+  "invoice.expenses_added": "Expenses added",
+  "invoice.draft_deleted": "Draft deleted",
 };
 
 const DETAIL: Record<string, (data: Record<string, unknown>) => string | undefined> = {
@@ -96,6 +102,11 @@ const DETAIL: Record<string, (data: Record<string, unknown>) => string | undefin
       ? `: ${formatCents(d.amountCents)}${typeof d.whtCents === "number" && d.whtCents > 0 ? ` + WHT ${formatCents(d.whtCents)}` : ""}`
       : undefined,
   "payment.deleted": (d) => (d.reason ? `: ${d.reason}` : undefined),
+  "expense.created": (d) =>
+    typeof d.amountCents === "number"
+      ? `: ${d.supplier ?? ""} ${formatCents(d.amountCents)}`.trim()
+      : undefined,
+  "invoice.expenses_added": (d) => (typeof d.count === "number" ? `(${d.count})` : undefined),
   "invoice.reminder_sent": (d) =>
     d.manual
       ? "by you"

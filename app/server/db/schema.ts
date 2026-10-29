@@ -673,16 +673,22 @@ export const expense = sqliteTable(
     date: text().notNull(),
     supplier: text().notNull(),
     category: text().notNull(),
+    /** What was paid, VAT included; reports use amount − VAT (SPEC 5.11). */
     amountCents: integer().notNull(),
     vatCents: integer().notNull().default(0),
     projectId: text().references(() => project.id),
     billable: integer({ mode: "boolean" }).notNull().default(false),
     receiptKey: text(),
+    /** FR-EXP-02: the draft invoice and the content line id it was added as. */
+    billedInvoiceId: text(),
     billedInvoiceLineId: text(),
     note: text(),
     deletedAt: text(),
   },
-  (t) => [index("expense_business_date_idx").on(t.businessId, t.date)],
+  (t) => [
+    index("expense_business_date_idx").on(t.businessId, t.date),
+    index("expense_billed_invoice_idx").on(t.billedInvoiceId),
+  ],
 );
 
 // ---------- Conversations ----------

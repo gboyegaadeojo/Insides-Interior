@@ -5,6 +5,7 @@ import {
   formatQuantity,
   parseMoneyToCents,
   parseQuantityToMilli,
+  mulDivRound,
 } from "~/domain/money";
 
 describe("parseMoneyToCents", () => {
@@ -80,5 +81,16 @@ describe("quantities (integer thousandths, SPEC 10.1)", () => {
     expect(formatQuantity(3000)).toBe("3");
     expect(formatQuantity(1)).toBe("0.001");
     expect(formatQuantity(1234500)).toBe("1,234.5");
+  });
+});
+
+describe("mulDivRound", () => {
+  it("multiplies in BigInt and rounds half away from zero", () => {
+    expect(mulDivRound(11_540_050_000_000, 10_000_000_000, 14_900_000_000)).toBe(7_745_000_000_000);
+    expect(mulDivRound(5, 1, 2)).toBe(3);
+    expect(mulDivRound(-5, 1, 2)).toBe(-3);
+    expect(mulDivRound(5, -1, -2)).toBe(3);
+    expect(() => mulDivRound(1, 1, 0)).toThrow(RangeError);
+    expect(() => mulDivRound(0.5, 1, 1)).toThrow(RangeError);
   });
 });
