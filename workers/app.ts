@@ -49,7 +49,12 @@ export default {
       const job = message.body as Job;
       try {
         if (job?.kind === "email") {
-          await processEmailJob(env, job, { lastAttempt: message.attempts > MAX_RETRIES });
+          await processEmailJob(env, job, {
+            // The queue makes MAX_RETRIES attempts in all, then drops the message,
+            // so the last one is attempts === MAX_RETRIES (was > : never true).
+            lastAttempt: message.attempts >= MAX_RETRIES,
+            attempt: message.attempts,
+          });
         }
         message.ack();
       } catch (error) {

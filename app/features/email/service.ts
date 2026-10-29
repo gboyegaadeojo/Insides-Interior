@@ -14,6 +14,7 @@ import { activityInsert } from "~/server/audit";
 import { type Db, getDb, schema } from "~/server/db";
 import { createEmailTransport } from "~/server/email";
 import { PdfUnavailableError, pdfEnabled, toBase64 } from "~/server/pdf.server";
+import { EmailSendError } from "~/server/email/resend-transport";
 import type { ShareEntity } from "~/server/tokens";
 
 export interface OutgoingEmail {
@@ -125,7 +126,14 @@ export async function activeOwners(db: Db, businessId: string) {
  * redelivered job never sends twice; Resend's idempotency key covers a crash
  * between the send and the status update. Throws to ask the queue to retry.
  */
-export async function processEmailJob(env: Env, job: EmailJob, opts: { lastAttempt: boolean }) {
+/** Attempts with a PDF error before the email goes without its attachment (the link still offers the PDF). */
+const PDF_ATTEMPTS = 2;
+
+export async function processEmailJob(
+  env: Env,
+  job: EmailJob,
+  opts: { lastAttempt: boolean; attempt?: number },
+) {
   const db = getDb(env);
   const [row] = await db
     .select({ status: schema.emailMessage.status })
@@ -145,9 +153,19 @@ export async function processEmailJob(env: Env, job: EmailJob, opts: { lastAttem
       message = fillNumber(message, doc.number);
     }
     const attachments = [];
+    let pdfSkipped: string | undefined;
     if (job.pdf && pdfEnabled(env)) {
-      const pdf = await documentPdf(env, job.pdf.entity, job.pdf.id, { revisionId: job.pdf.revisionId });
-      if (pdf) attachments.push({ filename: pdf.filename, content: toBase64(pdf.bytes) });
+      try {
+        const pdf = await documentPdf(env, job.pdf.entity, job.pdf.id, { revisionId: job.pdf.revisionId });
+        if (pdf) attachments.push({ filename: pdf.filename, content: toBase64(pdf.bytes) });
+      } catch (error) {
+        // The email matters more than its attachment: after a retry (or when the
+        // PDF can't be made at all) it goes without one; the portal link has it.
+        const retryablePdf = !(error instanceof PdfUnavailableError) || error.retryable;
+        if (retryablePdf && !opts.lastAttempt && (opts.attempt ?? 1) < PDF_ATTEMPTS) throw error;
+        pdfSkipped = error instanceof Error ? error.message : String(error);
+        console.error("sending without the PDF", pdfSkipped);
+      }
     }
     const result = await createEmailTransport(env).send({ ...message, attachments });
     await db.batch([
@@ -167,12 +185,15 @@ export async function processEmailJob(env: Env, job: EmailJob, opts: { lastAttem
         entityType: "email",
         entityId: job.emailId,
         action: "email.sent",
-        data: { attachments: attachments.length },
+        data: { attachments: attachments.length, pdfSkipped: pdfSkipped?.slice(0, 200) },
       }),
     ]);
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    const retryable = !(error instanceof PdfUnavailableError) || error.retryable;
+    const retryable =
+      error instanceof EmailSendError
+        ? !error.permanent
+        : !(error instanceof PdfUnavailableError) || error.retryable;
     if (opts.lastAttempt || !retryable) {
       await db.batch([
         db

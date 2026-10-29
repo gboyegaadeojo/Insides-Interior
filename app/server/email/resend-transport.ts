@@ -35,10 +35,28 @@ export function createResendTransport(options: {
       });
       if (!response.ok) {
         // The body carries Resend's error name and message, never our API key.
-        throw new Error(`Resend send failed (${response.status}): ${await response.text()}`);
+        throw new EmailSendError(response.status, await response.text());
       }
       const { id } = (await response.json()) as { id: string };
       return { id, transport: "resend" };
     },
   };
+}
+
+/**
+ * Resend refused the email. 4xx (other than 408 timeout and 429 rate limit) is
+ * permanent: an unverified sending domain, a recipient the test sender may not
+ * reach, a bad address. Retrying won't help, so the email is marked failed at
+ * once with Resend's reason, and the owner sees it with Retry.
+ */
+export class EmailSendError extends Error {
+  readonly permanent: boolean;
+  constructor(
+    readonly status: number,
+    body: string,
+  ) {
+    super(`Resend send failed (${status}): ${body}`);
+    this.name = "EmailSendError";
+    this.permanent = status >= 400 && status < 500 && status !== 408 && status !== 429;
+  }
 }
