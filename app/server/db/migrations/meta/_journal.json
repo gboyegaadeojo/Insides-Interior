@@ -57,6 +57,13 @@
       "when": 1793229194932,
       "tag": "0007_drop_canadian_fields",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "6",
+      "when": 1793236421340,
+      "tag": "0008_share_token_salt",
+      "breakpoints": true
     }
   ]
 }

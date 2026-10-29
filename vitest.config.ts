@@ -37,7 +37,7 @@ export default defineConfig({
                 GOOGLE_CLIENT_ID: "",
                 GOOGLE_CLIENT_SECRET: "",
                 E2E_SECRET: "",
-                SPIKE_KEY: "",
+                RESEND_WEBHOOK_SECRET: "whsec_aW50ZWdyYXRpb24tdGVzdC13ZWJob29rLXNlY3JldA==",
                 TEST_MIGRATIONS: await readD1Migrations(
                   fileURLToPath(new URL("./app/server/db/migrations", import.meta.url)),
                 ),

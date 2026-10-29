@@ -1,18 +1,28 @@
 // Quotes (SPEC 5.6): drafts, autosave with version checks, listing,
-// duplication. Sending, revisions and approval arrive in phase 5. Drafts have
-// no number (FR-QT-07); only drafts can be hard-deleted (SPEC 8.1).
+// duplication, sending, revisions and links. Client approval lives in
+// features/portal. Drafts have no number until sent (FR-QT-07); only unsent
+// drafts can be hard-deleted (SPEC 8.1).
 
 import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
-import { computeContent, depositFrom } from "~/domain/document";
+import { canonicalJson, type Json } from "~/domain/canonical";
+import { computeContent, depositFrom, type DocumentTotals } from "~/domain/document";
+import { type QuoteEvent, type QuoteStatus, quoteTransition, TransitionError } from "~/domain/lifecycle";
 import { CURRENCY } from "~/domain/locale";
+import { formatCents } from "~/domain/money";
+import { isPastValidUntil } from "~/domain/portal";
+import { emailInsert, enqueue, NUMBER_PLACEHOLDER, type OutgoingEmail } from "~/features/email/service";
+import { loadEmailBrand } from "~/features/settings/doc-business";
 import { ServiceError } from "~/features/settings/service";
-import { addDays, businessToday } from "~/lib/dates";
+import { addDays, businessToday, formatDate } from "~/lib/dates";
 import { newId } from "~/lib/ids";
 import { likeTerm } from "~/lib/like";
+import { EMAIL_TEMPLATE_DEFAULTS } from "~/lib/merge-fields";
 import { activityInsert } from "~/server/audit";
 import { type DocumentContent, schema } from "~/server/db";
+import { quoteSentEmail } from "~/server/email/templates";
 import type { RequestContext } from "~/server/session";
-import type { SaveDraftInput } from "./schema";
+import { hashShareToken, newShareSalt, portalPath, sha256Hex, shareToken } from "~/server/tokens";
+import type { SaveDraftInput, SendQuoteInput } from "./schema";
 
 type Ctx = Pick<RequestContext, "db" | "user">;
 
@@ -104,15 +114,15 @@ export async function getQuote(ctx: Ctx, id: string) {
     ? await ctx.db.select().from(schema.site).where(eq(schema.site.id, row.siteId))
     : [];
   let content = row.draftContent;
-  let revisionNo: number | null = null;
-  if (row.status !== "draft" && row.currentRevisionId) {
-    const [revision] = await ctx.db
-      .select()
-      .from(schema.quoteRevision)
-      .where(eq(schema.quoteRevision.id, row.currentRevisionId));
-    content = revision?.content ?? content;
-    revisionNo = revision?.revisionNo ?? null;
-  }
+  // The sent revision. While a sent quote is being revised (status draft with a
+  // revision) the editor shows the draft and the client still sees this.
+  const [revision] = row.currentRevisionId
+    ? await ctx.db
+        .select()
+        .from(schema.quoteRevision)
+        .where(eq(schema.quoteRevision.id, row.currentRevisionId))
+    : [];
+  if (row.status !== "draft" && revision) content = revision.content;
   if (!content) throw new ServiceError("This quote has no content");
   const referenced = content.sections.flatMap((s) => s.lines.flatMap((l) => l.taxRateIds));
   const taxRates = row.status === "draft" ? await taxRatesFor(ctx, referenced) : content.taxRates;
@@ -122,7 +132,17 @@ export async function getQuote(ctx: Ctx, id: string) {
     client: client ?? null,
     site: site ?? null,
     content: fullContent,
-    revisionNo,
+    revisionNo: row.status === "draft" ? null : (revision?.revisionNo ?? null),
+    /** Set while a sent quote is being revised: the revision the client still sees. */
+    revising: row.status === "draft" && revision ? { revisionNo: revision.revisionNo } : null,
+    revision: revision
+      ? {
+          id: revision.id,
+          revisionNo: revision.revisionNo,
+          sentAt: revision.sentAt,
+          totalCents: revision.totalCents,
+        }
+      : null,
     totals: computeContent(fullContent, depositFrom(row.depositType, row.depositValue)),
   };
 }
@@ -231,8 +251,8 @@ export async function saveDraft(ctx: RequestContext, id: string, input: SaveDraf
   };
 }
 
-export const QUOTE_FILTERS = ["all", "draft", "sent", "changes_requested", "approved", "closed"] as const;
-export type QuoteFilter = (typeof QUOTE_FILTERS)[number];
+export { QUOTE_FILTERS, QUOTE_PAGE_SIZE, type QuoteFilter } from "./filters";
+import { QUOTE_PAGE_SIZE, type QuoteFilter } from "./filters";
 
 const FILTER_STATUSES: Record<
   Exclude<QuoteFilter, "all">,
@@ -244,9 +264,6 @@ const FILTER_STATUSES: Record<
   approved: ["approved"],
   closed: ["declined", "expired"],
 };
-
-/** Rows per page on list screens; "Show more" asks for the next page. */
-export const QUOTE_PAGE_SIZE = 50;
 
 /**
  * Quote list, filtered, searched and paged in SQL. Workers Free allows 10 ms of
@@ -355,7 +372,8 @@ export type QuoteListRow = Awaited<ReturnType<typeof listQuotes>>["quotes"][numb
 export async function duplicateQuote(ctx: RequestContext, id: string) {
   const detail = await getQuote(ctx, id);
   if (!detail) throw new ServiceError("That quote no longer exists");
-  const { quote, content } = detail;
+  const { quote } = detail;
+  const { header: _header, ...content } = detail.content;
   const copy: DocumentContent = {
     ...content,
     sections: content.sections.map((s) => ({
@@ -391,13 +409,15 @@ export async function duplicateQuote(ctx: RequestContext, id: string) {
 /** Only drafts may be deleted (SPEC 8.1). */
 export async function deleteDraft(ctx: RequestContext, id: string) {
   const [row] = await ctx.db
-    .select({ status: schema.quote.status })
+    .select({ status: schema.quote.status, number: schema.quote.number })
     .from(schema.quote)
     .where(and(eq(schema.quote.id, id), eq(schema.quote.businessId, ctx.user.businessId)));
   if (!row) return;
-  if (row.status !== "draft") throw new ServiceError("Sent quotes are kept for your records");
+  if (row.status !== "draft" || row.number) throw new ServiceError("Sent quotes are kept for your records");
   await ctx.db.batch([
-    ctx.db.delete(schema.quote).where(and(eq(schema.quote.id, id), eq(schema.quote.status, "draft"))),
+    ctx.db
+      .delete(schema.quote)
+      .where(and(eq(schema.quote.id, id), eq(schema.quote.status, "draft"), isNull(schema.quote.number))),
     audit(ctx, id, "quote.draft_deleted"),
   ]);
 }
@@ -410,4 +430,516 @@ export async function builderCatalogue(ctx: Ctx) {
     .where(and(eq(schema.item.businessId, ctx.user.businessId), isNull(schema.item.archivedAt)))
     .orderBy(sql`lower(${schema.item.name})`);
   return items;
+}
+
+// ---------- Send, revise, extend (phase 5: FR-QT-07…11) ----------
+
+/** The guard after a conditional UPDATE: fails the whole batch (NOT NULL) if it changed no row. */
+function requireChanged(ctx: Ctx, id: string) {
+  return ctx.db
+    .update(schema.quote)
+    .set({ draftVersion: sql`case when changes() = 1 then ${schema.quote.draftVersion} else null end` })
+    .where(eq(schema.quote.id, id));
+}
+
+function quoteTransitionOrFail(from: QuoteStatus, event: QuoteEvent) {
+  try {
+    return quoteTransition(from, event);
+  } catch (error) {
+    if (error instanceof TransitionError) throw new ServiceError(error.message);
+    throw error;
+  }
+}
+
+/** The client's portal link, rebuilt from the stored salt (server/tokens.ts). */
+export async function quoteShareUrl(
+  env: Pick<Env, "APP_URL" | "BETTER_AUTH_SECRET">,
+  id: string,
+  salt: string,
+) {
+  const token = await shareToken(env.BETTER_AUTH_SECRET, "quote", id, salt);
+  return new URL(portalPath("quote", token), env.APP_URL).toString();
+}
+
+/** The quote-sent email for a revision (owner wording from Settings → Email, FR-SET-07). */
+async function quoteSentMessage(
+  ctx: RequestContext,
+  opts: {
+    revisionId: string;
+    revisionNo: number;
+    number: string;
+    clientName: string;
+    totals: DocumentTotals;
+    validUntil: string | null;
+    url: string;
+    to: string;
+    cc: string[];
+    bcc: string[];
+    note?: string;
+  },
+): Promise<OutgoingEmail> {
+  const [brand, [settings]] = await Promise.all([
+    loadEmailBrand(ctx.db, ctx.env, ctx.user.businessId),
+    ctx.db
+      .select({ emailTemplates: schema.settings.emailTemplates })
+      .from(schema.settings)
+      .where(eq(schema.settings.businessId, ctx.user.businessId)),
+  ]);
+  const defaults = EMAIL_TEMPLATE_DEFAULTS.quote_sent!;
+  const rendered = quoteSentEmail(brand, {
+    clientName: opts.clientName,
+    url: opts.url,
+    revision: opts.revisionNo,
+    note: opts.note,
+    override: settings?.emailTemplates.quote_sent,
+    defaults: { subject: defaults.subject, body: defaults.body },
+    facts: {
+      number: opts.number,
+      total: formatCents(opts.totals.computed.totalCents),
+      deposit: opts.totals.depositCents > 0 ? formatCents(opts.totals.depositCents) : undefined,
+      validUntil: opts.validUntil ? formatDate(opts.validUntil) : undefined,
+    },
+  });
+  return {
+    ...rendered,
+    to: [opts.to],
+    cc: opts.cc,
+    bcc: opts.bcc,
+    replyTo: brand.replyTo,
+    idempotencyKey: `quote:${opts.revisionId}:quote_sent`,
+  };
+}
+
+/**
+ * Send a draft, or the next revision of a sent quote (FR-QT-07, 08, 09). One D1
+ * batch freezes the revision, allocates the number (first send only), rotates
+ * the share token and writes the email row; the guard makes it all-or-nothing
+ * if an autosave or a second send got there first. The email goes out from the
+ * queue with the PDF attached.
+ */
+export async function sendQuote(ctx: RequestContext, id: string, input: SendQuoteInput) {
+  const [row] = await ctx.db
+    .select()
+    .from(schema.quote)
+    .where(and(eq(schema.quote.id, id), eq(schema.quote.businessId, ctx.user.businessId)));
+  if (!row) throw new ServiceError("This quote no longer exists");
+  if (row.status !== "draft") throw new ServiceError("This quote has already been sent");
+  if (row.draftVersion !== input.version) throw new DraftConflictError(row.draftVersion);
+  if (!row.clientId) throw new ServiceError("Choose a client before sending", "to");
+  const [client] = await ctx.db
+    .select()
+    .from(schema.client)
+    .where(and(eq(schema.client.id, row.clientId), eq(schema.client.businessId, ctx.user.businessId)));
+  if (!client) throw new ServiceError("That client no longer exists", "to");
+  const draft = row.draftContent;
+  if (!draft || draft.sections.every((s) => s.lines.length === 0))
+    throw new ServiceError("Add at least one line before sending");
+  if (!row.validUntil) throw new ServiceError("Set a valid-until date before sending");
+  if (isPastValidUntil(row.validUntil, businessToday()))
+    throw new ServiceError("The valid-until date has passed; choose a later date");
+
+  const referenced = draft.sections.flatMap((s) => s.lines.flatMap((l) => l.taxRateIds));
+  const content: DocumentContent = {
+    ...draft,
+    taxRates: await taxRatesFor(ctx, referenced),
+    header: { title: row.title, clientId: row.clientId, siteId: row.siteId, validUntil: row.validUntil },
+  };
+  const totals = computeContent(content, depositFrom(row.depositType, row.depositValue));
+
+  let revisionNo = 1;
+  if (row.currentRevisionId) {
+    const [previous] = await ctx.db
+      .select({ revisionNo: schema.quoteRevision.revisionNo })
+      .from(schema.quoteRevision)
+      .where(eq(schema.quoteRevision.id, row.currentRevisionId));
+    revisionNo = (previous?.revisionNo ?? 0) + 1;
+  }
+  const revisionId = newId("qrv");
+  const contentHash = await sha256Hex(
+    canonicalJson({
+      content,
+      depositType: row.depositType,
+      depositValue: row.depositValue,
+      currency: CURRENCY,
+    } as unknown as Json),
+  );
+  // A new link for every revision: the old one stops working (FR-QT-09, SPEC 8.4).
+  const salt = newShareSalt();
+  const token = await shareToken(ctx.env.BETTER_AUTH_SECRET, "quote", id, salt);
+  const url = new URL(portalPath("quote", token), ctx.env.APP_URL).toString();
+  const message = await quoteSentMessage(ctx, {
+    revisionId,
+    revisionNo,
+    number: row.number ?? NUMBER_PLACEHOLDER,
+    clientName: client.displayName,
+    totals,
+    validUntil: row.validUntil,
+    url,
+    to: input.to,
+    cc: input.cc,
+    bcc: input.bcc,
+    note: input.note,
+  });
+  const email = emailInsert(ctx.db, {
+    businessId: ctx.user.businessId,
+    createdBy: ctx.user.id,
+    entityType: "quote",
+    entityId: id,
+    template: revisionNo > 1 ? "quote_revised" : "quote_sent",
+    message,
+    numberFromQuoteId: row.number ? undefined : id,
+  });
+  const now = nowIso();
+  const seq = schema.sequence;
+  const mySequence = and(eq(seq.businessId, ctx.user.businessId), eq(seq.kind, "quote"));
+  const nextNumber = sql`(select ${seq.prefix} || ${seq.nextValue} from ${seq} where ${mySequence})`;
+
+  try {
+    await ctx.db.batch([
+      ctx.db
+        .update(schema.quote)
+        .set({
+          status: quoteTransitionOrFail("draft", "send"),
+          number: row.number ?? nextNumber,
+          currentRevisionId: revisionId,
+          shareTokenHash: await hashShareToken(token),
+          shareTokenSalt: salt,
+          draftContent: null,
+          draftVersion: sql`${schema.quote.draftVersion} + 1`,
+          updatedAt: now,
+        })
+        .where(
+          and(
+            eq(schema.quote.id, id),
+            eq(schema.quote.status, "draft"),
+            eq(schema.quote.draftVersion, input.version),
+          ),
+        ),
+      requireChanged(ctx, id),
+      // First send: the number just used was next_value; move it on.
+      ...(row.number
+        ? []
+        : [
+            ctx.db
+              .update(seq)
+              .set({ nextValue: sql`${seq.nextValue} + 1`, updatedAt: now })
+              .where(mySequence),
+          ]),
+      ctx.db.insert(schema.quoteRevision).values({
+        id: revisionId,
+        quoteId: id,
+        revisionNo,
+        content,
+        subtotalCents: totals.computed.subtotalCents,
+        discountCents: totals.computed.discountCents,
+        taxCents: totals.computed.taxes.reduce((sum, t) => sum + t.taxCents, 0),
+        totalCents: totals.computed.totalCents,
+        depositType: row.depositType,
+        depositValue: row.depositValue,
+        contentHash,
+        sentAt: now,
+        createdBy: ctx.user.id,
+      }),
+      email.insert,
+      audit(ctx, id, revisionNo > 1 ? "quote.revision_sent" : "quote.sent", {
+        revision: revisionNo,
+        to: input.to,
+        cc: input.cc,
+        bcc: input.bcc,
+        note: input.note || undefined,
+        totalCents: totals.computed.totalCents,
+      }),
+    ]);
+  } catch (error) {
+    const [latest] = await ctx.db
+      .select({ status: schema.quote.status, version: schema.quote.draftVersion })
+      .from(schema.quote)
+      .where(eq(schema.quote.id, id));
+    if (latest && latest.status !== "draft") throw new ServiceError("This quote has already been sent");
+    if (latest && latest.version !== input.version) throw new DraftConflictError(latest.version);
+    throw error;
+  }
+
+  const queued = await enqueue(ctx.env, [
+    {
+      kind: "email",
+      emailId: email.id,
+      businessId: ctx.user.businessId,
+      message,
+      pdf: { entity: "quote", id, revisionId },
+      numberFrom: row.number ? undefined : { entity: "quote", id },
+    },
+  ]);
+  const [sent] = await ctx.db
+    .select({ number: schema.quote.number })
+    .from(schema.quote)
+    .where(eq(schema.quote.id, id));
+  return { number: sent!.number!, revisionNo, queued };
+}
+
+/**
+ * Re-queue the latest quote email if it is stuck (queue refused it) or failed
+ * (Resend kept refusing it). Same idempotency key, so it can't double-send.
+ */
+export async function retryQuoteEmail(ctx: RequestContext, id: string) {
+  const detail = await getQuote(ctx, id);
+  if (!detail?.revision || !detail.quote.number || !detail.quote.shareTokenSalt || !detail.client)
+    throw new ServiceError("This quote hasn't been sent yet");
+  const [row] = await ctx.db
+    .select()
+    .from(schema.emailMessage)
+    .where(
+      and(
+        eq(schema.emailMessage.entityType, "quote"),
+        eq(schema.emailMessage.entityId, id),
+        eq(schema.emailMessage.idempotencyKey, `quote:${detail.revision.id}:quote_sent`),
+      ),
+    );
+  if (!row || (row.status !== "queued" && row.status !== "failed"))
+    throw new ServiceError("That email has already gone out");
+  const [sentEvent] = await ctx.db
+    .select({ data: schema.activity.data })
+    .from(schema.activity)
+    .where(
+      and(
+        eq(schema.activity.entityType, "quote"),
+        eq(schema.activity.entityId, id),
+        inArray(schema.activity.action, ["quote.sent", "quote.revision_sent"]),
+      ),
+    )
+    .orderBy(desc(schema.activity.at))
+    .limit(1);
+  const sent = (sentEvent?.data ?? {}) as { cc?: string[]; bcc?: string[]; note?: string };
+  const message = await quoteSentMessage(ctx, {
+    revisionId: detail.revision.id,
+    revisionNo: detail.revision.revisionNo,
+    number: detail.quote.number,
+    clientName: detail.client.displayName,
+    totals: detail.totals,
+    validUntil: detail.quote.validUntil,
+    url: await quoteShareUrl(ctx.env, id, detail.quote.shareTokenSalt),
+    to: row.to,
+    cc: sent.cc ?? [],
+    bcc: sent.bcc ?? [],
+    note: sent.note,
+  });
+  await ctx.db.batch([
+    ctx.db
+      .update(schema.emailMessage)
+      .set({ status: "queued", error: null, updatedAt: nowIso() })
+      .where(eq(schema.emailMessage.id, row.id)),
+    audit(ctx, id, "quote.email_retried"),
+  ]);
+  const queued = await enqueue(ctx.env, [
+    {
+      kind: "email",
+      emailId: row.id,
+      businessId: ctx.user.businessId,
+      message,
+      pdf: { entity: "quote", id, revisionId: detail.revision.id },
+    },
+  ]);
+  if (!queued) throw new ServiceError("Email is busy right now; try again in a minute");
+}
+
+/**
+ * FR-QT-09: reopen a sent quote as a draft for the next revision. It keeps its
+ * number; the client keeps seeing the sent revision (approval paused) until
+ * the revision is sent or discarded.
+ */
+export async function reviseQuote(ctx: RequestContext, id: string) {
+  const detail = await getQuote(ctx, id);
+  if (!detail) throw new ServiceError("This quote no longer exists");
+  const { quote } = detail;
+  quoteTransitionOrFail(quote.status, "revise");
+  const { header: _header, ...content } = detail.content;
+  await ctx.db.batch([
+    ctx.db
+      .update(schema.quote)
+      .set({
+        status: "draft",
+        draftContent: content,
+        draftTotalCents: detail.totals.computed.totalCents,
+        draftVersion: sql`${schema.quote.draftVersion} + 1`,
+        updatedAt: nowIso(),
+      })
+      .where(and(eq(schema.quote.id, id), eq(schema.quote.status, quote.status))),
+    requireChanged(ctx, id),
+    audit(ctx, id, "quote.revision_started", { from: quote.status, revision: (detail.revisionNo ?? 0) + 1 }),
+  ]);
+}
+
+/** Throw away an unsent revision: the quote goes back to the revision the client has. */
+export async function discardRevision(ctx: RequestContext, id: string) {
+  const [row] = await ctx.db
+    .select()
+    .from(schema.quote)
+    .where(and(eq(schema.quote.id, id), eq(schema.quote.businessId, ctx.user.businessId)));
+  if (!row?.currentRevisionId || row.status !== "draft")
+    throw new ServiceError("There's no revision to discard");
+  const [revision] = await ctx.db
+    .select()
+    .from(schema.quoteRevision)
+    .where(eq(schema.quoteRevision.id, row.currentRevisionId));
+  if (!revision) throw new ServiceError("There's no revision to discard");
+  const [started] = await ctx.db
+    .select({ data: schema.activity.data })
+    .from(schema.activity)
+    .where(
+      and(
+        eq(schema.activity.entityType, "quote"),
+        eq(schema.activity.entityId, id),
+        eq(schema.activity.action, "quote.revision_started"),
+      ),
+    )
+    .orderBy(desc(schema.activity.at))
+    .limit(1);
+  const previous = (started?.data?.from as QuoteStatus | undefined) ?? "sent";
+  const header = revision.content.header;
+  await ctx.db.batch([
+    ctx.db
+      .update(schema.quote)
+      .set({
+        status: previous,
+        draftContent: null,
+        draftVersion: sql`${schema.quote.draftVersion} + 1`,
+        depositType: revision.depositType,
+        depositValue: revision.depositValue,
+        ...(header && {
+          title: header.title,
+          clientId: header.clientId,
+          siteId: header.siteId,
+          validUntil: header.validUntil,
+        }),
+        updatedAt: nowIso(),
+      })
+      .where(and(eq(schema.quote.id, id), eq(schema.quote.status, "draft"))),
+    requireChanged(ctx, id),
+    audit(ctx, id, "quote.revision_discarded", { back_to: previous }),
+  ]);
+}
+
+/** FR-QT-11: one tap gives an expired (or about to expire) quote the default validity again. */
+export async function extendQuote(ctx: RequestContext, id: string) {
+  const [row] = await ctx.db
+    .select({ status: schema.quote.status })
+    .from(schema.quote)
+    .where(and(eq(schema.quote.id, id), eq(schema.quote.businessId, ctx.user.businessId)));
+  if (!row) throw new ServiceError("This quote no longer exists");
+  const [settings] = await ctx.db
+    .select({ days: schema.settings.quoteValidDays })
+    .from(schema.settings)
+    .where(eq(schema.settings.businessId, ctx.user.businessId));
+  const open: QuoteStatus[] = ["sent", "viewed", "changes_requested"];
+  const status = open.includes(row.status) ? row.status : quoteTransitionOrFail(row.status, "extend");
+  const validUntil = addDays(businessToday(), settings?.days ?? 30);
+  await ctx.db.batch([
+    ctx.db
+      .update(schema.quote)
+      .set({ status, validUntil, updatedAt: nowIso() })
+      .where(and(eq(schema.quote.id, id), eq(schema.quote.status, row.status))),
+    requireChanged(ctx, id),
+    audit(ctx, id, "quote.extended", { validUntil }),
+  ]);
+  return validUntil;
+}
+
+/** SPEC 8.4: a new link; the old one stops working at once. */
+export async function rotateQuoteLink(ctx: RequestContext, id: string) {
+  const [row] = await ctx.db
+    .select({ revision: schema.quote.currentRevisionId })
+    .from(schema.quote)
+    .where(and(eq(schema.quote.id, id), eq(schema.quote.businessId, ctx.user.businessId)));
+  if (!row?.revision) throw new ServiceError("This quote hasn't been sent yet");
+  const salt = newShareSalt();
+  const token = await shareToken(ctx.env.BETTER_AUTH_SECRET, "quote", id, salt);
+  await ctx.db.batch([
+    ctx.db
+      .update(schema.quote)
+      .set({ shareTokenSalt: salt, shareTokenHash: await hashShareToken(token), updatedAt: nowIso() })
+      .where(eq(schema.quote.id, id)),
+    audit(ctx, id, "quote.link_rotated"),
+  ]);
+}
+
+/** For the Send sheet: the number a first send will most likely get, and the email wording. */
+export async function sendSetup(ctx: Ctx) {
+  const [[seq], [settings]] = await Promise.all([
+    ctx.db
+      .select({ prefix: schema.sequence.prefix, next: schema.sequence.nextValue })
+      .from(schema.sequence)
+      .where(and(eq(schema.sequence.businessId, ctx.user.businessId), eq(schema.sequence.kind, "quote"))),
+    ctx.db
+      .select({ emailTemplates: schema.settings.emailTemplates })
+      .from(schema.settings)
+      .where(eq(schema.settings.businessId, ctx.user.businessId)),
+  ]);
+  const defaults = EMAIL_TEMPLATE_DEFAULTS.quote_sent!;
+  return {
+    nextNumber: seq ? `${seq.prefix}${seq.next}` : null,
+    wording: settings?.emailTemplates.quote_sent ?? { subject: defaults.subject, body: defaults.body },
+  };
+}
+
+/** Timeline for the quote screen: activity, emails with delivery status, the approval. */
+export async function quoteHistory(ctx: Ctx, id: string) {
+  const [events, emails, acceptance] = await Promise.all([
+    ctx.db
+      .select()
+      .from(schema.activity)
+      .where(
+        and(
+          eq(schema.activity.businessId, ctx.user.businessId),
+          eq(schema.activity.entityType, "quote"),
+          eq(schema.activity.entityId, id),
+        ),
+      )
+      .orderBy(desc(schema.activity.at))
+      .limit(50),
+    ctx.db
+      .select({
+        id: schema.emailMessage.id,
+        template: schema.emailMessage.template,
+        to: schema.emailMessage.to,
+        subject: schema.emailMessage.subject,
+        status: schema.emailMessage.status,
+        error: schema.emailMessage.error,
+        createdAt: schema.emailMessage.createdAt,
+        updatedAt: schema.emailMessage.updatedAt,
+      })
+      .from(schema.emailMessage)
+      .where(
+        and(
+          eq(schema.emailMessage.businessId, ctx.user.businessId),
+          eq(schema.emailMessage.entityType, "quote"),
+          eq(schema.emailMessage.entityId, id),
+        ),
+      )
+      .orderBy(desc(schema.emailMessage.createdAt)),
+    ctx.db
+      .select({
+        signerName: schema.quoteAcceptance.signerName,
+        signerEmail: schema.quoteAcceptance.signerEmail,
+        acceptedAt: schema.quoteAcceptance.acceptedAt,
+        acceptedTotalCents: schema.quoteAcceptance.acceptedTotalCents,
+        selectedOptionLineIds: schema.quoteAcceptance.selectedOptionLineIds,
+        signatureSvg: schema.quoteAcceptance.signatureSvg,
+        revisionNo: schema.quoteRevision.revisionNo,
+      })
+      .from(schema.quoteAcceptance)
+      .innerJoin(schema.quoteRevision, eq(schema.quoteRevision.id, schema.quoteAcceptance.quoteRevisionId))
+      .where(eq(schema.quoteRevision.quoteId, id))
+      .orderBy(desc(schema.quoteAcceptance.acceptedAt))
+      .limit(1),
+  ]);
+  // Failed, or still queued after two minutes: the screen offers a retry.
+  const stuckBefore = new Date(Date.now() - 120_000).toISOString();
+  return {
+    events,
+    emails: emails.map((e) => ({
+      ...e,
+      stuck: e.status === "failed" || (e.status === "queued" && e.createdAt < stuckBefore),
+    })),
+    acceptance: acceptance[0] ?? null,
+  };
 }

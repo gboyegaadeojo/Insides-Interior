@@ -10,14 +10,8 @@ import { EmptyState } from "~/components/ui/states";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MoneyText } from "~/components/ui/text";
 import { formatCents } from "~/domain/money";
-import {
-  awaitingSummary,
-  createQuote,
-  listQuotes,
-  QUOTE_FILTERS,
-  QUOTE_PAGE_SIZE,
-  type QuoteFilter,
-} from "~/features/quotes/service";
+import { QUOTE_FILTERS, QUOTE_PAGE_SIZE, type QuoteFilter } from "~/features/quotes/filters";
+import { awaitingSummary, createQuote, listQuotes } from "~/features/quotes/service";
 import { NewQuoteButton } from "~/features/quotes/ui/new-quote-button";
 import { formatDate } from "~/lib/dates";
 import type { AppHandle } from "~/lib/route-handle";

@@ -30,6 +30,11 @@ export default [
       route("data", "routes/settings/data.tsx"),
     ]),
   ]),
+  route("quotes/:id/pdf", "routes/quotes.$id.pdf.ts"),
+  // Client portal (SPEC 6.8): token-only, no app shell.
+  route("q/:token", "routes/q.$token.tsx"),
+  route("q/:token/pdf", "routes/q.$token.pdf.ts"),
+  route("api/webhooks/resend", "routes/api.webhooks.resend.ts"),
   route("sign-in", "routes/sign-in.tsx"),
   route("sign-out", "routes/sign-out.ts"),
   route("design", "routes/design.tsx"),
@@ -41,7 +46,4 @@ export default [
   route("api/auth/*", "routes/api.auth.$.ts"),
   route("api/preferences", "routes/api.preferences.ts"),
   route("api/test/sign-in", "routes/api.test.sign-in.ts"),
-  // Phase 0 PDF spike (SPEC 10.4). Remove once the real portal print route exists.
-  route("spike/pdf-sample", "routes/spike.pdf-sample.tsx"),
-  route("spike/pdf", "routes/spike.pdf.ts"),
 ] satisfies RouteConfig;

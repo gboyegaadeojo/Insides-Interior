@@ -19,10 +19,32 @@ const LABELS: Record<string, string> = {
   "project.active": "Project reopened",
   "project.archived": "Project archived",
   "project.cover_updated": "Cover photo changed",
+  "quote.created": "Draft started",
+  "quote.duplicated": "Duplicated",
+  "quote.sent": "Sent",
+  "quote.revision_started": "Revision started",
+  "quote.revision_discarded": "Revision discarded",
+  "quote.revision_sent": "Revision sent",
+  "quote.viewed": "Opened by the client",
+  "quote.approved": "Approved",
+  "quote.changes_requested": "Changes requested",
+  "quote.expired": "Expired",
+  "quote.extended": "Valid-until date extended",
+  "quote.link_rotated": "New client link made",
+  "quote.email_retried": "Email retried",
+};
+
+const DETAIL: Record<string, (data: Record<string, unknown>) => string | undefined> = {
+  "quote.sent": (d) => (d.to ? `to ${d.to}` : undefined),
+  "quote.revision_sent": (d) => (d.revision ? `rev ${d.revision}${d.to ? ` to ${d.to}` : ""}` : undefined),
+  "quote.approved": (d) => (d.signer ? `by ${d.signer}` : undefined),
+  "quote.changes_requested": (d) => (d.name ? `by ${d.name}` : undefined),
 };
 
 export function activityLabel(action: string, data?: Record<string, unknown> | null): string {
   const base = LABELS[action] ?? action.replaceAll(/[._]/g, " ").replace(/^\w/, (c) => c.toUpperCase());
+  const extra = data ? DETAIL[action]?.(data) : undefined;
+  if (extra) return `${base} ${extra}`;
   const detail = (data?.contact ?? data?.site) as string | undefined;
   return detail ? `${base}: ${detail}` : base;
 }

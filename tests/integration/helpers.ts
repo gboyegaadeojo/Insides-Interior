@@ -3,7 +3,23 @@ import { getDb } from "~/server/db";
 import { SEED_IDS, seedStatements } from "~/server/db/seed-sql";
 import type { RequestContext } from "~/server/session";
 
-export const testEnv = env as unknown as Env;
+/**
+ * Jobs the code put on the queue. Tests run the consumer themselves
+ * (processEmailJob); a real queue would deliver after the test has finished.
+ */
+export const queuedJobs: unknown[] = [];
+
+export const testEnv = {
+  ...(env as unknown as Env),
+  JOBS: {
+    async send(body: unknown) {
+      queuedJobs.push(body);
+    },
+    async sendBatch(messages: Iterable<{ body: unknown }>) {
+      for (const m of messages) queuedJobs.push(m.body);
+    },
+  } as unknown as Queue,
+} as Env;
 
 export const OWNER_EMAIL = "owner@example.com";
 

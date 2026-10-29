@@ -118,6 +118,8 @@ export function useDraft(opts: { quoteId: string; initial: Draft; version: numbe
   const [fieldError, setFieldError] = React.useState<{ field: string; message: string } | null>(null);
   const draftRef = React.useRef(draft);
   const versionRef = React.useRef(opts.version);
+  // The saved version as state too, so Send posts exactly what the server has.
+  const [version, setVersion] = React.useState(opts.version);
   const timer = React.useRef<ReturnType<typeof setTimeout>>(undefined);
   const inFlight = React.useRef(false);
   const again = React.useRef(false);
@@ -145,6 +147,7 @@ export function useDraft(opts: { quoteId: string; initial: Draft; version: numbe
       const result = (await response.json()) as SaveResponse | SaveError;
       if (result.ok) {
         versionRef.current = result.version;
+        setVersion(result.version);
         setFieldError(null);
         // Saved only describes what's on the server: if more edits came in, say so.
         setStatus(
@@ -192,5 +195,16 @@ export function useDraft(opts: { quoteId: string; initial: Draft; version: numbe
   }, [conflict, save]);
 
   const dirty = status.state !== "saved";
-  return { draft, dispatch, status, conflict, overwrite, retry: save, saveNow: save, dirty, fieldError };
+  return {
+    draft,
+    dispatch,
+    status,
+    conflict,
+    overwrite,
+    retry: save,
+    saveNow: save,
+    dirty,
+    fieldError,
+    version,
+  };
 }

@@ -68,7 +68,7 @@ test("brand colour checks contrast and suggests a darker shade (FR-SET-09)", asy
 test("email template preview fills merge fields (FR-SET-07)", async ({ page }) => {
   await openSection(page, "Email");
   await page.getByLabel("Subject").fill("Hello {client.firstName} about {quote.number} {oops}");
-  await expect(page.getByText("Hello Amelia about Q-1042 {oops}")).toBeVisible();
+  await expect(page.getByText("Hello Amaka about Q-1042 {oops}")).toBeVisible();
   await expect(page.getByText(/Not recognised: \{oops\}/)).toBeVisible();
 });
 
