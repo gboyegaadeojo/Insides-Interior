@@ -8,13 +8,15 @@ import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ConfirmDelete } from "~/components/ui/confirm-delete";
 import { EmptyState } from "~/components/ui/states";
-import { StatusBadge } from "~/components/ui/status-badge";
 import { MoneyText } from "~/components/ui/text";
-import { formatCents } from "~/domain/money";
-import { QUOTE_FILTERS, QUOTE_PAGE_SIZE, type QuoteFilter } from "~/features/quotes/filters";
-import { awaitingSummary, createQuote, deleteDraft, listQuotes } from "~/features/quotes/service";
+import { JOB_FILTER_LABELS, JOB_FILTERS, type JobFilter } from "~/features/jobs/filters";
+import { listJobs } from "~/features/jobs/service";
+import { JobActionButton, StepBar } from "~/features/jobs/ui/job-steps";
+import { QUOTE_PAGE_SIZE } from "~/features/quotes/filters";
+import { createQuote, deleteDraft } from "~/features/quotes/service";
 import { NewQuoteButton } from "~/features/quotes/ui/new-quote-button";
 import { formatDate } from "~/lib/dates";
+import { cn } from "~/lib/utils";
 import type { AppHandle } from "~/lib/route-handle";
 import { assertSameOrigin, requireUser } from "~/server/session";
 import type { Route } from "./+types/_app.quotes";
@@ -28,23 +30,12 @@ export function meta() {
 export async function loader({ request, context }: Route.LoaderArgs) {
   const ctx = await requireUser(context.cloudflare.env, request);
   const url = new URL(request.url);
-  const filter = (QUOTE_FILTERS.find((f) => f === url.searchParams.get("status")) ?? "all") as QuoteFilter;
+  // Owner request: jobs by step (Needs you, Waiting on client, Complete, All).
+  const filter = (JOB_FILTERS.find((f) => f === url.searchParams.get("step")) ?? "all") as JobFilter;
   const query = url.searchParams.get("q") ?? "";
   const limit = Math.max(QUOTE_PAGE_SIZE, Number(url.searchParams.get("show")) || 0);
-  const [{ quotes, counts, hasMore }, awaiting] = await Promise.all([
-    listQuotes(ctx, { filter, query, limit }),
-    awaitingSummary(ctx),
-  ]);
-  return {
-    quotes,
-    counts,
-    hasMore,
-    limit,
-    filter,
-    query,
-    awaitingCount: awaiting.count,
-    awaitingCents: awaiting.totalCents,
-  };
+  const { jobs, counts, hasMore } = await listJobs(ctx, { filter, query, limit });
+  return { jobs, counts, hasMore, limit, filter, query };
 }
 
 /** + New quote: creates a draft (no number yet, FR-QT-07) and opens the builder. */
@@ -66,15 +57,6 @@ export async function action({ request, context }: Route.ActionArgs) {
   return redirect(`/quotes/${id}`);
 }
 
-const LABELS: Record<QuoteFilter, string> = {
-  all: "All",
-  draft: "Draft",
-  sent: "Sent",
-  changes_requested: "Changes requested",
-  approved: "Approved",
-  closed: "Declined / expired",
-};
-
 export default function Quotes({ loaderData }: Route.ComponentProps) {
   const { pathname } = useLocation();
   const [params, setParams] = useSearchParams();
@@ -82,29 +64,30 @@ export default function Quotes({ loaderData }: Route.ComponentProps) {
   const timer = React.useRef<ReturnType<typeof setTimeout>>(undefined);
   if (pathname !== "/quotes" && pathname !== "/quotes/") return <Outlet />;
 
-  const { quotes, counts, filter, query } = loaderData;
+  const { jobs, counts, filter, query } = loaderData;
   return (
     <>
       <ModuleHeader
         eyebrow="Quotes"
         summary={
-          counts.all === 0
+          counts.all === 0 && !query
             ? "No quotes yet"
-            : `${loaderData.awaitingCount} awaiting answer · ${formatCents(loaderData.awaitingCents)} out · ${counts.draft} draft${counts.draft === 1 ? "" : "s"}`
+            : `${counts.all} job${counts.all === 1 ? "" : "s"} · ${counts.needs} need${counts.needs === 1 ? "s" : ""} you now`
         }
         action={<NewQuoteButton />}
       />
       <div className="mb-4 flex flex-col gap-3">
         <SegmentedControl
-          label="Quote status"
+          label="Show"
           value={filter}
-          onValueChange={(status) => {
+          onValueChange={(step) => {
             const p = new URLSearchParams(params);
-            if (status === "all") p.delete("status");
-            else p.set("status", status);
+            if (step === "all") p.delete("step");
+            else p.set("step", step);
+            p.delete("show");
             setParams(p, { preventScrollReset: true });
           }}
-          segments={QUOTE_FILTERS.map((f) => ({ value: f, label: LABELS[f], count: counts[f] }))}
+          segments={JOB_FILTERS.map((f) => ({ value: f, label: JOB_FILTER_LABELS[f], count: counts[f] }))}
         />
         <Form
           method="get"
@@ -115,7 +98,7 @@ export default function Quotes({ loaderData }: Route.ComponentProps) {
             timer.current = setTimeout(() => submit(form, { replace: true, preventScrollReset: true }), 250);
           }}
         >
-          {filter !== "all" && <input type="hidden" name="status" value={filter} />}
+          {filter !== "all" && <input type="hidden" name="step" value={filter} />}
           <label className="relative block max-w-xl">
             <span className="sr-only">Search quotes</span>
             <Search
@@ -133,8 +116,8 @@ export default function Quotes({ loaderData }: Route.ComponentProps) {
         </Form>
       </div>
 
-      {quotes.length === 0 ? (
-        counts.all === 0 ? (
+      {jobs.length === 0 ? (
+        counts.all === 0 && !query ? (
           <EmptyState
             icon={FileText}
             tone="plum"
@@ -160,11 +143,11 @@ export default function Quotes({ loaderData }: Route.ComponentProps) {
           className="@container divide-y divide-border overflow-hidden rounded-card border border-border bg-surface shadow-card"
           aria-label="Quotes"
         >
-          {quotes.map((q) => (
-            <li key={q.id} className="flex items-center">
+          {jobs.map((q) => (
+            <li key={q.id} className="flex items-center gap-2 pr-3">
               <Link
                 to={`/quotes/${q.id}`}
-                className="grid min-h-16 min-w-0 flex-1 grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 px-4 py-3 transition-colors duration-fast hover:bg-surface-2 @2xl:grid-cols-[auto_minmax(0,2fr)_minmax(0,1fr)_8rem_9rem]"
+                className="grid min-h-16 min-w-0 flex-1 grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-2 px-4 py-3 transition-colors duration-fast hover:bg-surface-2 @3xl:grid-cols-[auto_minmax(0,1.3fr)_minmax(0,1.4fr)_8rem]"
               >
                 {q.clientName ? (
                   <Avatar name={q.clientName} />
@@ -172,26 +155,49 @@ export default function Quotes({ loaderData }: Route.ComponentProps) {
                   <span className="size-9 rounded-full border border-dashed border-tertiary" aria-hidden />
                 )}
                 <span className="min-w-0">
-                  <span className="block truncate font-semibold">
-                    {q.number ?? "Draft"}
-                    {q.title && <span className="font-normal text-secondary"> · {q.title}</span>}
-                  </span>
+                  <span className="block truncate font-semibold">{q.clientName ?? "No client yet"}</span>
                   <span className="block truncate text-label font-normal text-secondary">
-                    {q.clientName ?? "No client yet"}
+                    {q.number ?? "Draft"}
+                    {q.title && ` · ${q.title}`}
                   </span>
                 </span>
-                <span className="hidden text-label font-normal text-secondary @2xl:block">
-                  {q.validUntil ? `Valid until ${formatDate(q.validUntil)}` : ""}
+                <span className="col-span-3 min-w-0 @3xl:col-span-1 @3xl:col-start-3 @3xl:row-start-1">
+                  <StepBar stage={q.stage} className="max-w-72" />
+                  <span
+                    className={cn(
+                      "mt-1.5 block truncate text-label font-semibold",
+                      q.stage.group === "complete"
+                        ? "text-sage-ink"
+                        : q.stage.action
+                          ? "text-accent"
+                          : "text-secondary",
+                    )}
+                    data-testid="job-step"
+                  >
+                    Step {q.stage.step} of 7 · {q.stage.headline}
+                    {q.stage.group === "waiting" && q.validUntil && (
+                      <span className="font-normal"> · valid until {formatDate(q.validUntil)}</span>
+                    )}
+                  </span>
                 </span>
-                <MoneyText cents={q.totalCents} className="text-right font-semibold" />
-                <span className="col-span-3 justify-self-start @2xl:col-span-1 @2xl:justify-self-end">
-                  <StatusBadge status={q.status} size="sm" />
-                </span>
+                <MoneyText
+                  cents={q.totalCents}
+                  className="row-start-1 text-right font-semibold @3xl:col-start-4"
+                />
               </Link>
+              {q.stage.action && q.stage.action.kind !== "continue_quote" && (
+                <JobActionButton
+                  stage={q.stage}
+                  quoteId={q.id}
+                  size="md"
+                  variant={q.stage.group === "now" ? "primary" : "secondary"}
+                  className="hidden w-60 shrink-0 tablet:inline-flex"
+                />
+              )}
               {q.status === "draft" && !q.number && (
                 <ConfirmDelete
                   iconOnly
-                  className="mr-2 shrink-0"
+                  className="shrink-0"
                   label="Delete this draft quote"
                   title="Delete this draft quote?"
                   description="It hasn't been sent, so nothing reaches the client. This can't be undone."

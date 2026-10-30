@@ -29,6 +29,7 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { toast } from "~/components/ui/toast";
 import { computeContent, depositFrom } from "~/domain/document";
+import { jobSentence, jobStage } from "~/domain/job";
 import { canQuote } from "~/domain/lifecycle";
 import { formatBp, formatCents, parseMoneyToCents } from "~/domain/money";
 import { applySelection, isPastValidUntil } from "~/domain/portal";
@@ -64,6 +65,7 @@ import {
   RevisionRequests,
 } from "~/features/conversations/ui/conversation-sheet";
 import { ThreadPanel } from "~/features/conversations/ui/thread-panel";
+import { JobActionButton, JobSteps, NextStepCard, NextStepInline } from "~/features/jobs/ui/job-steps";
 import { BuilderWorkspace } from "~/features/documents/ui/builder-workspace";
 import { ClientLinkCard, HistoryCard } from "~/features/documents/ui/history-card";
 import { SendSheet } from "~/features/documents/ui/send-sheet";
@@ -115,12 +117,24 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     })),
   );
   const { shareTokenHash: _hash, shareTokenSalt: _salt, ...quote } = detail.quote;
+  const issuedOn = detail.revision?.sentAt ? businessToday(new Date(detail.revision.sentAt)) : null;
+  const acceptedAt = history?.acceptance?.acceptedAt;
+  // Owner request: every quote is a job moving through seven steps.
+  const stage = jobStage({
+    quoteStatus: quote.status,
+    pastValidUntil: isPastValidUntil(quote.validUntil, businessToday()),
+    hasDeposit: !!quote.depositType && !!quote.depositValue,
+    sentOn: issuedOn,
+    approvedOn: acceptedAt ? businessToday(new Date(acceptedAt)) : null,
+    invoices: invoices.map((i) => ({ ...i, balanceCents: 0 })),
+  });
   return {
     quote,
+    stage,
     content: detail.content,
     revisionNo: detail.revisionNo,
     revising: detail.revising,
-    issuedOn: detail.revision?.sentAt ? businessToday(new Date(detail.revision.sentAt)) : null,
+    issuedOn,
     history,
     invoices,
     sendSetup: setup,
@@ -166,7 +180,7 @@ export async function action({ request, params, context }: Route.ActionArgs) {
         return redirect(`/quotes/${await duplicateQuote(ctx, params.id)}`);
       case "delete":
         await deleteDraft(ctx, params.id);
-        return redirect("/quotes?status=draft");
+        return redirect("/quotes");
       case "send": {
         const parsed = sendQuoteSchema.safeParse(Object.fromEntries(form));
         if (!parsed.success) {
@@ -337,6 +351,15 @@ function SentQuote({ data }: { data: LoaderData }) {
   const busy = (intent: string) =>
     navigation.state !== "idle" && navigation.formData?.get("intent") === intent;
 
+  const stage = data.stage;
+  const sentence = jobSentence(stage, {
+    clientFirstName: data.client?.name.split(/s+/)[0] ?? "",
+    depositAmount: props.totals.depositCents ? formatCents(props.totals.depositCents) : undefined,
+    balance: props.totals.depositCents ? formatCents(props.totals.balanceCents) : undefined,
+    sentOn: data.issuedOn ? formatDate(data.issuedOn) : undefined,
+    approvedOn: stage.steps[1]?.date ? formatDate(stage.steps[1].date) : undefined,
+  });
+  const nextButton = <JobActionButton stage={stage} quoteId={data.quote.id} className="w-full" />;
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
@@ -380,6 +403,15 @@ function SentQuote({ data }: { data: LoaderData }) {
           )}
         </div>
       </div>
+
+      <div>
+        <h1 className="text-display">{data.quote.title || data.quote.number}</h1>
+        <p className="mt-1 text-secondary">
+          {data.client?.name ?? "No client"} · {formatCents(props.totals.computed.totalCents)}
+        </p>
+      </div>
+      <JobSteps stage={stage} next={<NextStepInline sentence={sentence} button={nextButton} />} />
+      <NextStepCard stage={stage} sentence={sentence} button={stage.action ? nextButton : null} />
 
       <SentDocumentLayout
         document={

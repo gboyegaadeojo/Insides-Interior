@@ -121,7 +121,11 @@ test("F1 quote → F2 deposit invoice → payment → F3 final invoice (SPEC 10.
   const drafted = page.getByRole("list", { name: "Invoices for this quote" }).getByRole("link");
   await expect(drafted).toHaveCount(1);
   await expect(drafted).toContainText("Draft");
-  await expect(page.getByRole("button", { name: "Deposit invoice" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Deposit invoice", exact: true })).toHaveCount(0);
+  // The job steps say where it is and what to do next (owner request).
+  await expect(page.getByTestId("job-steps")).toContainText("Step 3 of 7");
+  await expect(page.getByRole("link", { name: "Check and send deposit invoice" })).toBeVisible();
+  await shot(page, "job-step-3");
   await drafted.click();
   await expect(page).toHaveURL(/\/invoices\/inv_/);
   const quoteNumber = (await page.getByText(/Deposit invoice for quote Q-\d+/).textContent())!.match(
@@ -166,7 +170,9 @@ test("F1 quote → F2 deposit invoice → payment → F3 final invoice (SPEC 10.
 
   // F3: the final invoice credits the deposit and comes to the rest exactly.
   await page.goto(quoteUrl);
-  await page.getByRole("button", { name: "Final invoice" }).click();
+  await expect(page.getByTestId("job-steps")).toContainText("Step 5 of 7");
+  await shot(page, "job-step-5");
+  await page.getByRole("button", { name: "Job finished: final invoice" }).click();
   await expect(page).toHaveURL(/\/invoices\/inv_/);
   await expect(page.getByText(/Less deposit invoice INV-\d+/).first()).toBeVisible();
   await expect(page.getByTestId("quote-total")).toHaveText("₦60,975.28");

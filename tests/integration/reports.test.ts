@@ -23,6 +23,7 @@ import {
   sendInvoice,
   voidInvoice,
 } from "~/features/invoices/service";
+import { createQuote } from "~/features/quotes/service";
 import { createProject } from "~/features/projects/service";
 import {
   agedReceivables,
@@ -295,13 +296,23 @@ describe("reports reconcile to source rows (SPEC 5.11)", () => {
     expect(chart[0]!.revenueCents).toBe(monthRevenue!.cents);
   });
 
-  it("Needs you lists overdue invoices, quotes awaiting and drafts with one action each", async () => {
+  it("What to do next groups open jobs by their next step, one action each (owner request)", async () => {
     const ctx = ownerContext();
     const draft = await createInvoice(ctx);
-    const items = await needsYou(ctx, 20);
-    const mine = items.find((x) => x.key === draft);
-    expect(mine).toMatchObject({ kind: "draft", action: "Continue", to: `/invoices/${draft}` });
-    expect(items.every((x) => x.action && x.to.startsWith("/"))).toBe(true);
+    const quoteId = await createQuote(ctx);
+    const groups = await needsYou(ctx, 500);
+    const now = groups.find((g) => g.key === "now")!;
+    expect(now.items.find((x) => x.key === draft)).toMatchObject({
+      kind: "draft",
+      action: "Continue",
+      to: `/invoices/${draft}`,
+    });
+    expect(now.items.find((x) => x.key === quoteId)).toMatchObject({
+      kind: "job",
+      action: "Continue the quote",
+      line: "Step 1 of 7 · Finish and send the quote",
+    });
+    for (const g of groups) expect(g.items.every((x) => x.to.startsWith("/"))).toBe(true);
   });
 });
 

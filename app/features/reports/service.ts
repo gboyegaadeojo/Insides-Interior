@@ -9,7 +9,9 @@ import { ageBalances, cashShare, expenseNetCents, monthKeys } from "~/domain/rep
 import { OUTSTANDING } from "~/features/invoices/service";
 import { awaitingSummary } from "~/features/quotes/service";
 import { listThreads } from "~/features/conversations/service";
-import { businessToday } from "~/lib/dates";
+import { type Job, jobsByNextStep } from "~/features/jobs/service";
+import { formatCents } from "~/domain/money";
+import { businessToday, formatDate } from "~/lib/dates";
 import { schema } from "~/server/db";
 import type { RequestContext } from "~/server/session";
 import { csvMoney, toCsv } from "~/lib/csv";
@@ -84,24 +86,44 @@ export async function homeKpis(ctx: Ctx) {
 
 export type NeedsItem = {
   key: string;
-  kind: "overdue" | "request" | "message" | "awaiting" | "draft";
+  kind: "request" | "message" | "overdue" | "draft" | "job";
   status: string;
+  /** "Quote Q-1004", "Invoice INV-1007". */
   title: string;
   clientName: string | null;
-  /** Balance (overdue) or quote total (awaiting). */
-  amountCents?: number;
-  /** Due date (overdue) or valid-until (awaiting). */
-  date?: string | null;
-  /** Message preview, request count or draft kind. */
-  note?: string;
+  /** One line under the name: the step, a balance or a message preview. */
+  line: string;
   to: string;
-  action: string;
+  /** Button label; null when nothing is needed (waiting on the client). */
+  action: string | null;
+  /** A job's step: the screen renders its own button (some steps post a form). */
+  job?: { quoteId: string; stage: Job["stage"] };
 };
 
-/** "Needs you" (SPEC 6.8 Home): overdue, change requests, quotes awaiting, drafts. */
-export async function needsYou(ctx: Ctx, limit = 8): Promise<NeedsItem[]> {
-  const q = schema.quote;
-  const [overdue, threads, awaiting, quoteDrafts, invoiceDrafts] = await Promise.all([
+export type NeedsGroup = {
+  key: "now" | "money" | "finish" | "waiting";
+  title: string;
+  /** All in the group; items holds the first few. */
+  total: number;
+  items: NeedsItem[];
+};
+
+const GROUP_TITLES: Record<NeedsGroup["key"], string> = {
+  now: "Do these now",
+  money: "Money to collect",
+  finish: "When the work is finished",
+  waiting: "Waiting on clients",
+};
+
+/**
+ * Home "What to do next" (owner request, mockup approved 2026-10-30): every
+ * open job by its next step, plus client messages, overdue invoices not from
+ * a quote and unsent invoice drafts. Each item has one action.
+ */
+export async function needsYou(ctx: Ctx, perGroup = 5): Promise<NeedsGroup[]> {
+  const [jobs, threads, overdue, invoiceDrafts] = await Promise.all([
+    jobsByNextStep(ctx, perGroup),
+    listThreads(ctx, { filter: "open", limit: perGroup }),
     ctx.db
       .select({
         id: i.id,
@@ -113,95 +135,114 @@ export async function needsYou(ctx: Ctx, limit = 8): Promise<NeedsItem[]> {
       .from(i)
       .innerJoin(r, eq(r.id, i.currentRevisionId))
       .leftJoin(schema.client, eq(schema.client.id, i.clientId))
-      .where(and(eq(i.businessId, ctx.user.businessId), eq(i.status, "overdue")))
+      // Invoices from a quote show as that job's "Record payment" step.
+      .where(and(eq(i.businessId, ctx.user.businessId), eq(i.status, "overdue"), isNull(i.quoteId)))
       .orderBy(asc(i.dueDate))
-      .limit(limit),
-    listThreads(ctx, { filter: "open", limit }),
-    ctx.db
-      .select({
-        id: q.id,
-        number: q.number,
-        status: q.status,
-        validUntil: q.validUntil,
-        clientName: schema.client.displayName,
-        totalCents: schema.quoteRevision.totalCents,
-      })
-      .from(q)
-      .innerJoin(schema.quoteRevision, eq(schema.quoteRevision.id, q.currentRevisionId))
-      .leftJoin(schema.client, eq(schema.client.id, q.clientId))
-      .where(and(eq(q.businessId, ctx.user.businessId), inArray(q.status, ["sent", "viewed"])))
-      .orderBy(asc(q.validUntil))
-      .limit(limit),
-    ctx.db
-      .select({ id: q.id, title: q.title, clientName: schema.client.displayName, updatedAt: q.updatedAt })
-      .from(q)
-      .leftJoin(schema.client, eq(schema.client.id, q.clientId))
-      .where(and(eq(q.businessId, ctx.user.businessId), eq(q.status, "draft")))
-      .orderBy(desc(q.updatedAt))
-      .limit(3),
+      .limit(perGroup),
     ctx.db
       .select({ id: i.id, title: i.title, clientName: schema.client.displayName, updatedAt: i.updatedAt })
       .from(i)
       .leftJoin(schema.client, eq(schema.client.id, i.clientId))
-      .where(and(eq(i.businessId, ctx.user.businessId), eq(i.status, "draft")))
+      .where(and(eq(i.businessId, ctx.user.businessId), eq(i.status, "draft"), isNull(i.quoteId)))
       .orderBy(desc(i.updatedAt))
       .limit(3),
   ]);
-  const items: NeedsItem[] = [
+
+  const jobItem = (job: Job): NeedsItem => {
+    const step = `Step ${job.stage.step} of 7`;
+    const detail =
+      job.stage.group === "money" && job.dueCents
+        ? `${formatCents(job.dueCents)} to collect`
+        : job.stage.group === "finish" && job.leftToBillCents
+          ? `${formatCents(job.leftToBillCents)} left to bill`
+          : job.stage.group === "waiting" && job.validUntil
+            ? `valid until ${formatDate(job.validUntil)}`
+            : job.stage.headline;
+    return {
+      key: job.id,
+      kind: "job",
+      status: job.status,
+      title: job.number ? `Quote ${job.number}` : job.title || "Draft quote",
+      clientName: job.clientName,
+      line: `${step} · ${detail}`,
+      to: `/quotes/${job.id}`,
+      action: job.stage.actionLabel,
+      job: { quoteId: job.id, stage: job.stage },
+    };
+  };
+
+  const now: NeedsItem[] = [
     // FR-MSG-09: change requests and unread messages lead.
     ...threads.map((t) => ({
       key: t.id,
       kind: t.openRequests > 0 ? ("request" as const) : ("message" as const),
       status: t.openRequests > 0 ? "changes_requested" : t.status,
       title: `${t.entityType === "quote" ? "Quote" : "Invoice"} ${t.number ?? ""}`.trim(),
-      note:
+      clientName: t.clientName,
+      line:
         t.openRequests > 0
           ? `${t.openRequests} change request${t.openRequests === 1 ? "" : "s"}`
           : (t.lastBody ?? "New message"),
-      clientName: t.clientName,
       to: `/inbox/${t.id}`,
       action: t.openRequests > 0 ? "Review" : "Reply",
     })),
+    // A change request already leads above; don't list its quote twice.
+    ...jobs.now.jobs
+      .filter(
+        (j) => !(j.stage.action?.kind === "review_changes" && threads.some((t) => t.number === j.number)),
+      )
+      .map(jobItem),
+    ...invoiceDrafts.map((d) => ({
+      key: d.id,
+      kind: "draft" as const,
+      status: "draft",
+      title: d.title || "Untitled invoice",
+      clientName: d.clientName,
+      line: "Draft invoice, not sent",
+      to: `/invoices/${d.id}`,
+      action: "Continue",
+    })),
+  ];
+  const money: NeedsItem[] = [
+    ...jobs.money.jobs.map(jobItem),
     ...overdue.map((x) => ({
       key: x.id,
       kind: "overdue" as const,
       status: "overdue",
       title: `Invoice ${x.number}`,
-      amountCents: x.balanceCents,
-      date: x.dueDate,
       clientName: x.clientName,
+      line: `${formatCents(x.balanceCents)} overdue${x.dueDate ? ` since ${formatDate(x.dueDate)}` : ""}`,
       to: `/invoices/${x.id}`,
       action: "Send reminder",
     })),
-    ...awaiting.map((x) => ({
-      key: x.id,
-      kind: "awaiting" as const,
-      status: x.status,
-      title: `Quote ${x.number}`,
-      amountCents: x.totalCents,
-      date: x.validUntil,
-      clientName: x.clientName,
-      to: `/quotes/${x.id}`,
-      action: "Follow up",
-    })),
-    ...[
-      ...quoteDrafts.map((d) => ({ ...d, noun: "quote" })),
-      ...invoiceDrafts.map((d) => ({ ...d, noun: "invoice" })),
-    ]
-      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
-      .slice(0, 3)
-      .map((d) => ({
-        key: d.id,
-        kind: "draft" as const,
-        status: "draft",
-        title: d.title || `Untitled ${d.noun}`,
-        note: d.noun === "quote" ? "Draft quote" : "Draft invoice",
-        clientName: d.clientName,
-        to: `/${d.noun}s/${d.id}`,
-        action: "Continue",
-      })),
   ];
-  return items.slice(0, limit);
+  const groups: NeedsGroup[] = [
+    {
+      key: "now",
+      title: GROUP_TITLES.now,
+      total: now.length - jobs.now.jobs.length + jobs.now.total,
+      items: now.slice(0, perGroup + 3),
+    },
+    {
+      key: "money",
+      title: GROUP_TITLES.money,
+      total: money.length - jobs.money.jobs.length + jobs.money.total,
+      items: money.slice(0, perGroup),
+    },
+    {
+      key: "finish",
+      title: GROUP_TITLES.finish,
+      total: jobs.finish.total,
+      items: jobs.finish.jobs.map(jobItem),
+    },
+    {
+      key: "waiting",
+      title: GROUP_TITLES.waiting,
+      total: jobs.waiting.total,
+      items: jobs.waiting.jobs.map(jobItem),
+    },
+  ];
+  return groups.filter((g) => g.items.length > 0);
 }
 
 /** Recent activity for Home, with the client behind each record for its avatar. */

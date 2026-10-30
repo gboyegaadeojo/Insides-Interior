@@ -112,7 +112,7 @@ test("flow 6: the payer asks to remove a line; the owner accepts and sends rev 2
 
   // The owner sees it in Home "Needs you" and the Inbox, opens the thread and accepts.
   await page.goto("/");
-  await expect(page.getByRole("region", { name: "Needs you" })).toContainText(clientName);
+  await expect(page.getByRole("region", { name: "What to do next" })).toContainText(clientName);
   await page.goto("/inbox");
   const row = page
     .getByRole("list", { name: "Conversations" })
