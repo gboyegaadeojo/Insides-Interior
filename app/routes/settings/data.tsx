@@ -36,7 +36,7 @@ export default function DataSettings() {
     <div className="flex flex-col gap-6">
       <SectionHeader
         title="Data"
-        description="Sent quotes and invoices are never deleted; records are kept at least six years for CRA."
+        description="Sent quotes and invoices are never deleted; records are kept at least six years, as Nigerian tax law requires."
       />
       <Card>
         <ul className="flex flex-col gap-5">

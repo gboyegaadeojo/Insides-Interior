@@ -1089,7 +1089,7 @@ Authenticated users act through server code that checks their role; anonymous cl
 ### 11.4 Privacy and record keeping
 
 - Personal information limited to what billing needs; PIPEDA applies. A short privacy notice is linked in every portal footer.
-- Business records kept at least six years for CRA; sent documents are never hard-deleted.
+- Business records kept at least six years (Nigerian tax law); sent documents are never hard-deleted.
 - Create D1 and R2 with a North America location hint.
 - No third-party trackers; only first-party portal view events.
 
