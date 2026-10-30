@@ -37,6 +37,6 @@ Miniflare; nothing touches Cloudflare.
 
 - Pull requests: CI runs `npm run check`, migrates and seeds the separate preview database, uploads a preview
   version at `https://pr-<number>-insides-interior-preview.insides-interior.workers.dev` and runs Playwright against it.
-- `main`: CI runs `npm run check`, applies D1 migrations and deploys to https://insides-interior.insides-interior.workers.dev.
+- `main`: CI runs `npm run check`, applies D1 migrations and deploys to https://app.insidesinteriors.com.
 - Repository secrets: `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`, `E2E_SECRET`.
 - Worker secrets (`npx wrangler secret put <NAME>`, add `--env preview` for previews): see `.dev.vars.example`.

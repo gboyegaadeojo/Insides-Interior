@@ -11,9 +11,11 @@
   "observability": { "enabled": true },
   "vars": {
     "APP_ENV": "production",
-    "APP_URL": "https://insides-interior.insides-interior.workers.dev",
-    // Extra origins allowed to sign in (comma separated, * wildcards).
-    "TRUSTED_ORIGINS": "",
+    // app.insidesinteriors.com is a Workers Custom Domain (attached 2026-10-30; see docs/runbook.md).
+    "APP_URL": "https://app.insidesinteriors.com",
+    // Extra origins allowed to sign in (comma separated, * wildcards). The old
+    // workers.dev address keeps working for links sent before the move.
+    "TRUSTED_ORIGINS": "https://insides-interior.insides-interior.workers.dev",
     "BUSINESS_TIMEZONE": "Africa/Lagos",
     // Verified in Resend on 2026-10-30 (insidesinteriors.com, via Cloudflare DNS). Replies go to the business email.
     "EMAIL_FROM": "Insides Interior <hello@insidesinteriors.com>",
