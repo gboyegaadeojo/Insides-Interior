@@ -24,6 +24,7 @@ import { createInvoiceOnApproval } from "~/features/invoices/service";
 import { ownerNotices } from "~/features/notifications/service";
 import { loadEmailBrand } from "~/features/settings/doc-business";
 import { businessToday } from "~/lib/dates";
+import { describeError } from "~/lib/describe-error";
 import { newId } from "~/lib/ids";
 import { activityInsert } from "~/server/audit";
 import { type Db, type DocumentContent, getDb, schema } from "~/server/db";
@@ -390,11 +391,7 @@ export async function approveQuote(env: Env, token: string, input: ApproveInput,
       }
     }
   } catch (error) {
-    console.error(
-      "auto invoice on approval failed",
-      quote.id,
-      error instanceof Error ? error.message : error,
-    );
+    console.error("auto invoice on approval failed", quote.id, describeError(error));
   }
   return { totalCents: totals.computed.totalCents, depositCents: totals.depositCents, projectId, invoiceId };
 }

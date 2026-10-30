@@ -289,7 +289,8 @@ describe("payments (FR-PAY-01…06, SPEC 8.3)", () => {
 
   it("moves the job through its steps as invoices go out and money comes in (owner request)", async () => {
     const { ctx, id, quoteId } = await sentDeposit();
-    const step = async () => (await jobsFor(ctx)).find((j) => j.id === quoteId)!.stage;
+    const step = async () =>
+      (await jobsFor(ctx, { where: eq(schema.quote.id, quoteId), limit: 1 })).jobs[0]!.stage;
     expect(await step()).toMatchObject({
       step: 4,
       group: "money",
@@ -303,6 +304,22 @@ describe("payments (FR-PAY-01…06, SPEC 8.3)", () => {
     });
     const { jobs } = await listJobs(ctx, { filter: "needs", limit: 1000 });
     expect(jobs.some((j) => j.id === quoteId)).toBe(true);
+  });
+
+  it("filters the Quotes list in SQL exactly as the steps group jobs", async () => {
+    const { ctx, id } = await sentDeposit();
+    await recordPayment(ctx, id, pay({ amountCents: "6097528" }));
+    await createQuote(ctx);
+    const groups = {
+      needs: ["now", "money", "finish"],
+      waiting: ["waiting"],
+      complete: ["complete"],
+    } as const;
+    for (const [filter, allowed] of Object.entries(groups)) {
+      const { jobs, counts } = await listJobs(ctx, { filter: filter as keyof typeof groups, limit: 1000 });
+      expect(jobs.length).toBe(counts[filter as keyof typeof groups]);
+      for (const job of jobs) expect(allowed as readonly string[]).toContain(job.stage.group);
+    }
   });
 
   it("lists a job as ready for its final invoice until one is made (owner request)", async () => {

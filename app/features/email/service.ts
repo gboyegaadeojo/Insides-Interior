@@ -4,6 +4,7 @@
 // idempotency key and records the Resend id; the webhook moves the status on.
 
 import { and, eq, isNull, sql } from "drizzle-orm";
+import { describeError } from "~/lib/describe-error";
 import type { BatchItem } from "drizzle-orm/batch";
 import { z } from "zod";
 import { documentPdf } from "~/features/documents/pdf";
@@ -107,7 +108,7 @@ export async function enqueue(env: Pick<Env, "JOBS">, jobs: Job[]): Promise<bool
     await env.JOBS.sendBatch(jobs.map((body) => ({ body })));
     return true;
   } catch (error) {
-    console.error("enqueue failed", error instanceof Error ? error.message : error);
+    console.error("enqueue failed", describeError(error));
     return false;
   }
 }

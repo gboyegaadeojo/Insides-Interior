@@ -557,6 +557,8 @@ export const invoice = sqliteTable(
     uniqueIndex("invoice_business_number_uq").on(t.businessId, t.number),
     index("invoice_business_status_idx").on(t.businessId, t.status),
     index("invoice_client_idx").on(t.clientId),
+    // Job steps and final invoices look invoices up by quote (D1 bills rows read).
+    index("invoice_quote_idx").on(t.quoteId),
     uniqueIndex("invoice_share_token_uq").on(t.shareTokenHash),
   ],
 );
