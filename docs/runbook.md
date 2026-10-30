@@ -4,15 +4,15 @@ How to deploy, roll back, restore data, rotate keys and move the old app's recor
 Insides Interior (SPEC 11.3, 12, 14.4 phase 10). Commands run from the repository root with
 `npx wrangler` signed in to the Insides Interior Cloudflare account (`npx wrangler whoami`).
 
-| Thing            | Where                                                                             |
-| ---------------- | --------------------------------------------------------------------------------- |
-| Live app         | https://insides-interior.insides-interior.workers.dev (Worker `insides-interior`) |
-| PR previews      | `pr-<n>-insides-interior-preview.insides-interior.workers.dev`                    |
-| Database         | D1 `insides_db` (preview: `insides_db_preview`)                                   |
-| Files            | R2 `insides-files` (private; signed links only)                                   |
-| Backups          | R2 `insides-backups`: `daily/` kept 90 days, `monthly/` kept 7 years              |
-| Jobs             | Queue `insides-jobs`; crons 07:00 UTC daily, 06:30 UTC Monday (Lagos is UTC+1)    |
-| Recovery targets | Lose at most 24 hours of data (RPO), back online within 4 hours (RTO)             |
+| Thing            | Where                                                                                                                                                  |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Live app         | https://app.insidesinteriors.com (Worker `insides-interior`, Custom Domain; the old https://insides-interior.insides-interior.workers.dev still works) |
+| PR previews      | `pr-<n>-insides-interior-preview.insides-interior.workers.dev`                                                                                         |
+| Database         | D1 `insides_db` (preview: `insides_db_preview`)                                                                                                        |
+| Files            | R2 `insides-files` (private; signed links only)                                                                                                        |
+| Backups          | R2 `insides-backups`: `daily/` kept 90 days, `monthly/` kept 7 years                                                                                   |
+| Jobs             | Queue `insides-jobs`; crons 07:00 UTC daily, 06:30 UTC Monday (Lagos is UTC+1)                                                                         |
+| Recovery targets | Lose at most 24 hours of data (RPO), back online within 4 hours (RTO)                                                                                  |
 
 ## Deploy
 
@@ -26,7 +26,7 @@ By hand, from an up-to-date `main`:
 npm run check
 npm run db:migrate:remote   # applies only migrations not yet applied
 npm run deploy
-curl -s https://insides-interior.insides-interior.workers.dev/health   # {"status":"ok",…}
+curl -s https://app.insidesinteriors.com/health   # {"status":"ok",…}
 ```
 
 Migrations are forward-only. Write each so the previous Worker version still runs against the new
