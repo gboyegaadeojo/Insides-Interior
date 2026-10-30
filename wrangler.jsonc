@@ -15,8 +15,8 @@
     // Extra origins allowed to sign in (comma separated, * wildcards).
     "TRUSTED_ORIGINS": "",
     "BUSINESS_TIMEZONE": "Africa/Lagos",
-    // Resend's shared sender until mail.<domain> is verified (SPEC 9.1).
-    "EMAIL_FROM": "Insides Interior <onboarding@resend.dev>",
+    // Verified in Resend on 2026-10-30 (insidesinteriors.com, via Cloudflare DNS). Replies go to the business email.
+    "EMAIL_FROM": "Insides Interior <hello@insidesinteriors.com>",
     // Web Push public key (public by design; the private key is the VAPID_PRIVATE_KEY secret).
     "VAPID_PUBLIC_KEY": "BH4wfm49vcTMz5QsazRlNU4IzkkIcLzL29pgvU6BWI58IxF8wOt6pctEIHXRzLbLcUQmFT8YTUR4OkwaIxoC0QY",
   },
