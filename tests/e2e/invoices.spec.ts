@@ -7,7 +7,12 @@ import { type Browser, expect, type Locator, type Page, test } from "@playwright
 
 async function shot(page: Page, name: string) {
   await test.info().attach(`${name}-${test.info().project.name}.png`, {
-    body: await page.screenshot({ fullPage: true }),
+    body: await page.screenshot({
+      fullPage: true,
+      path: process.env.SHOTS_DIR
+        ? `${process.env.SHOTS_DIR}/${name}-${test.info().project.name}.png`
+        : undefined,
+    }),
     contentType: "image/png",
   });
 }
@@ -119,7 +124,9 @@ test("F1 quote → F2 deposit invoice → payment → F3 final invoice (SPEC 10.
   await expect(page.getByRole("button", { name: "Deposit invoice" })).toHaveCount(0);
   await drafted.click();
   await expect(page).toHaveURL(/\/invoices\/inv_/);
-  await expect(page.getByText(/Deposit invoice for quote Q-\d+/)).toBeVisible();
+  const quoteNumber = (await page.getByText(/Deposit invoice for quote Q-\d+/).textContent())!.match(
+    /Q-\d+/,
+  )![0];
   await expect(page.getByTestId("quote-total")).toHaveText("₦60,975.28");
   await shot(page, "f2-builder");
   await send(page, /Send invoice/, "₦60,975.28");
@@ -131,6 +138,8 @@ test("F1 quote → F2 deposit invoice → payment → F3 final invoice (SPEC 10.
   await expect(client.getByTestId("portal-balance")).toHaveText("₦60,975.28");
   // Bank details when they're set in Settings; otherwise who to contact.
   await expect(client.getByText(/How to pay|for payment details/).first()).toBeVisible();
+  await expect(client.getByText(/^Deposit invoice INV-\d+/)).toBeVisible();
+  await shot(client, "f2-portal");
 
   // The deposit settled by bank transfer: not the job paid in full (owner request).
   await page.getByRole("button", { name: "Record payment" }).click();
@@ -146,6 +155,14 @@ test("F1 quote → F2 deposit invoice → payment → F3 final invoice (SPEC 10.
   await client.reload();
   await expect(client.getByText("Deposit paid").first()).toBeVisible();
   await expect(client.getByTestId("job-balance")).toContainText("₦60,975.28");
+
+  // The job waits under "Ready for final invoice" (owner request).
+  await page.goto("/invoices");
+  const ready = page.getByTestId("ready-for-final");
+  const more = ready.getByRole("button", { name: /^Show all/ });
+  if (await more.isVisible()) await more.click();
+  await expect(ready.getByText(new RegExp(`^${quoteNumber} `))).toBeVisible();
+  await shot(page, "ready-for-final");
 
   // F3: the final invoice credits the deposit and comes to the rest exactly.
   await page.goto(quoteUrl);

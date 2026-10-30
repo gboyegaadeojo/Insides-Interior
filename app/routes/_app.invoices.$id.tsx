@@ -322,6 +322,7 @@ function invoiceDocProps(
   const sent = data.invoice.status !== "draft";
   return {
     kind: "invoice",
+    label: INVOICE_KIND_LABEL[data.invoice.kind],
     number: data.invoice.number,
     revision: data.revisionNo,
     title: draft.header.title,
