@@ -10,7 +10,7 @@ import { formatCents } from "~/domain/money";
 import { WHOLE_DOCUMENT } from "~/domain/change-requests";
 import { formatAddress } from "~/features/clients/service";
 import { openLineRefs } from "~/features/conversations/requests";
-import { PAYMENT_METHOD_LABEL } from "~/features/invoices/constants";
+import { INVOICE_KIND_LABEL, PAYMENT_METHOD_LABEL } from "~/features/invoices/constants";
 import { partBilling } from "~/features/invoices/service";
 import { conversationAction } from "~/features/portal/action";
 import {
@@ -94,6 +94,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       print,
       status,
       number: invoice.number!,
+      kindLabel: INVOICE_KIND_LABEL[invoice.kind],
       revisionNo: revision.revisionNo,
       revisionId: revision.id,
       title: invoice.title,
@@ -180,6 +181,7 @@ export default function InvoicePortal({ loaderData }: Route.ComponentProps) {
 function docProps(d: LoaderData) {
   return {
     kind: "invoice" as const,
+    label: d.kindLabel,
     number: d.number,
     revision: d.revisionNo,
     title: d.title,
@@ -268,7 +270,7 @@ function Portal({ d }: { d: LoaderData }) {
 
       <main className={cn("mx-auto max-w-[8.5in] px-4 pt-6 tablet:px-6", canRequest ? "pb-36" : "pb-12")}>
         <p className="text-micro font-semibold tracking-[0.12em] text-secondary uppercase">
-          Invoice {d.number}
+          {d.kindLabel} {d.number}
           {d.revisionNo > 1 && ` · Revised (rev ${d.revisionNo})`}
         </p>
         <h1 className="mt-2 font-display text-display">
@@ -283,27 +285,29 @@ function Portal({ d }: { d: LoaderData }) {
         {d.state !== "void" && d.state !== "revising" && (
           <section
             aria-label="Balance"
-            className="mt-6 grid gap-4 rounded-card border border-border bg-surface p-5 shadow-card tablet:grid-cols-2"
+            className="mt-6 overflow-hidden rounded-card border border-border bg-surface shadow-card"
           >
-            <div>
-              <p className="text-micro font-semibold tracking-[0.08em] text-secondary uppercase">
-                {d.balanceCents > 0 ? "Balance due" : "Balance"}
-              </p>
-              <p className="mt-1 font-display text-display tabular" data-testid="portal-balance">
-                {formatCents(Math.max(0, d.balanceCents))}
-              </p>
-              {d.balanceCents > 0 && d.dueDate && (
-                <p className={d.overdue ? "mt-1 font-semibold text-danger-ink" : "mt-1 text-secondary"}>
-                  {d.overdue ? "Was due " : "Due "}
-                  {formatDate(d.dueDate)}
+            <div className="grid gap-5 p-5 tablet:grid-cols-2 tablet:p-6">
+              <div>
+                <p className="text-micro font-semibold tracking-[0.08em] text-secondary uppercase">
+                  {d.balanceCents > 0 ? "Balance due" : "Balance"}
                 </p>
-              )}
-              {d.settledCents > 0 && (
-                <p className="mt-1 text-label text-secondary">
-                  {formatCents(d.settledCents)} of {formatCents(d.totalCents)} received
+                <p className="mt-1 font-display text-display tabular" data-testid="portal-balance">
+                  {formatCents(Math.max(0, d.balanceCents))}
                 </p>
-              )}
-              {d.job && <JobBalance job={d.job} />}
+                {d.balanceCents > 0 && d.dueDate && (
+                  <p className={d.overdue ? "mt-1 font-semibold text-danger-ink" : "mt-1 text-secondary"}>
+                    {d.overdue ? "Was due " : "Due "}
+                    {formatDate(d.dueDate)}
+                  </p>
+                )}
+                {d.settledCents > 0 && (
+                  <p className="mt-1 text-label text-secondary">
+                    {formatCents(d.settledCents)} of {formatCents(d.totalCents)} received
+                  </p>
+                )}
+              </div>
+              {d.job && <JobBalance job={d.job} thisInvoiceCents={Math.max(0, d.balanceCents)} />}
             </div>
             {d.balanceCents > 0 && <HowToPay d={d} />}
           </section>
@@ -390,13 +394,13 @@ function Portal({ d }: { d: LoaderData }) {
 }
 
 function HowToPay({ d }: { d: LoaderData }) {
-  const lines = [
+  const details = [
     ["Bank", d.bank.bankName],
     ["Account name", d.bank.accountName],
-    ["Account number", d.bank.accountNumber],
   ].filter((l): l is [string, string] => !!l[1]);
-  if (lines.length === 0 && !d.bank.note) {
-    return <p className="text-secondary">Contact {d.business.name} for payment details.</p>;
+  const footer = "border-t border-border bg-surface-2 p-5 tablet:px-6";
+  if (details.length === 0 && !d.bank.accountNumber && !d.bank.note) {
+    return <p className={`${footer} text-secondary`}>Contact {d.business.name} for payment details.</p>;
   }
   async function copy(value: string) {
     try {
@@ -407,47 +411,86 @@ function HowToPay({ d }: { d: LoaderData }) {
     }
   }
   return (
-    <div>
-      <h2 className="text-micro font-semibold tracking-[0.08em] text-secondary uppercase">How to pay</h2>
-      <dl className="mt-2 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1">
-        {lines.map(([label, value]) => (
-          <React.Fragment key={label}>
-            <dt className="text-secondary">{label}</dt>
-            <dd className="font-semibold tabular">{value}</dd>
-          </React.Fragment>
+    <div className={footer} data-testid="how-to-pay">
+      <h2 className="text-micro font-semibold tracking-[0.08em] text-secondary uppercase">
+        How to pay · bank transfer
+      </h2>
+      <dl className="mt-3 grid gap-4 tablet:grid-cols-3">
+        {details.map(([label, value]) => (
+          <div key={label} className="min-w-0">
+            <dt className="text-label text-secondary">{label}</dt>
+            <dd className="mt-0.5 font-semibold break-words">{value}</dd>
+          </div>
         ))}
+        {d.bank.accountNumber && (
+          <div className="min-w-0">
+            <dt className="text-label text-secondary">Account number</dt>
+            <dd className="mt-0.5 flex items-center gap-2">
+              <span className="text-title font-semibold tracking-wide tabular">{d.bank.accountNumber}</span>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={() => void copy(d.bank.accountNumber!)}
+                aria-label="Copy account number"
+              >
+                <ClipboardCopy aria-hidden />
+                Copy
+              </Button>
+            </dd>
+          </div>
+        )}
       </dl>
-      {d.bank.accountNumber && (
-        <Button
-          type="button"
-          variant="secondary"
-          className="mt-3"
-          onClick={() => void copy(d.bank.accountNumber!)}
-        >
-          <ClipboardCopy aria-hidden />
-          Copy account number
-        </Button>
-      )}
-      {d.bank.note && <p className="mt-2 text-label text-secondary">{d.bank.note}</p>}
-      <p className="mt-2 text-label text-secondary">Please use {d.number} as the transfer reference.</p>
+      <p className="mt-4 flex flex-wrap items-baseline gap-x-2 rounded-control border border-border bg-surface px-3 py-2">
+        <span className="text-label text-secondary">Transfer reference</span>
+        <span className="font-semibold tabular">{d.number}</span>
+      </p>
+      {d.bank.note && <p className="mt-3 text-label text-secondary">{d.bank.note}</p>}
     </div>
   );
 }
 
 /** The whole job behind a deposit or progress invoice (owner request). */
-function JobBalance({ job }: { job: NonNullable<LoaderData["job"]> }) {
+function JobBalance({
+  job,
+  thisInvoiceCents,
+}: {
+  job: NonNullable<LoaderData["job"]>;
+  thisInvoiceCents: number;
+}) {
+  const after = Math.max(0, job.remainingCents - thisInvoiceCents);
+  const row = "flex items-baseline justify-between gap-4";
   return (
-    <dl
-      className="mt-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 border-t border-border pt-3 text-label"
-      data-testid="job-balance"
-    >
-      <dt className="text-secondary">Quote {job.quoteNumber} total</dt>
-      <dd className="text-right tabular">{formatCents(job.totalCents)}</dd>
-      <dt className="text-secondary">Paid so far</dt>
-      <dd className="text-right tabular">{formatCents(job.paidCents)}</dd>
-      <dt className="font-semibold">Still to pay on the job</dt>
-      <dd className="text-right font-semibold tabular">{formatCents(job.remainingCents)}</dd>
-    </dl>
+    <div className="tablet:border-l tablet:border-border tablet:pl-6" data-testid="job-balance">
+      <h2 className="text-micro font-semibold tracking-[0.08em] text-secondary uppercase">
+        The whole job · quote {job.quoteNumber}
+      </h2>
+      <dl className="mt-2 flex flex-col gap-1.5 text-label">
+        <div className={row}>
+          <dt className="text-secondary">Quote total</dt>
+          <dd className="tabular">{formatCents(job.totalCents)}</dd>
+        </div>
+        <div className={row}>
+          <dt className="text-secondary">Paid so far</dt>
+          <dd className="tabular">{formatCents(job.paidCents)}</dd>
+        </div>
+        {thisInvoiceCents > 0 && (
+          <div className={row}>
+            <dt className="text-secondary">This {job.part} invoice</dt>
+            <dd className="tabular">{formatCents(thisInvoiceCents)}</dd>
+          </div>
+        )}
+        <div className={`${row} mt-1 border-t border-border pt-2`}>
+          <dt className="font-semibold">
+            {thisInvoiceCents > 0 ? "Left after this invoice" : "Still to pay on the job"}
+          </dt>
+          <dd className="font-semibold tabular">{formatCents(after)}</dd>
+        </div>
+      </dl>
+      {after > 0 && (
+        <p className="mt-2 text-label text-secondary">Invoiced separately when the work is finished.</p>
+      )}
+    </div>
   );
 }
 

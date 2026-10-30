@@ -5,7 +5,7 @@
 // reconcile. Status after a payment is derived from the money in the same
 // batch as the payment.
 
-import { and, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, or, sql } from "drizzle-orm";
 import type { BatchItem } from "drizzle-orm/batch";
 import { canonicalJson, type Json } from "~/domain/canonical";
 import { describeDiff, diffContent } from "~/domain/diff";
@@ -748,7 +748,64 @@ const FILTER_STATUSES: Record<Exclude<InvoiceFilter, "all">, InvoiceStatus[]> = 
 };
 
 /** Σ cash + WHT of live payments on an invoice, as SQL. */
+/** The quote's deposit as basis points when it's a percentage (for "Deposit 85%" tags). */
+const depositBpSql = sql<
+  number | null
+>`(select qr.deposit_value from quote_revision qr where qr.id = "quote"."current_revision_id" and qr.deposit_type = 'percent')`;
+
 const paidSql = sql<number>`coalesce((select sum(${schema.payment.amountCents} + ${schema.payment.whtCents}) from ${schema.payment} where ${schema.payment.invoiceId} = ${schema.invoice.id} and ${schema.payment.deletedAt} is null), 0)`;
+
+/**
+ * Jobs waiting for their final invoice (owner request): approved quotes with a
+ * sent deposit or progress invoice and no final or full invoice yet. Oldest
+ * approval first, with what's been invoiced, paid and is left to bill.
+ */
+export async function awaitingFinalInvoice(ctx: Ctx) {
+  const q = schema.quote;
+  const i = schema.invoice;
+  const quotes = await ctx.db
+    .select({
+      id: q.id,
+      number: q.number,
+      title: q.title,
+      clientName: schema.client.displayName,
+      approvedTotalCents: schema.quoteAcceptance.acceptedTotalCents,
+      approvedAt: schema.quoteAcceptance.acceptedAt,
+    })
+    .from(q)
+    .innerJoin(schema.quoteAcceptance, eq(schema.quoteAcceptance.quoteRevisionId, q.currentRevisionId))
+    .leftJoin(schema.client, eq(schema.client.id, q.clientId))
+    .where(and(eq(q.businessId, ctx.user.businessId), eq(q.status, "approved")))
+    .orderBy(asc(schema.quoteAcceptance.acceptedAt));
+  if (quotes.length === 0) return [];
+  const invoices = await ctx.db
+    .select({
+      quoteId: i.quoteId,
+      kind: i.kind,
+      status: i.status,
+      totalCents: schema.invoiceRevision.totalCents,
+      paidCents: paidSql,
+    })
+    .from(i)
+    .innerJoin(q, eq(q.id, i.quoteId))
+    .leftJoin(schema.invoiceRevision, eq(schema.invoiceRevision.id, i.currentRevisionId))
+    // A join, not `quote_id IN (…)`: D1 allows 100 bound values per query.
+    .where(and(eq(i.businessId, ctx.user.businessId), eq(q.status, "approved"), sql`${i.status} <> 'void'`));
+  return quotes.flatMap((quote) => {
+    const mine = invoices.filter((x) => x.quoteId === quote.id);
+    const parts = mine.filter((x) => (x.kind === "deposit" || x.kind === "progress") && x.status !== "draft");
+    if (parts.length === 0 || mine.some((x) => x.kind === "final" || x.kind === "standard")) return [];
+    const invoicedCents = parts.reduce((sum, x) => sum + (x.totalCents ?? 0), 0);
+    return [
+      {
+        ...quote,
+        invoicedCents,
+        paidCents: parts.reduce((sum, x) => sum + x.paidCents, 0),
+        leftToInvoiceCents: Math.max(0, quote.approvedTotalCents - invoicedCents),
+      },
+    ];
+  });
+}
 
 export async function listInvoices(
   ctx: Ctx,
@@ -785,12 +842,15 @@ export async function listInvoices(
       remindersPaused: i.remindersPaused,
       updatedAt: i.updatedAt,
       clientName: schema.client.displayName,
+      quoteNumber: schema.quote.number,
+      depositBp: depositBpSql,
       revisionTotalCents: schema.invoiceRevision.totalCents,
       draftTotalCents: i.draftTotalCents,
       paidCents: paidSql,
     })
     .from(i)
     .leftJoin(schema.client, eq(schema.client.id, i.clientId))
+    .leftJoin(schema.quote, eq(schema.quote.id, i.quoteId))
     .leftJoin(schema.invoiceRevision, eq(schema.invoiceRevision.id, i.currentRevisionId))
     .where(
       and(
@@ -801,6 +861,7 @@ export async function listInvoices(
               sql`lower(coalesce(${i.number}, '')) LIKE ${pattern} ESCAPE '\\'`,
               sql`lower(coalesce(${i.title}, '')) LIKE ${pattern} ESCAPE '\\'`,
               sql`lower(coalesce(${schema.client.displayName}, '')) LIKE ${pattern} ESCAPE '\\'`,
+              sql`lower(coalesce(${schema.quote.number}, '')) LIKE ${pattern} ESCAPE '\\'`,
             )
           : undefined,
       ),
@@ -1644,12 +1705,16 @@ export async function listPayments(
       invoiceId: p.invoiceId,
       invoiceNumber: schema.invoice.number,
       invoiceStatus: schema.invoice.status,
+      invoiceKind: schema.invoice.kind,
+      quoteNumber: schema.quote.number,
+      depositBp: depositBpSql,
       clientId: p.clientId,
       clientName: schema.client.displayName,
       creditCents: sql<number>`coalesce((select sum(${schema.clientCredit.amountCents}) from ${schema.clientCredit} where ${schema.clientCredit.sourcePaymentId} = ${p.id}), 0)`,
     })
     .from(p)
     .innerJoin(schema.invoice, eq(schema.invoice.id, p.invoiceId))
+    .leftJoin(schema.quote, eq(schema.quote.id, schema.invoice.quoteId))
     .innerJoin(schema.client, eq(schema.client.id, p.clientId))
     .where(
       and(

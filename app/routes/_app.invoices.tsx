@@ -1,6 +1,16 @@
-import { BellOff, Receipt, Search } from "lucide-react";
+import { BellOff, FileCheck2, Receipt, Search } from "lucide-react";
 import * as React from "react";
-import { Form, Link, Outlet, redirect, useLocation, useSearchParams, useSubmit } from "react-router";
+import {
+  Form,
+  Link,
+  Outlet,
+  redirect,
+  useActionData,
+  useLocation,
+  useNavigation,
+  useSearchParams,
+  useSubmit,
+} from "react-router";
 import { ModuleHeader } from "~/components/shell/module-header";
 import { RouteErrorBoundary } from "~/components/shell/route-error";
 import { Avatar } from "~/components/ui/avatar";
@@ -20,11 +30,16 @@ import {
   type InvoiceFilter,
 } from "~/features/invoices/constants";
 import {
+  awaitingFinalInvoice,
   createInvoice,
+  createInvoiceFromQuote,
   deleteInvoiceDraft,
   listInvoices,
   outstandingSummary,
 } from "~/features/invoices/service";
+import { ServiceError } from "~/features/settings/service";
+import { toast } from "~/components/ui/toast";
+import { InvoiceKindTag } from "~/features/invoices/ui/kind-tag";
 import { NewInvoiceButton } from "~/features/invoices/ui/new-invoice-button";
 import { businessToday, formatDate } from "~/lib/dates";
 import type { AppHandle } from "~/lib/route-handle";
@@ -44,11 +59,12 @@ export async function loader({ request, context }: Route.LoaderArgs) {
     "all") as InvoiceFilter;
   const query = url.searchParams.get("q") ?? "";
   const limit = Math.max(INVOICE_PAGE_SIZE, Number(url.searchParams.get("show")) || 0);
-  const [{ invoices, counts, hasMore }, summary] = await Promise.all([
+  const [{ invoices, counts, hasMore }, summary, readyForFinal] = await Promise.all([
     listInvoices(ctx, { filter, query, limit }),
     outstandingSummary(ctx),
+    awaitingFinalInvoice(ctx),
   ]);
-  return { invoices, counts, hasMore, limit, filter, query, summary, today: businessToday() };
+  return { invoices, counts, hasMore, limit, filter, query, summary, readyForFinal, today: businessToday() };
 }
 
 /** + New invoice: a blank standard invoice (no number until sent, FR-INV-02). */
@@ -60,6 +76,16 @@ export async function action({ request, context }: Route.ActionArgs) {
   if (form.get("intent") === "delete-draft") {
     await deleteInvoiceDraft(ctx, String(form.get("id")));
     return { ok: true };
+  }
+  // Ready for final invoice: one tap makes it from the approved quote (owner request).
+  if (form.get("intent") === "final-invoice") {
+    try {
+      const id = await createInvoiceFromQuote(ctx, String(form.get("quoteId")), { kind: "final" });
+      return redirect(`/invoices/${id}`);
+    } catch (error) {
+      if (error instanceof ServiceError) return { ok: false, error: error.message };
+      throw error;
+    }
   }
   const clientId = form.get("clientId");
   const projectId = form.get("projectId");
@@ -75,9 +101,13 @@ export default function Invoices({ loaderData }: Route.ComponentProps) {
   const [params, setParams] = useSearchParams();
   const submit = useSubmit();
   const timer = React.useRef<ReturnType<typeof setTimeout>>(undefined);
+  const actionData = useActionData<typeof action>();
+  React.useEffect(() => {
+    if (actionData && "error" in actionData && actionData.error) toast(actionData.error, { tone: "error" });
+  }, [actionData]);
   if (pathname !== "/invoices" && pathname !== "/invoices/") return <Outlet />;
 
-  const { invoices, counts, filter, query, summary } = loaderData;
+  const { invoices, counts, filter, query, summary, readyForFinal } = loaderData;
   return (
     <>
       <ModuleHeader
@@ -85,10 +115,18 @@ export default function Invoices({ loaderData }: Route.ComponentProps) {
         summary={
           counts.all === 0
             ? "No invoices yet"
-            : `${formatCents(summary.outstandingCents)} outstanding · ${summary.overdueCount} overdue · ${counts.draft} draft${counts.draft === 1 ? "" : "s"}`
+            : [
+                `${formatCents(summary.outstandingCents)} outstanding`,
+                `${summary.overdueCount} overdue`,
+                `${counts.draft} draft${counts.draft === 1 ? "" : "s"}`,
+                readyForFinal.length ? `${readyForFinal.length} ready for final invoice` : null,
+              ]
+                .filter(Boolean)
+                .join(" · ")
         }
         action={<NewInvoiceButton />}
       />
+      {filter === "all" && !query && readyForFinal.length > 0 && <ReadyForFinal jobs={readyForFinal} />}
       <div className="mb-4 flex flex-col gap-3">
         <SegmentedControl
           label="Invoice status"
@@ -199,6 +237,7 @@ export default function Invoices({ loaderData }: Route.ComponentProps) {
                     )}
                   </span>
                   <span className="col-span-3 flex flex-wrap items-center gap-1.5 justify-self-start @2xl:col-span-1 @2xl:justify-self-end">
+                    <InvoiceKindTag kind={inv.kind} quoteNumber={inv.quoteNumber} depositBp={inv.depositBp} />
                     <StatusBadge
                       status={inv.status}
                       size="sm"
@@ -243,6 +282,83 @@ export default function Invoices({ loaderData }: Route.ComponentProps) {
         </div>
       )}
     </>
+  );
+}
+
+type ReadyJob = Route.ComponentProps["loaderData"]["readyForFinal"][number];
+
+/**
+ * Jobs with a deposit or progress invoice but no final invoice yet (owner
+ * request): when the work is done, one tap bills the rest.
+ */
+function ReadyForFinal({ jobs }: { jobs: ReadyJob[] }) {
+  const [all, setAll] = React.useState(false);
+  const shown = all ? jobs : jobs.slice(0, 5);
+  const navigation = useNavigation();
+  const busyQuote =
+    navigation.state !== "idle" && navigation.formData?.get("intent") === "final-invoice"
+      ? navigation.formData.get("quoteId")
+      : null;
+  return (
+    <section
+      aria-labelledby="ready-for-final"
+      className="mb-6 overflow-hidden rounded-card border border-border bg-surface shadow-card"
+      data-testid="ready-for-final"
+    >
+      <header className="flex items-start gap-3 border-b border-border px-4 py-3">
+        <span className="mt-0.5 inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-sage-tint text-sage-ink">
+          <FileCheck2 className="size-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <h2 id="ready-for-final" className="font-semibold">
+            Ready for final invoice
+            <span className="ml-2 font-normal text-secondary">{jobs.length}</span>
+          </h2>
+          <p className="text-label text-secondary">
+            Deposit invoiced, final invoice not made yet. When a job is finished, make its final invoice here.
+          </p>
+        </div>
+      </header>
+      <ul className="@container divide-y divide-border" aria-label="Ready for final invoice">
+        {shown.map((job) => (
+          <li
+            key={job.id}
+            className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-2 px-4 py-3 @xl:grid-cols-[auto_1fr_auto_auto]"
+          >
+            <Avatar name={job.clientName ?? "No client"} />
+            <Link to={`/quotes/${job.id}`} className="min-w-0 hover:underline">
+              <span className="block truncate font-semibold">{job.clientName ?? "No client"}</span>
+              <span className="block truncate text-label text-secondary">
+                {job.number}
+                {job.title ? ` · ${job.title}` : ""} · approved {formatDate(job.approvedAt.slice(0, 10))}
+              </span>
+            </Link>
+            <span className="col-start-2 text-label @xl:col-start-auto @xl:text-right">
+              <span className="block font-semibold tabular">
+                {formatCents(job.leftToInvoiceCents)} to bill
+              </span>
+              <span className="block text-secondary tabular">
+                {formatCents(job.paidCents)} paid of {formatCents(job.approvedTotalCents)}
+              </span>
+            </span>
+            <Form method="post" className="col-start-2 @xl:col-start-auto">
+              <input type="hidden" name="intent" value="final-invoice" />
+              <input type="hidden" name="quoteId" value={job.id} />
+              <Button type="submit" size="sm" loading={busyQuote === job.id} disabled={!!busyQuote}>
+                Final invoice
+              </Button>
+            </Form>
+          </li>
+        ))}
+      </ul>
+      {jobs.length > shown.length && (
+        <div className="border-t border-border px-4 py-2">
+          <Button variant="ghost" size="sm" onClick={() => setAll(true)}>
+            Show all {jobs.length}
+          </Button>
+        </div>
+      )}
+    </section>
   );
 }
 

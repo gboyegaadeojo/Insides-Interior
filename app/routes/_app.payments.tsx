@@ -14,6 +14,7 @@ import { formatDate, isIsoDate } from "~/lib/dates";
 import type { AppHandle } from "~/lib/route-handle";
 import { requireUser } from "~/server/session";
 import type { Route } from "./+types/_app.payments";
+import { InvoiceKindTag } from "~/features/invoices/ui/kind-tag";
 
 export const handle: AppHandle = { module: "payments", title: "Payments" };
 
@@ -91,9 +92,16 @@ export default function Payments({ loaderData }: Route.ComponentProps) {
               >
                 <Avatar name={p.clientName} />
                 <span className={p.deletedAt ? "min-w-0 text-secondary" : "min-w-0"}>
-                  <span className="block truncate font-semibold">
-                    {p.clientName}
-                    <span className="font-normal text-secondary"> · {p.invoiceNumber}</span>
+                  <span className="flex min-w-0 items-center gap-2">
+                    <span className="truncate font-semibold">
+                      {p.clientName}
+                      <span className="font-normal text-secondary"> · {p.invoiceNumber}</span>
+                    </span>
+                    <InvoiceKindTag
+                      kind={p.invoiceKind}
+                      quoteNumber={p.quoteNumber}
+                      depositBp={p.depositBp}
+                    />
                   </span>
                   <span className="block truncate text-label font-normal text-secondary">
                     {formatDate(p.receivedOn)} · {PAYMENT_METHOD_LABEL[p.method]}

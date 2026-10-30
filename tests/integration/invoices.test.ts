@@ -2,6 +2,7 @@ import { and, eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
 import { quickCreateClient } from "~/features/clients/service";
 import {
+  awaitingFinalInvoice,
   createInvoice,
   createInvoiceFromQuote,
   deleteInvoiceDraft,
@@ -250,7 +251,7 @@ describe("payments (FR-PAY-01…06, SPEC 8.3)", () => {
     const { ctx, quoteId, clientId } = await approvedF1();
     const id = await createInvoiceFromQuote(ctx, quoteId, { kind: "deposit" });
     await send(id);
-    return { ctx, id, clientId };
+    return { ctx, id, clientId, quoteId };
   }
 
   it("partial, then WHT plus cash settles it; status and balance follow; a receipt is queued", async () => {
@@ -283,6 +284,23 @@ describe("payments (FR-PAY-01…06, SPEC 8.3)", () => {
     expect(receipts).toHaveLength(2);
 
     await expect(recordPayment(ctx, id, pay({ amountCents: "1" }))).rejects.toThrow("already paid");
+  });
+
+  it("lists a job as ready for its final invoice until one is made (owner request)", async () => {
+    const { ctx, quoteId } = await sentDeposit();
+    const ready = (await awaitingFinalInvoice(ctx)).find((j) => j.id === quoteId);
+    expect(ready).toMatchObject({
+      approvedTotalCents: 12_195_056,
+      invoicedCents: 6_097_528,
+      leftToInvoiceCents: 6_097_528,
+      paidCents: 0,
+    });
+    const { invoices } = await listInvoices(ctx, { limit: 500 });
+    expect(invoices.find((x) => x.kind === "deposit" && x.quoteNumber === ready?.number)).toMatchObject({
+      depositBp: 5000,
+    });
+    await createInvoiceFromQuote(ctx, quoteId, { kind: "final" });
+    expect((await awaitingFinalInvoice(ctx)).some((j) => j.id === quoteId)).toBe(false);
   });
 
   it("a settled deposit is not the job paid in full: the receipt and screens show what's left", async () => {

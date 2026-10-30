@@ -56,6 +56,8 @@ export interface DocSection {
 
 export interface DocumentRendererProps {
   kind: "quote" | "invoice";
+  /** Heading in place of "Quote"/"Invoice", e.g. "Deposit invoice" (owner request). */
+  label?: string;
   /** "Q-1042", or null for a draft. */
   number: string | null;
   title?: string | null;
@@ -191,7 +193,7 @@ export function DocumentRenderer(props: DocumentRendererProps) {
   const brand = /^#[0-9a-f]{6}$/i.test(business.brandColor) ? business.brandColor : PALETTE.teal.base;
   const brandText = onColour(brand as `#${string}`);
   const taxNames = new Map(props.taxRates.map((r) => [r.id, `${r.name} ${formatBp(r.rateBp)}%`]));
-  const label = kind === "quote" ? "Quote" : "Invoice";
+  const label = props.label ?? (kind === "quote" ? "Quote" : "Invoice");
   const numberText = props.number
     ? `${props.number}${props.revision && props.revision > 1 ? ` · Revised (rev ${props.revision})` : ""}`
     : "Draft";
