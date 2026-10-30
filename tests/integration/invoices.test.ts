@@ -18,6 +18,7 @@ import {
   sendInvoice,
   voidInvoice,
 } from "~/features/invoices/service";
+import { jobsFor, listJobs } from "~/features/jobs/service";
 import { recordPaymentSchema, saveInvoiceDraftSchema } from "~/features/invoices/schema";
 import { approveSchema, changeRequestSchema } from "~/features/portal/schema";
 import {
@@ -284,6 +285,24 @@ describe("payments (FR-PAY-01…06, SPEC 8.3)", () => {
     expect(receipts).toHaveLength(2);
 
     await expect(recordPayment(ctx, id, pay({ amountCents: "1" }))).rejects.toThrow("already paid");
+  });
+
+  it("moves the job through its steps as invoices go out and money comes in (owner request)", async () => {
+    const { ctx, id, quoteId } = await sentDeposit();
+    const step = async () => (await jobsFor(ctx)).find((j) => j.id === quoteId)!.stage;
+    expect(await step()).toMatchObject({
+      step: 4,
+      group: "money",
+      action: { kind: "record_payment", invoiceId: id },
+    });
+    await recordPayment(ctx, id, pay({ amountCents: "6097528" }));
+    expect(await step()).toMatchObject({
+      step: 5,
+      group: "finish",
+      actionLabel: "Job finished: final invoice",
+    });
+    const { jobs } = await listJobs(ctx, { filter: "needs", limit: 1000 });
+    expect(jobs.some((j) => j.id === quoteId)).toBe(true);
   });
 
   it("lists a job as ready for its final invoice until one is made (owner request)", async () => {

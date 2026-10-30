@@ -40,6 +40,8 @@ import {
   RequestStatusChip,
   type ThreadMessageView,
 } from "~/features/conversations/ui/thread-parts";
+import { jobStage } from "~/domain/job";
+import { JobSteps, NextStepCard, StepBar } from "~/features/jobs/ui/job-steps";
 import { cn } from "~/lib/utils";
 import { HUES, MOTION, NEUTRALS, PALETTE, RADII, STATUS_EXTRA, TYPE_SCALE } from "~/styles/tokens";
 import { requireOwner } from "~/server/session";
@@ -154,6 +156,15 @@ const DEMO_THREAD: ThreadMessageView[] = [
     request: null,
   },
 ];
+
+const SAMPLE_STAGE = jobStage({
+  quoteStatus: "approved",
+  pastValidUntil: false,
+  hasDeposit: true,
+  sentOn: "2026-10-27",
+  approvedOn: "2026-10-29",
+  invoices: [],
+});
 
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -440,6 +451,18 @@ function Showcase() {
           {(["open", "accepted", "declined", "answered"] as const).map((status) => (
             <RequestStatusChip key={status} status={status} />
           ))}
+        </div>
+      </Section>
+
+      <Section title="Job steps (owner request)">
+        <div className="flex flex-col gap-4">
+          <JobSteps stage={SAMPLE_STAGE} />
+          <NextStepCard
+            stage={SAMPLE_STAGE}
+            sentence="Gboyega approved on 29 Oct 2026. Ask for the deposit of ₦1,250,645.80 before work starts."
+            button={<Button size="lg">Make the deposit invoice</Button>}
+          />
+          <StepBar stage={SAMPLE_STAGE} className="max-w-72" />
         </div>
       </Section>
 

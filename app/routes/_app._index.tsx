@@ -23,15 +23,16 @@ import { IconChip } from "~/components/ui/icon-chip";
 import { KpiCard } from "~/components/ui/kpi-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { ErrorState, Loading, Skeleton } from "~/components/ui/states";
-import { StatusBadge, type Status } from "~/components/ui/status-badge";
 import { BUSINESS_TZ, LOCALE } from "~/domain/locale";
 import { formatCents } from "~/domain/money";
 import { trailingMonths } from "~/domain/reports";
 import { CHART_PERIODS } from "~/features/reports/constants";
+import { JobActionButton } from "~/features/jobs/ui/job-steps";
 import { homeKpis, needsYou, recentActivity, revenueVsExpenses } from "~/features/reports/service";
 import { activityLabel, relativeTime } from "~/lib/activity-label";
-import { businessToday, formatDate } from "~/lib/dates";
+import { businessToday } from "~/lib/dates";
 import type { AppHandle } from "~/lib/route-handle";
+import { cn } from "~/lib/utils";
 import { schema } from "~/server/db";
 import { requireUser } from "~/server/session";
 import { count, eq } from "drizzle-orm";
@@ -214,7 +215,7 @@ function Kpis({ resolve }: { resolve: Route.ComponentProps["loaderData"]["kpis"]
                   detail={plural(k.awaitingCount, "quote")}
                   tone="plum"
                   icon={FileText}
-                  to="/quotes?status=sent"
+                  to="/quotes?step=waiting"
                 />
               </div>
             );
@@ -268,63 +269,86 @@ export default function Home({ loaderData }: Route.ComponentProps) {
           <Kpis resolve={loaderData.kpis} />
           <Widget
             id="needs"
-            title="Needs you"
+            title="What to do next"
             icon={ListTodo}
             resolve={loaderData.needs}
             skeleton={<ListSkeleton />}
             action={
               <Link
-                to="/inbox"
-                className="inline-flex min-h-11 items-center gap-1 rounded-control px-2 font-semibold text-ocean-ink hover:bg-ocean-tint"
+                to="/quotes?step=needs"
+                className="inline-flex min-h-11 items-center gap-1 rounded-control px-2 font-semibold text-accent hover:bg-accent-tint"
               >
-                Inbox
+                All jobs
                 <ArrowRight className="size-4" aria-hidden />
               </Link>
             }
           >
-            {(items) =>
-              items.length === 0 ? (
+            {(groups) =>
+              groups.length === 0 ? (
                 <p className="flex items-center gap-2 px-5 py-6 text-secondary tablet:px-6">
                   <CircleCheck className="size-5 text-sage-base" aria-hidden />
                   You're all caught up.
                 </p>
               ) : (
-                <ul className="divide-y divide-border">
-                  {items.map((item) => (
-                    <li
-                      key={`${item.kind}-${item.key}`}
-                      className="flex items-center gap-3 px-5 py-3 tablet:px-6"
-                    >
-                      <Avatar name={item.clientName ?? "No client"} />
-                      <div className="min-w-0 flex-1">
-                        <p className="flex min-w-0 items-center gap-2">
-                          <span className="truncate font-semibold">{item.clientName ?? item.title}</span>
-                          <StatusBadge status={item.status as Status} size="sm" className="tablet:hidden" />
-                        </p>
-                        <p className="truncate text-label text-secondary">
-                          {[
-                            item.clientName ? item.title : null,
-                            item.amountCents !== undefined ? formatCents(item.amountCents) : null,
-                            item.date
-                              ? `${item.kind === "overdue" ? "due" : "valid until"} ${formatDate(item.date)}`
-                              : null,
-                            item.note,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </div>
-                      <StatusBadge
-                        status={item.status as Status}
-                        size="sm"
-                        className="hidden tablet:inline-flex"
-                      />
-                      <Button asChild variant="secondary" size="sm">
-                        <Link to={item.to}>{item.action}</Link>
-                      </Button>
-                    </li>
+                <div className="divide-y divide-border">
+                  {groups.map((group) => (
+                    <section key={group.key} aria-labelledby={`needs-${group.key}`}>
+                      <h3
+                        id={`needs-${group.key}`}
+                        className={cn(
+                          "px-5 pt-4 pb-1 text-micro font-bold tracking-[0.06em] uppercase tablet:px-6",
+                          group.key === "now" ? "text-accent" : "text-secondary",
+                        )}
+                      >
+                        {group.title}
+                        {group.total > group.items.length && (
+                          <span className="font-medium normal-case"> · {group.total}</span>
+                        )}
+                      </h3>
+                      <ul>
+                        {group.items.map((item) => (
+                          <li
+                            key={`${item.kind}-${item.key}`}
+                            className="flex flex-col gap-2.5 px-5 py-3 tablet:flex-row tablet:items-center tablet:gap-3 tablet:px-6"
+                          >
+                            <Link to={item.to} className="flex min-w-0 flex-1 items-center gap-3">
+                              <Avatar name={item.clientName ?? "No client"} />
+                              <span className="min-w-0 flex-1">
+                                <span className="block truncate font-semibold">
+                                  {item.clientName ?? item.title}
+                                  {item.clientName && (
+                                    <span className="font-normal text-secondary"> · {item.title}</span>
+                                  )}
+                                </span>
+                                <span className="block truncate text-label text-secondary">{item.line}</span>
+                              </span>
+                            </Link>
+                            {item.job ? (
+                              <JobActionButton
+                                stage={item.job.stage}
+                                quoteId={item.job.quoteId}
+                                size="md"
+                                variant={group.key === "now" ? "primary" : "secondary"}
+                                className="w-full tablet:w-56"
+                              />
+                            ) : (
+                              item.action && (
+                                <Button
+                                  asChild
+                                  size="md"
+                                  variant={group.key === "now" ? "primary" : "secondary"}
+                                  className="w-full tablet:w-56"
+                                >
+                                  <Link to={item.to}>{item.action}</Link>
+                                </Button>
+                              )
+                            )}
+                          </li>
+                        ))}
+                      </ul>
+                    </section>
                   ))}
-                </ul>
+                </div>
               )
             }
           </Widget>

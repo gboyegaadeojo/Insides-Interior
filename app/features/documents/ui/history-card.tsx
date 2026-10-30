@@ -96,6 +96,7 @@ const EMAIL_LABEL: Record<string, string> = {
   quote_revised: "Revision sent",
   quote_approved_client: "Approval receipt to client",
   quote_approved_owner: "Approval notice",
+  owner_alert: "Alert to you",
   quote_changes_requested_owner: "Change request notice",
   quote_message_owner: "New message notice",
   quote_owner_reply: "Reply to client",

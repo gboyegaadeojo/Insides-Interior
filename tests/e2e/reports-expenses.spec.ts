@@ -39,7 +39,7 @@ test("Home shows the four figures, each opening its filtered list", async ({ pag
   }
   // Never "₦0" placeholders while loading: the values are real once shown.
   await expect(figures.getByRole("link", { name: /Outstanding/ })).toContainText("₦");
-  await expect(page.getByRole("region", { name: "Needs you" })).toBeVisible();
+  await expect(page.getByRole("region", { name: "What to do next" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Recent activity" })).toBeVisible();
   const chart = page.getByRole("region", { name: "Revenue and expenses" });
   await chart.getByRole("radio", { name: "Table" }).click();

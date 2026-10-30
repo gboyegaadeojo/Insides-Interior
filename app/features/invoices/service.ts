@@ -1806,6 +1806,7 @@ export async function invoicesForQuote(ctx: Ctx, quoteId: string) {
       number: schema.invoice.number,
       kind: schema.invoice.kind,
       status: schema.invoice.status,
+      issueDate: schema.invoice.issueDate,
     })
     .from(schema.invoice)
     .where(and(eq(schema.invoice.quoteId, quoteId), eq(schema.invoice.businessId, ctx.user.businessId)))

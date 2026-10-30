@@ -12,7 +12,16 @@ import {
   Undo2,
 } from "lucide-react";
 import * as React from "react";
-import { data, Form, Link, redirect, useActionData, useNavigation, useRevalidator } from "react-router";
+import {
+  data,
+  Form,
+  Link,
+  redirect,
+  useActionData,
+  useNavigation,
+  useRevalidator,
+  useSearchParams,
+} from "react-router";
 import { DocumentRenderer, type DocumentRendererProps } from "~/components/doc/document-renderer";
 import { Paper } from "~/components/doc/paper";
 import { RouteErrorBoundary } from "~/components/shell/route-error";
@@ -380,9 +389,11 @@ function SentInvoice({ data }: { data: LoaderData }) {
   const actionData = useActionData<typeof action>();
   const busy = (intent: string) =>
     navigation.state !== "idle" && navigation.formData?.get("intent") === intent;
-  const [paying, setPaying] = React.useState(false);
-  const [voiding, setVoiding] = React.useState(false);
   const canPay = ["sent", "viewed", "changes_requested", "partially_paid", "overdue"].includes(status);
+  // ?pay=1 (a job step's Record payment button) opens the payment sheet.
+  const [params] = useSearchParams();
+  const [paying, setPaying] = React.useState(() => canPay && params.get("pay") === "1");
+  const [voiding, setVoiding] = React.useState(false);
   const canRevise = canInvoice(status, "revise") && data.settledCents === 0;
   const total = data.revision?.totalCents ?? 0;
 
