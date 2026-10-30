@@ -4,7 +4,10 @@ import { cn } from "~/lib/utils";
 import { Button } from "./button";
 import { TONE, type ToneName } from "./hue";
 
-/** Illustrated empty state with one action (DS-COL-04/07, SPEC 6.11). */
+/**
+ * Empty state with one action (SPEC 6.11). Premium redesign 2: calm, a grey
+ * icon circle on white; `tone` stays for callers and tints only the icon.
+ */
 export function EmptyState({
   icon: Icon,
   tone = "teal",
@@ -23,33 +26,22 @@ export function EmptyState({
   return (
     <div
       className={cn(
-        "flex flex-col items-center rounded-card border border-border bg-gradient-to-b to-surface px-6 py-12 text-center",
-        tone === "teal" && "from-teal-tint",
-        tone === "plum" && "from-plum-tint",
-        tone === "indigo" && "from-indigo-tint",
-        tone === "terracotta" && "from-terracotta-tint",
-        tone === "saffron" && "from-saffron-tint",
-        tone === "sage" && "from-sage-tint",
-        tone === "roseclay" && "from-roseclay-tint",
-        tone === "ocean" && "from-ocean-tint",
+        "flex flex-col items-center rounded-card border border-border bg-surface px-6 py-12 text-center",
         className,
       )}
     >
-      <span className="relative mb-5 inline-flex" aria-hidden>
-        <span className={cn("absolute -top-2 -left-3 size-8 rounded-full opacity-60", TONE[tone].base)} />
-        <span className={cn("absolute -right-4 -bottom-1 size-5 rounded-full opacity-40", TONE[tone].base)} />
-        <span
-          className={cn(
-            "relative inline-flex size-20 items-center justify-center rounded-sheet shadow-card [&_svg]:size-9",
-            TONE[tone].solid,
-          )}
-        >
-          <Icon />
-        </span>
+      <span
+        className={cn(
+          "mb-4 inline-flex size-14 items-center justify-center rounded-full bg-surface-2 [&_svg]:size-6",
+          TONE[tone].ink,
+        )}
+        aria-hidden
+      >
+        <Icon strokeWidth={1.7} />
       </span>
-      <h2 className="font-display text-title">{title}</h2>
-      {description && <div className="mt-2 max-w-md text-secondary">{description}</div>}
-      {action && <div className="mt-6">{action}</div>}
+      <h2 className="text-section font-semibold">{title}</h2>
+      {description && <div className="mt-1.5 max-w-md text-secondary">{description}</div>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   );
 }

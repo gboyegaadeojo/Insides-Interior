@@ -21,7 +21,9 @@ export class PdfUnavailableError extends Error {
  * under workerd on Windows (PDF spike notes), so development and tests skip it.
  */
 export function pdfEnabled(env: Pick<Env, "APP_ENV">) {
-  return env.APP_ENV === "production" || env.APP_ENV === "preview";
+  // Production only: Browser Rendering's free allowance is per account, and the
+  // preview Worker's test runs used it up, so live emails lost their PDFs.
+  return env.APP_ENV === "production";
 }
 
 /** A stamp (Approved, Paid, Void) is part of the key: new stamp, new file. */
@@ -73,8 +75,8 @@ async function renderPdf(endpoint: Env["BROWSER"], url: string): Promise<Uint8Ar
     await page.close();
     return pdf;
   } finally {
-    // Disconnect rather than close so the next render can reuse the warm browser.
-    await browser.disconnect();
+    // Close at once: idle browser time counts against the free daily allowance.
+    await browser.close();
   }
 }
 
@@ -92,7 +94,7 @@ async function getBrowser(endpoint: Env["BROWSER"]) {
       // Session closed between listing and connecting; try the next one.
     }
   }
-  return puppeteer.launch(endpoint, { keep_alive: 600_000 });
+  return puppeteer.launch(endpoint);
 }
 
 /** Base64 without spreading a large array onto the call stack. */

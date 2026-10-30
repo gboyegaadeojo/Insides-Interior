@@ -7,8 +7,11 @@ import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/ca
 import { TextField } from "~/components/ui/field";
 import { toast } from "~/components/ui/toast";
 import { authClient } from "~/lib/auth-client";
+import { and, desc, eq, gt } from "drizzle-orm";
+import { RouteErrorBoundary } from "~/components/shell/route-error";
 import { BUSINESS_TZ, LOCALE } from "~/domain/locale";
 import { createAuth } from "~/server/auth";
+import { schema } from "~/server/db";
 import { assertSameOrigin, requireUser } from "~/server/session";
 import type { Route } from "./+types/account";
 
@@ -43,12 +46,27 @@ function describeDevice(userAgent: string | null | undefined) {
   return { label: `${browser} on ${device}`, phone: /iPhone|Android/.test(ua) };
 }
 
+// Reads the user's own sessions and passkeys straight from the database, like
+// every other page: no Better Auth call on a page load (Workers Free CPU, and a
+// production-only failure of auth.api.listSessions took this page down). The
+// sign-out and passkey actions below still go through Better Auth.
 export async function loader({ request, context }: Route.LoaderArgs) {
-  const { env, user } = await requireUser(context.cloudflare.env, request);
-  const auth = createAuth(env, request);
+  const { db, user } = await requireUser(context.cloudflare.env, request);
   const [sessions, passkeys] = await Promise.all([
-    auth.api.listSessions({ headers: request.headers }),
-    auth.api.listPasskeys({ headers: request.headers }),
+    db
+      .select({
+        id: schema.session.id,
+        token: schema.session.token,
+        userAgent: schema.session.userAgent,
+        updatedAt: schema.session.updatedAt,
+      })
+      .from(schema.session)
+      .where(and(eq(schema.session.userId, user.id), gt(schema.session.expiresAt, new Date())))
+      .orderBy(desc(schema.session.updatedAt)),
+    db
+      .select({ id: schema.passkey.id, name: schema.passkey.name, createdAt: schema.passkey.createdAt })
+      .from(schema.passkey)
+      .where(eq(schema.passkey.userId, user.id)),
   ]);
   return {
     user: { name: user.name, email: user.email },
@@ -248,3 +266,5 @@ export default function AccountSettings({ loaderData, actionData }: Route.Compon
     </div>
   );
 }
+
+export { RouteErrorBoundary as ErrorBoundary };

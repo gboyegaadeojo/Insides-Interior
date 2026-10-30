@@ -83,3 +83,17 @@ describe("resend transport", () => {
     );
   });
 });
+
+describe("Resend errors", () => {
+  it("treats refusals as permanent and timeouts, rate limits and outages as retryable", async () => {
+    const { EmailSendError } = await import("~/server/email/resend-transport");
+    expect(
+      new EmailSendError(403, "You can only send testing emails to your own email address").permanent,
+    ).toBe(true);
+    expect(new EmailSendError(422, "Invalid `to` field").permanent).toBe(true);
+    expect(new EmailSendError(429, "Too many requests").permanent).toBe(false);
+    expect(new EmailSendError(408, "Timeout").permanent).toBe(false);
+    expect(new EmailSendError(500, "Internal").permanent).toBe(false);
+    expect(new EmailSendError(403, "x").message).toContain("(403)");
+  });
+});
