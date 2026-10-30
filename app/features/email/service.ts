@@ -52,7 +52,12 @@ function fillNumber(message: OutgoingEmail, number: string): OutgoingEmail {
   return { ...message, subject: fill(message.subject), html: fill(message.html), text: fill(message.text) };
 }
 
-export type Job = EmailJob;
+/** Deliver new notifications: push alerts and owner emails (features/notifications). */
+export interface NotifyJob {
+  kind: "notify";
+}
+
+export type Job = EmailJob | NotifyJob;
 
 /**
  * The `email_message` row for a message, ready for the caller's batch. The
@@ -335,6 +340,7 @@ export async function applyResendEvent(env: Env, event: z.output<typeof resendEv
     }
   }
   await db.batch(statements as [BatchItem<"sqlite">, ...BatchItem<"sqlite">[]]);
-  await enqueue(env, jobs);
+  // Push alerts for the bounce notices (owner request).
+  await enqueue(env, [...jobs, { kind: "notify" }]);
   return { applied: true as const, status };
 }

@@ -6,12 +6,13 @@ import { RouteErrorBoundary } from "~/components/shell/route-error";
 import { Avatar } from "~/components/ui/avatar";
 import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
+import { ConfirmDelete } from "~/components/ui/confirm-delete";
 import { EmptyState } from "~/components/ui/states";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { MoneyText } from "~/components/ui/text";
 import { formatCents } from "~/domain/money";
 import { QUOTE_FILTERS, QUOTE_PAGE_SIZE, type QuoteFilter } from "~/features/quotes/filters";
-import { awaitingSummary, createQuote, listQuotes } from "~/features/quotes/service";
+import { awaitingSummary, createQuote, deleteDraft, listQuotes } from "~/features/quotes/service";
 import { NewQuoteButton } from "~/features/quotes/ui/new-quote-button";
 import { formatDate } from "~/lib/dates";
 import type { AppHandle } from "~/lib/route-handle";
@@ -51,6 +52,11 @@ export async function action({ request, context }: Route.ActionArgs) {
   assertSameOrigin(request);
   const ctx = await requireUser(context.cloudflare.env, request);
   const form = await request.formData();
+  // Delete an unsent draft from the list (owner request; it always asks first).
+  if (form.get("intent") === "delete-draft") {
+    await deleteDraft(ctx, String(form.get("id")));
+    return { ok: true };
+  }
   const clientId = form.get("clientId");
   const projectId = form.get("projectId");
   const id = await createQuote(ctx, {
@@ -155,10 +161,10 @@ export default function Quotes({ loaderData }: Route.ComponentProps) {
           aria-label="Quotes"
         >
           {quotes.map((q) => (
-            <li key={q.id}>
+            <li key={q.id} className="flex items-center">
               <Link
                 to={`/quotes/${q.id}`}
-                className="grid min-h-16 grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 px-4 py-3 transition-colors duration-fast hover:bg-surface-2 @2xl:grid-cols-[auto_minmax(0,2fr)_minmax(0,1fr)_8rem_9rem]"
+                className="grid min-h-16 min-w-0 flex-1 grid-cols-[auto_1fr_auto] items-center gap-x-3 gap-y-1 px-4 py-3 transition-colors duration-fast hover:bg-surface-2 @2xl:grid-cols-[auto_minmax(0,2fr)_minmax(0,1fr)_8rem_9rem]"
               >
                 {q.clientName ? (
                   <Avatar name={q.clientName} />
@@ -182,6 +188,17 @@ export default function Quotes({ loaderData }: Route.ComponentProps) {
                   <StatusBadge status={q.status} size="sm" />
                 </span>
               </Link>
+              {q.status === "draft" && !q.number && (
+                <ConfirmDelete
+                  iconOnly
+                  className="mr-2 shrink-0"
+                  label="Delete this draft quote"
+                  title="Delete this draft quote?"
+                  description="It hasn't been sent, so nothing reaches the client. This can't be undone."
+                  confirmLabel="Delete draft"
+                  fields={{ intent: "delete-draft", id: q.id }}
+                />
+              )}
             </li>
           ))}
         </ul>

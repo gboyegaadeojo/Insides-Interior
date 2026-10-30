@@ -10,7 +10,14 @@ import type { BatchItem } from "drizzle-orm/batch";
 import { canonicalJson, type Json } from "~/domain/canonical";
 import { describeDiff, diffContent } from "~/domain/diff";
 import { computeContent, depositFrom, type DocumentTotals } from "~/domain/document";
-import { balanceCents, checkPayment, deriveInvoiceStatus, settledCents } from "~/domain/invoice";
+import {
+  balanceCents,
+  checkPayment,
+  deriveInvoiceStatus,
+  type JobBalance,
+  jobBalance,
+  settledCents,
+} from "~/domain/invoice";
 import {
   canInvoice,
   type InvoiceEvent,
@@ -398,13 +405,65 @@ async function moneyOf(ctx: Ctx, invoiceId: string) {
   };
 }
 
+/**
+ * The whole approved quote behind a deposit or progress invoice: approved
+ * total, paid across its live invoices, and what's left (owner request).
+ * Null for invoices not billed in parts.
+ */
+export async function partBilling(
+  db: Db,
+  invoice: { businessId: string; quoteId: string | null; kind: string },
+): Promise<(JobBalance & { quoteNumber: string | null }) | null> {
+  if (!invoice.quoteId || (invoice.kind !== "deposit" && invoice.kind !== "progress")) return null;
+  const [[accepted], live] = await Promise.all([
+    db
+      .select({ totalCents: schema.quoteAcceptance.acceptedTotalCents, number: schema.quote.number })
+      .from(schema.quoteAcceptance)
+      .innerJoin(schema.quoteRevision, eq(schema.quoteRevision.id, schema.quoteAcceptance.quoteRevisionId))
+      .innerJoin(schema.quote, eq(schema.quote.id, schema.quoteRevision.quoteId))
+      .where(and(eq(schema.quote.id, invoice.quoteId), eq(schema.quote.businessId, invoice.businessId)))
+      .orderBy(desc(schema.quoteAcceptance.acceptedAt))
+      .limit(1),
+    db
+      .select({ id: schema.invoice.id })
+      .from(schema.invoice)
+      .where(
+        and(
+          eq(schema.invoice.quoteId, invoice.quoteId),
+          eq(schema.invoice.businessId, invoice.businessId),
+          sql`${schema.invoice.status} not in ('draft', 'void')`,
+        ),
+      ),
+  ]);
+  if (!accepted) return null;
+  const ids = live.map((i) => i.id);
+  const [[paid], [credit]] = ids.length
+    ? await Promise.all([
+        db
+          .select({
+            total: sql<number>`coalesce(sum(${schema.payment.amountCents} + ${schema.payment.whtCents}), 0)`,
+          })
+          .from(schema.payment)
+          .where(and(inArray(schema.payment.invoiceId, ids), isNull(schema.payment.deletedAt))),
+        db
+          .select({ total: sql<number>`coalesce(sum(${schema.clientCredit.amountCents}), 0)` })
+          .from(schema.clientCredit)
+          .where(inArray(schema.clientCredit.appliedToInvoiceId, ids)),
+      ])
+    : [[], []];
+  return {
+    ...jobBalance(accepted.totalCents, [(paid?.total ?? 0) + (credit?.total ?? 0)]),
+    quoteNumber: accepted.number,
+  };
+}
+
 export async function getInvoice(ctx: Ctx, id: string) {
   const [row] = await ctx.db
     .select()
     .from(schema.invoice)
     .where(and(eq(schema.invoice.id, id), eq(schema.invoice.businessId, ctx.user.businessId)));
   if (!row) return null;
-  const [[client], [site], [revision], [quote], [reissueOf], money] = await Promise.all([
+  const [[client], [site], [revision], [quote], [reissueOf], money, job] = await Promise.all([
     row.clientId ? ctx.db.select().from(schema.client).where(eq(schema.client.id, row.clientId)) : [],
     row.siteId ? ctx.db.select().from(schema.site).where(eq(schema.site.id, row.siteId)) : [],
     row.currentRevisionId
@@ -426,6 +485,7 @@ export async function getInvoice(ctx: Ctx, id: string) {
           .where(eq(schema.invoice.id, row.reissueOfId))
       : [],
     moneyOf(ctx, id),
+    partBilling(ctx.db, row),
   ]);
   const isDraft = row.status === "draft";
   const base = isDraft ? row.draftContent : (revision?.content ?? row.draftContent);
@@ -454,6 +514,8 @@ export async function getInvoice(ctx: Ctx, id: string) {
       : null,
     quote: quote ?? null,
     reissueOf: reissueOf ?? null,
+    /** Deposit and progress invoices: the whole job's balance. */
+    job,
     payments: money.payments,
     settledCents: settledCents(settlement),
     balanceCents: balanceCents(settlement),
@@ -1444,6 +1506,10 @@ export async function recordPayment(ctx: RequestContext, invoiceId: string, inpu
     );
   }
 
+  const parts = await partBilling(ctx.db, row);
+  const job = parts
+    ? jobBalance(parts.approvedTotalCents, [parts.paidCents + check.appliedCents + input.whtCents])
+    : null;
   const jobs: EmailJob[] = [];
   const settings = await loadSettings(ctx);
   if (settings.autoSendReceipts && client?.email && row.shareTokenSalt) {
@@ -1458,6 +1524,17 @@ export async function recordPayment(ctx: RequestContext, invoiceId: string, inpu
       receivedOn: formatDate(input.receivedOn),
       balance: formatCents(Math.max(0, totalCents - settledAfter)),
       paidInFull: status === "paid",
+      job:
+        parts && job
+          ? {
+              part: row.kind === "deposit" ? "Deposit" : "Progress payment",
+              quoteNumber: parts.quoteNumber ?? "",
+              total: formatCents(job.approvedTotalCents),
+              paid: formatCents(job.paidCents),
+              remaining: formatCents(job.remainingCents),
+              settled: job.remainingCents === 0,
+            }
+          : undefined,
       url: await invoiceShareUrl(ctx.env, invoiceId, row.shareTokenSalt),
       override: settings.emailTemplates.payment_receipt,
       defaults: { subject: defaults.subject, body: defaults.body },
@@ -1487,6 +1564,8 @@ export async function recordPayment(ctx: RequestContext, invoiceId: string, inpu
     status,
     balanceCents: totalCents - settledAfter,
     creditCents: check.creditCents,
+    /** What's still owed on the whole job, for deposit and progress invoices. */
+    jobRemainingCents: job?.remainingCents ?? null,
     receiptQueued: jobs.length > 0,
   };
 }

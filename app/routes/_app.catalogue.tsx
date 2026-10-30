@@ -8,6 +8,8 @@ import {
   Search,
   Trash2,
 } from "lucide-react";
+import { shrinkInputFile } from "~/lib/shrink-image";
+import { ConfirmDelete } from "~/components/ui/confirm-delete";
 import * as React from "react";
 import { data, Form, Link, useActionData, useNavigation, useSearchParams, useSubmit } from "react-router";
 import { ModuleHeader } from "~/components/shell/module-header";
@@ -472,7 +474,8 @@ function ItemExtras({
               name="photo"
               type="file"
               accept="image/*"
-              className="block w-full text-label file:mr-3 file:h-11 file:rounded-control file:border-0 file:bg-sage-tint file:px-4 file:font-semibold file:text-sage-ink"
+              onChange={shrinkInputFile}
+              className="block w-full text-label file:mr-3 file:h-11 file:rounded-control file:border-0 file:bg-surface-2 file:px-4 file:font-semibold file:text-primary"
             />
             {errors.photo && (
               <p role="alert" className="text-label font-semibold text-danger-ink">
@@ -488,14 +491,14 @@ function ItemExtras({
           </Form>
         </div>
         {item.photoKey && (
-          <Form method="post" className="mt-2">
-            <input type="hidden" name="intent" value="remove-photo" />
-            <input type="hidden" name="id" value={item.id} />
-            <Button type="submit" variant="ghost" loading={pending === "remove-photo"}>
-              <Trash2 aria-hidden />
-              Remove photo
-            </Button>
-          </Form>
+          <ConfirmDelete
+            className="mt-2"
+            label="Remove photo"
+            title={`Remove the photo of ${item.name}?`}
+            description="The item stays in your catalogue; only the photo is deleted."
+            confirmLabel="Remove photo"
+            fields={{ intent: "remove-photo", id: item.id }}
+          />
         )}
       </div>
       <Form method="post">
@@ -587,7 +590,6 @@ function TemplateForm({
     (template?.lines ?? []).map((l) => ({ itemId: l.itemId, qty: formatQuantity(l.qtyMilli) })),
   );
   const [adding, setAdding] = React.useState("");
-  const navigation = useNavigation();
   const byId = new Map(items.map((i) => [i.id, i]));
 
   return (
@@ -707,18 +709,15 @@ function TemplateForm({
         </Button>
       </div>
       {template && (
-        <Form method="post" className="mt-6 border-t border-border pt-4">
-          <input type="hidden" name="intent" value="archive-template" />
-          <input type="hidden" name="id" value={template.id} />
-          <Button
-            type="submit"
-            variant="ghost"
-            loading={navigation.formData?.get("intent") === "archive-template"}
-          >
-            <Trash2 aria-hidden />
-            Remove template
-          </Button>
-        </Form>
+        <div className="mt-6 border-t border-border pt-4">
+          <ConfirmDelete
+            label="Remove template"
+            title={`Remove the room template ${template.name}?`}
+            description="Quotes that already used it keep their lines."
+            confirmLabel="Remove template"
+            fields={{ intent: "archive-template", id: template.id }}
+          />
+        </div>
       )}
     </>
   );

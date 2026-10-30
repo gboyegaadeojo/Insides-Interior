@@ -18,7 +18,6 @@ async function fillLine(line: Locator, v: { description: string; qty: string; un
   await qty.click();
   await qty.fill(v.qty);
   await qty.press("Tab");
-  await line.getByLabel("Unit").fill(v.unit);
   const price = line.getByLabel("Price");
   await price.click();
   await price.fill(v.price);
@@ -133,16 +132,20 @@ test("F1 quote → F2 deposit invoice → payment → F3 final invoice (SPEC 10.
   // Bank details when they're set in Settings; otherwise who to contact.
   await expect(client.getByText(/How to pay|for payment details/).first()).toBeVisible();
 
-  // Paid in full by bank transfer.
+  // The deposit settled by bank transfer: not the job paid in full (owner request).
   await page.getByRole("button", { name: "Record payment" }).click();
   const pay = page.getByRole("dialog", { name: "Record a payment" });
   await pay.getByLabel("Reference (optional)").fill("TRF-001");
   await pay.getByRole("button", { name: "Record ₦60,975.28" }).click();
-  await expect(page.getByText("Paid in full").first()).toBeVisible({ timeout: 15_000 });
+  await expect(page.getByText("Invoice settled; ₦60,975.28 still to pay on the job").first()).toBeVisible({
+    timeout: 15_000,
+  });
   await expect(page.getByTestId("invoice-balance")).toHaveText("₦0.00");
+  await expect(page.getByTestId("job-balance")).toContainText("₦60,975.28");
   await shot(page, "f2-paid");
   await client.reload();
-  await expect(client.getByText("Paid in full").first()).toBeVisible();
+  await expect(client.getByText("Deposit paid").first()).toBeVisible();
+  await expect(client.getByTestId("job-balance")).toContainText("₦60,975.28");
 
   // F3: the final invoice credits the deposit and comes to the rest exactly.
   await page.goto(quoteUrl);

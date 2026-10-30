@@ -55,6 +55,10 @@ export default {
             lastAttempt: message.attempts >= MAX_RETRIES,
             attempt: message.attempts,
           });
+        } else if (job?.kind === "notify") {
+          // Push alerts and owner emails for new notifications (owner request).
+          const { deliverNotifications } = await import("~/features/notifications/service");
+          await deliverNotifications(env);
         }
         message.ack();
       } catch (error) {

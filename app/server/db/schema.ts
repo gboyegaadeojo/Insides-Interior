@@ -815,9 +815,35 @@ export const notification = sqliteTable(
     entityId: text(),
     title: text().notNull(),
     readAt: text(),
+    /** When the push alert (and, for some types, the owner email) went out. */
+    deliveredAt: text(),
     createdAt: text().notNull().default(now),
   },
-  (t) => [index("notification_user_idx").on(t.userId, t.readAt)],
+  (t) => [
+    index("notification_user_idx").on(t.userId, t.readAt),
+    index("notification_delivered_idx").on(t.deliveredAt),
+  ],
+);
+
+/** A device that accepted push alerts (Web Push, owner request): one row per browser. */
+export const pushSubscription = sqliteTable(
+  "push_subscription",
+  {
+    id: text().primaryKey(),
+    userId: text()
+      .notNull()
+      .references(() => user.id, { onDelete: "cascade" }),
+    endpoint: text().notNull(),
+    /** Base64url keys from the browser's PushSubscription. */
+    p256dh: text().notNull(),
+    auth: text().notNull(),
+    userAgent: text(),
+    createdAt: text().notNull().default(now),
+  },
+  (t) => [
+    uniqueIndex("push_subscription_endpoint_uq").on(t.endpoint),
+    index("push_subscription_user_idx").on(t.userId),
+  ],
 );
 
 export const activity = sqliteTable(

@@ -17,6 +17,8 @@
     "BUSINESS_TIMEZONE": "Africa/Lagos",
     // Resend's shared sender until mail.<domain> is verified (SPEC 9.1).
     "EMAIL_FROM": "Insides Interior <onboarding@resend.dev>",
+    // Web Push public key (public by design; the private key is the VAPID_PRIVATE_KEY secret).
+    "VAPID_PUBLIC_KEY": "BH4wfm49vcTMz5QsazRlNU4IzkkIcLzL29pgvU6BWI58IxF8wOt6pctEIHXRzLbLcUQmFT8YTUR4OkwaIxoC0QY",
   },
   // Secrets (set with `npx wrangler secret put <NAME>`, never committed; the
   // full list with descriptions is in .dev.vars.example).
@@ -60,6 +62,8 @@
         "TRUSTED_ORIGINS": "https://*-insides-interior-preview.insides-interior.workers.dev",
         "BUSINESS_TIMEZONE": "Africa/Lagos",
         "EMAIL_FROM": "Insides Interior <onboarding@resend.dev>",
+        // Web Push public key (public by design; the private key is the VAPID_PRIVATE_KEY secret).
+        "VAPID_PUBLIC_KEY": "BH4wfm49vcTMz5QsazRlNU4IzkkIcLzL29pgvU6BWI58IxF8wOt6pctEIHXRzLbLcUQmFT8YTUR4OkwaIxoC0QY",
       },
       "d1_databases": [
         {

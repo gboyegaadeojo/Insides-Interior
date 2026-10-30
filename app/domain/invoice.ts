@@ -100,3 +100,21 @@ export function suggestedWhtCents(p: {
   const preVat = Number((n * 2n + d) / (d * 2n));
   return applyBp(preVat, p.rateBp);
 }
+
+export interface JobBalance {
+  /** What the client approved on the quote. */
+  approvedTotalCents: number;
+  /** Settled across every live invoice of that quote. */
+  paidCents: number;
+  /** Still owed on the job, invoiced or not. */
+  remainingCents: number;
+}
+
+/**
+ * Where a whole approved quote stands (owner request: an 85% deposit paid in
+ * full must not read as the job paid in full). Settled per invoice, as above.
+ */
+export function jobBalance(approvedTotalCents: number, settledPerInvoice: number[]): JobBalance {
+  const paidCents = settledPerInvoice.reduce((sum, s) => sum + s, 0);
+  return { approvedTotalCents, paidCents, remainingCents: Math.max(0, approvedTotalCents - paidCents) };
+}

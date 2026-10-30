@@ -1,4 +1,5 @@
-import { ImageUp, Trash2 } from "lucide-react";
+import { ImageUp } from "lucide-react";
+import { ConfirmDelete } from "~/components/ui/confirm-delete";
 import { Form, useNavigation } from "react-router";
 import { DEFAULT_CITY, DEFAULT_STATE } from "~/domain/locale";
 import { SectionHeader } from "~/components/settings/section-header";
@@ -62,7 +63,6 @@ export default function BusinessSettings({ loaderData }: Route.ComponentProps) {
   const logoErrors = useIntentErrors("logo");
   const navigation = useNavigation();
   const uploading = navigation.formData?.get("intent") === "logo";
-  const removing = navigation.formData?.get("intent") === "remove-logo";
   const address = business.address ?? {};
 
   return (
@@ -196,13 +196,13 @@ export default function BusinessSettings({ loaderData }: Route.ComponentProps) {
               </div>
             </Form>
             {business.logoKey && (
-              <Form method="post">
-                <input type="hidden" name="intent" value="remove-logo" />
-                <Button type="submit" variant="ghost" loading={removing}>
-                  {!removing && <Trash2 aria-hidden />}
-                  Remove logo
-                </Button>
-              </Form>
+              <ConfirmDelete
+                label="Remove logo"
+                title="Remove your logo?"
+                description="Quotes, invoices and emails will show your business name instead until you upload another."
+                confirmLabel="Remove logo"
+                fields={{ intent: "remove-logo" }}
+              />
             )}
           </div>
         </div>

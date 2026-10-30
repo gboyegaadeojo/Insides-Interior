@@ -405,6 +405,8 @@ export async function runDailyJob(env: Env, now = new Date()): Promise<DailyResu
   if (env.APP_ENV === "production") result.backupStale = await checkBackups(env, db, today);
 
   await enqueueAll(env, jobs);
+  // Safety net: anything not yet pushed or emailed goes now (owner request).
+  await enqueue(env, [{ kind: "notify" }]);
   await finishRun(db, run, { ...result });
   return result;
 }
@@ -433,7 +435,10 @@ export async function checkBackups(env: Env, db: Db, today: string) {
         ? `Backups have stopped: the newest is from ${formatDate(newest)}. See the runbook.`
         : "No database backup has been made yet. See the runbook.",
     });
-    if (notices.length) await db.batch(notices as [(typeof notices)[number], ...typeof notices]);
+    if (notices.length) {
+      await db.batch(notices as [(typeof notices)[number], ...typeof notices]);
+      await enqueue(env, [{ kind: "notify" }]);
+    }
   }
   return true;
 }

@@ -7,19 +7,20 @@ import { chromium } from "@playwright/test";
 const outDir = fileURLToPath(new URL("../public/icons/", import.meta.url));
 mkdirSync(outDir, { recursive: true });
 
-const TEAL = "#0F766E";
-const LINEN = "#F8F6F2";
-const SAFFRON = "#F2C94C";
+// Premium redesign 2: graphite tile, ivory mark, bronze accent.
+const GRAPHITE = "#1D1D1F";
+const IVORY = "#F5F5F7";
+const BRONZE = "#C9A77C";
 
 /** The mark on a 64-unit grid; `inset` shrinks it for maskable safe zones. */
-function svg(size: number, { rounded, inset }: { rounded: boolean; inset: number }) {
+function svg(size: number, { rounded, inset, badge }: { rounded: boolean; inset: number; badge?: boolean }) {
   const scale = 1 - inset * 2;
   const offset = 32 * (1 - scale);
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 64 64">
-    <rect width="64" height="64" rx="${rounded ? 14 : 0}" fill="${TEAL}"/>
+    ${badge ? "" : `<rect width="64" height="64" rx="${rounded ? 14 : 0}" fill="${GRAPHITE}"/>`}
     <g transform="translate(${offset} ${offset}) scale(${scale})">
-      <path d="M21 15h22v6h-7.5v22H43v6H21v-6h7.5V21H21z" fill="${LINEN}"/>
-      <circle cx="47" cy="17" r="4" fill="${SAFFRON}"/>
+      <path d="M21 15h22v6h-7.5v22H43v6H21v-6h7.5V21H21z" fill="${badge ? "#FFFFFF" : IVORY}"/>
+      <circle cx="47" cy="17" r="4" fill="${badge ? "#FFFFFF" : BRONZE}"/>
     </g>
   </svg>`;
 }
@@ -31,6 +32,8 @@ const ICONS = [
   { file: "icon-maskable-512.png", size: 512, rounded: false, inset: 0.12 },
   // iOS rounds the corners itself.
   { file: "apple-touch-icon.png", size: 180, rounded: false, inset: 0.06 },
+  // Android shows the alert badge as a white silhouette on transparent.
+  { file: "badge-96.png", size: 96, rounded: false, inset: 0, badge: true },
 ];
 
 const browser = await chromium.launch();

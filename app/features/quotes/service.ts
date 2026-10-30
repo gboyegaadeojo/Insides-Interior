@@ -17,7 +17,7 @@ import {
 } from "~/domain/lifecycle";
 import { CURRENCY } from "~/domain/locale";
 import { formatCents } from "~/domain/money";
-import { isPastValidUntil } from "~/domain/portal";
+import { isPastValidUntil, validitySentence } from "~/domain/portal";
 import {
   acceptOpenIn,
   openRequestCount,
@@ -519,6 +519,10 @@ async function quoteSentMessage(
       total: formatCents(opts.totals.computed.totalCents),
       deposit: opts.totals.depositCents > 0 ? formatCents(opts.totals.depositCents) : undefined,
       validUntil: opts.validUntil ? formatDate(opts.validUntil) : undefined,
+      // Owner request: the client sees how long the quote stands, in red.
+      validity: opts.validUntil
+        ? (validitySentence(businessToday(), opts.validUntil, formatDate) ?? undefined)
+        : undefined,
     },
   });
   return {

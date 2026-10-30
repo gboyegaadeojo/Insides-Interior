@@ -99,6 +99,13 @@
       "when": 1793302858930,
       "tag": "0013_legacy_import",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "6",
+      "when": 1793319507019,
+      "tag": "0014_push_alerts",
+      "breakpoints": true
     }
   ]
 }

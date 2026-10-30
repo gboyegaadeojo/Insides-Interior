@@ -21,3 +21,7 @@ GOOGLE_CLIENT_SECRET=
 
 # Enables /api/test/* sign-in helpers for Playwright. Never set in production.
 E2E_SECRET=local-e2e-secret
+
+# Web Push private key (JWK JSON, one line) for VAPID_PUBLIC_KEY in wrangler.jsonc.
+# Production: npx wrangler secret put VAPID_PRIVATE_KEY. Generate a pair with scripts/vapid-keys.ts.
+VAPID_PRIVATE_KEY=

@@ -99,7 +99,6 @@ test("reminders pause with a badge, a reminder goes by hand once, and the bell s
     .filter({ has: page.getByLabel("Description") })
     .first();
   await line.getByLabel("Description").fill("Blind fitting");
-  await line.getByLabel("Unit").fill("each");
   const price = line.getByLabel("Price");
   await price.click();
   await price.fill("40000");

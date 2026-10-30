@@ -162,10 +162,7 @@ function LineRow({
       className={cn(line.optional && !line.selected && "doc-excluded", flagged && "doc-line-flagged")}
       data-line-id={line.id}
     >
-      <td className="doc-qty">
-        {formatQuantity(line.qtyMilli)}
-        {line.unit && <span className="doc-unit"> {line.unit}</span>}
-      </td>
+      <td className="doc-qty">{formatQuantity(line.qtyMilli)}</td>
       <td className="doc-desc">
         <span className="doc-line-title">{line.description || "Untitled line"}</span>
         {flagged && <span className="doc-flag">Change requested</span>}

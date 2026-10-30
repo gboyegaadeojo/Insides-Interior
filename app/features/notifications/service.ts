@@ -2,9 +2,12 @@
 // requested, new message, invoice viewed, email bounced. One row per owner;
 // the bell in the top bar shows the unread count and the latest ones.
 
-import { and, desc, eq, inArray, isNull, sql } from "drizzle-orm";
-import { activeOwners } from "~/features/email/service";
-import { type Db, schema } from "~/server/db";
+import { and, desc, eq, gt, inArray, isNull, sql } from "drizzle-orm";
+import { activeOwners, emailInsert, type EmailJob, enqueue } from "~/features/email/service";
+import { loadEmailBrand } from "~/features/settings/doc-business";
+import { type Db, getDb, schema } from "~/server/db";
+import { ownerAlertEmail } from "~/server/email/templates";
+import { sendPush } from "~/server/push";
 import type { RequestContext } from "~/server/session";
 import { newId } from "~/lib/ids";
 
@@ -70,4 +73,130 @@ export async function markNotificationsRead(ctx: Ctx, ids: string[] | "all") {
     .update(n)
     .set({ readAt: new Date().toISOString() })
     .where(ids === "all" ? mine : and(mine, inArray(n.id, ids.slice(0, 100))));
+}
+
+// ---------- Delivery: push alerts and owner emails (owner request) ----------
+
+/**
+ * Notification types that have no email of their own. Approvals, change
+ * requests, messages and bounces already email the owner where they happen.
+ */
+const EMAIL_TYPES = new Set(["quote.viewed", "invoice.viewed", "invoice.drafted", "backup_stale"]);
+
+/** Ask the queue to deliver new notifications (push + email). Call after the batch that made them. */
+export function notifyOwners(env: Pick<Env, "JOBS">) {
+  return enqueue(env, [{ kind: "notify" }]);
+}
+
+/**
+ * Delivers notifications not yet delivered (the last two days): a push alert
+ * to each of the owner's devices, and for EMAIL_TYPES an email. Each row is
+ * claimed first (delivered_at), so a repeat or a parallel run sends nothing twice.
+ */
+export async function deliverNotifications(env: Env) {
+  const db = getDb(env);
+  const since = new Date(Date.now() - 2 * 86_400_000).toISOString();
+  const pending = await db
+    .select({
+      id: n.id,
+      type: n.type,
+      title: n.title,
+      entityType: n.entityType,
+      entityId: n.entityId,
+      userId: n.userId,
+      email: schema.user.email,
+      businessId: schema.user.businessId,
+      disabledAt: schema.user.disabledAt,
+    })
+    .from(n)
+    .innerJoin(schema.user, eq(schema.user.id, n.userId))
+    .where(and(isNull(n.deliveredAt), gt(n.createdAt, since)))
+    .orderBy(n.createdAt)
+    .limit(50);
+  const jobs: EmailJob[] = [];
+  const brands = new Map<string, Awaited<ReturnType<typeof loadEmailBrand>>>();
+  let pushed = 0;
+  for (const row of pending) {
+    const claimed = await db
+      .update(n)
+      .set({ deliveredAt: new Date().toISOString() })
+      .where(and(eq(n.id, row.id), isNull(n.deliveredAt)))
+      .returning({ id: n.id });
+    if (claimed.length === 0 || row.disabledAt) continue;
+    const path = hrefOf(row.entityType, row.entityId, row.type);
+    const subscriptions = await db
+      .select()
+      .from(schema.pushSubscription)
+      .where(eq(schema.pushSubscription.userId, row.userId));
+    for (const sub of subscriptions) {
+      const result = await sendPush(env, sub, { title: row.title, url: path, tag: row.id });
+      if (result === "sent") pushed++;
+      if (result === "gone")
+        await db.delete(schema.pushSubscription).where(eq(schema.pushSubscription.id, sub.id));
+    }
+    if (EMAIL_TYPES.has(row.type) && row.email && row.businessId) {
+      let brand = brands.get(row.businessId);
+      if (!brand) {
+        brand = await loadEmailBrand(db, env, row.businessId);
+        brands.set(row.businessId, brand);
+      }
+      const message = {
+        ...ownerAlertEmail(brand, { title: row.title, url: new URL(path, env.APP_URL).toString() }),
+        to: [row.email],
+        idempotencyKey: `notify:${row.id}`,
+      };
+      const email = emailInsert(db, {
+        businessId: row.businessId,
+        entityType: row.entityType ?? "notification",
+        entityId: row.entityId ?? row.id,
+        template: "owner_alert",
+        message,
+      });
+      await db.batch([email.insert]);
+      jobs.push({ kind: "email", emailId: email.id, businessId: row.businessId, message });
+    }
+  }
+  await enqueue(env, jobs);
+  return { delivered: pending.length, pushed, emailed: jobs.length };
+}
+
+// ---------- Devices (Web Push subscriptions) ----------
+
+export async function savePushSubscription(
+  ctx: Ctx,
+  input: { endpoint: string; p256dh: string; auth: string; userAgent: string | null },
+) {
+  await ctx.db
+    .insert(schema.pushSubscription)
+    .values({ id: newId("psh"), userId: ctx.user.id, ...input })
+    .onConflictDoUpdate({
+      target: schema.pushSubscription.endpoint,
+      set: { userId: ctx.user.id, p256dh: input.p256dh, auth: input.auth, userAgent: input.userAgent },
+    });
+}
+
+export async function removePushSubscription(ctx: Ctx, endpoint: string) {
+  await ctx.db
+    .delete(schema.pushSubscription)
+    .where(
+      and(eq(schema.pushSubscription.userId, ctx.user.id), eq(schema.pushSubscription.endpoint, endpoint)),
+    );
+}
+
+export async function pushDevices(ctx: Ctx) {
+  return ctx.db
+    .select({ endpoint: schema.pushSubscription.endpoint, userAgent: schema.pushSubscription.userAgent })
+    .from(schema.pushSubscription)
+    .where(eq(schema.pushSubscription.userId, ctx.user.id));
+}
+
+/** A test alert to the signed-in user's devices (Settings → Notifications). */
+export async function sendTestAlert(ctx: Ctx & { env: Env }) {
+  await ctx.db.insert(n).values({
+    id: newId("ntf"),
+    userId: ctx.user.id,
+    type: "test",
+    title: "Alerts are on. You'll hear about approvals, messages and payments here.",
+  });
+  await notifyOwners(ctx.env);
 }

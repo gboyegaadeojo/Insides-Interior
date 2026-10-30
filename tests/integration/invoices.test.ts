@@ -285,6 +285,17 @@ describe("payments (FR-PAY-01…06, SPEC 8.3)", () => {
     await expect(recordPayment(ctx, id, pay({ amountCents: "1" }))).rejects.toThrow("already paid");
   });
 
+  it("a settled deposit is not the job paid in full: the receipt and screens show what's left", async () => {
+    const { ctx, id } = await sentDeposit();
+    const result = await recordPayment(ctx, id, pay({ amountCents: "6097528" }));
+    expect(result).toMatchObject({ status: "paid", balanceCents: 0, jobRemainingCents: 6_097_528 });
+    expect((await getInvoice(ctx, id))!.job).toMatchObject({
+      approvedTotalCents: 12_195_056,
+      paidCents: 6_097_528,
+      remainingCents: 6_097_528,
+    });
+  });
+
   it("refuses an overpayment unless it becomes client credit", async () => {
     const { ctx, id, clientId } = await sentDeposit();
     const error = await recordPayment(ctx, id, pay({ amountCents: "7000000" })).catch((e: unknown) => e);
