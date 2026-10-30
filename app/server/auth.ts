@@ -97,7 +97,7 @@ export function createAuth(env: Env, request: Request, options: AuthOptions = {}
             invited: Boolean(options.invite),
             name: options.invite?.name ?? member?.name,
           });
-          await sendEmail(env, { to: email, ...rendered });
+          const sent = await sendEmail(env, { to: email, ...rendered });
           if (business) {
             // Sign-in emails are logged without their link (SPEC 11.1: never store tokens).
             await db.insert(schema.emailMessage).values({
@@ -106,7 +106,9 @@ export function createAuth(env: Env, request: Request, options: AuthOptions = {}
               template: options.invite ? "invite" : "sign_in",
               to: email,
               subject: rendered.subject,
-              transport: env.RESEND_API_KEY ? "resend" : "dev",
+              transport: sent.transport,
+              // So Resend's delivery and bounce webhooks find this row.
+              resendId: sent.id,
               status: "sent",
             });
           }
