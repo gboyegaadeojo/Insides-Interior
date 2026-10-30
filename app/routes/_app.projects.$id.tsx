@@ -1,4 +1,5 @@
 import { Archive, CheckCircle2, ChevronLeft, FileText, History, ImageUp, RotateCcw } from "lucide-react";
+import { shrinkInputFile } from "~/lib/shrink-image";
 import * as React from "react";
 import { data, Form, Link, useActionData, useNavigation } from "react-router";
 import { RouteErrorBoundary } from "~/components/shell/route-error";
@@ -203,7 +204,8 @@ export default function ProjectDetail({ loaderData }: Route.ComponentProps) {
             name="cover"
             type="file"
             accept="image/*"
-            className="block flex-1 text-label file:mr-3 file:h-11 file:rounded-control file:border-0 file:bg-saffron-tint file:px-4 file:font-semibold file:text-saffron-ink"
+            onChange={shrinkInputFile}
+            className="block flex-1 text-label file:mr-3 file:h-11 file:rounded-control file:border-0 file:bg-surface-2 file:px-4 file:font-semibold file:text-primary"
           />
           <Button type="submit" variant="secondary" loading={pending === "cover"}>
             {pending !== "cover" && <ImageUp aria-hidden />}

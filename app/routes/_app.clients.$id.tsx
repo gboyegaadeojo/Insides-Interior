@@ -12,9 +12,9 @@ import {
   Phone,
   Plus,
   StickyNote,
-  Trash2,
   UserRound,
 } from "lucide-react";
+import { ConfirmDelete } from "~/components/ui/confirm-delete";
 import * as React from "react";
 import { data, Form, Link, useActionData, useNavigation, useSearchParams } from "react-router";
 import { DEFAULT_CITY, DEFAULT_STATE } from "~/domain/locale";
@@ -497,13 +497,14 @@ function ContactsCard({
                 {[c.role, c.email, c.phone].filter(Boolean).join(" · ") || "No details"}
               </span>
             </span>
-            <Form method="post">
-              <input type="hidden" name="intent" value="remove-contact" />
-              <input type="hidden" name="contactId" value={c.id} />
-              <Button type="submit" variant="ghost" size="icon" aria-label={`Remove ${c.name}`}>
-                <Trash2 aria-hidden />
-              </Button>
-            </Form>
+            <ConfirmDelete
+              iconOnly
+              label={`Remove ${c.name}`}
+              title={`Remove the contact ${c.name}?`}
+              description="Their details are removed from this client. Documents already sent are not changed."
+              confirmLabel="Remove contact"
+              fields={{ intent: "remove-contact", contactId: c.id }}
+            />
           </li>
         ))}
       </ul>
@@ -569,13 +570,14 @@ function SitesCard({
                 {formatAddress(s.address) || "No address"}
               </span>
             </span>
-            <Form method="post">
-              <input type="hidden" name="intent" value="remove-site" />
-              <input type="hidden" name="siteId" value={s.id} />
-              <Button type="submit" variant="ghost" size="icon" aria-label={`Remove ${s.label}`}>
-                <Trash2 aria-hidden />
-              </Button>
-            </Form>
+            <ConfirmDelete
+              iconOnly
+              label={`Remove ${s.label}`}
+              title={`Remove the job address ${s.label}?`}
+              description="It won't be offered for new quotes and invoices. Documents already sent keep it."
+              confirmLabel="Remove address"
+              fields={{ intent: "remove-site", siteId: s.id }}
+            />
           </li>
         ))}
       </ul>

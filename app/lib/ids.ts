@@ -23,6 +23,7 @@ export type IdPrefix =
   | "iln"
   | "ilt"
   | "pay"
+  | "psh"
   | "crd"
   | "exp"
   | "cnv"

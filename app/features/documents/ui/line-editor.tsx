@@ -3,6 +3,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { ArrowDown, ArrowUp, ChevronDown, Ellipsis, GripVertical, Lock, Trash2 } from "lucide-react";
 import * as React from "react";
 import { Button } from "~/components/ui/button";
+import { ConfirmDialog } from "~/components/ui/confirm-dialog";
 import { TextField } from "~/components/ui/field";
 import { ItemTypeChip } from "~/components/ui/item-type-chip";
 import { MoneyField, QuantityField } from "~/components/ui/number-fields";
@@ -39,7 +40,7 @@ export const LEDGER_GRID =
   "grid grid-cols-[2.25rem_minmax(0,1fr)_2.75rem] items-center gap-x-1.5 @[44rem]:grid-cols-[2.25rem_minmax(0,1fr)_auto_2.75rem]";
 export const LEDGER_ITEM = "col-start-2 row-start-1 min-w-0";
 export const LEDGER_FIGURES =
-  "col-start-2 row-start-2 justify-self-end grid grid-cols-[4.25rem_3rem_7rem_6.5rem] items-center gap-x-1 @[44rem]:col-start-3 @[44rem]:row-start-1";
+  "col-start-2 row-start-2 justify-self-end grid grid-cols-[4.5rem_7rem_6.5rem] items-center gap-x-1 @[44rem]:col-start-3 @[44rem]:row-start-1";
 export const LEDGER_MENU = "col-start-3 row-start-1 @[44rem]:col-start-4";
 
 const menuButton =
@@ -75,6 +76,7 @@ export function LineEditor({
   wide: boolean;
 }) {
   const [open, setOpen] = React.useState(false);
+  const [confirmRemove, setConfirmRemove] = React.useState(false);
   // A new, empty line opens on a phone so it can be typed straight away.
   const [editing, setEditing] = React.useState(line.description === "");
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
@@ -146,16 +148,6 @@ export function LineEditor({
       onValueChange={(v) => update({ qtyMilli: v ?? 0 })}
     />
   );
-  const unit = (cell: boolean) => (
-    <TextField
-      label="Unit"
-      hideLabel={cell}
-      cell={cell}
-      value={line.unit}
-      onChange={(e) => update({ unit: e.target.value })}
-      className={cn(cell && "px-1 text-secondary")}
-    />
-  );
   const price = (cell: boolean) => (
     <MoneyField
       label="Price"
@@ -202,7 +194,6 @@ export function LineEditor({
           </div>
           <div className={LEDGER_FIGURES}>
             {qty(true)}
-            {unit(true)}
             {price(true)}
             <span
               className={cn("pr-2 text-right tabular", excluded ? "text-secondary" : "font-semibold")}
@@ -228,7 +219,7 @@ export function LineEditor({
                 {line.optional && <span className={optionalChip}>Optional</span>}
               </span>
               <span className="block truncate text-label text-secondary tabular">
-                {formatQuantity(line.qtyMilli)} {line.unit} × {formatCents(line.unitPriceCents)}
+                {formatQuantity(line.qtyMilli)} × {formatCents(line.unitPriceCents)}
               </span>
             </span>
             <MoneyText cents={amountCents} className={cn(excluded ? "text-secondary" : "font-semibold")} />
@@ -244,7 +235,6 @@ export function LineEditor({
             <div className="grid grid-cols-2 gap-3 px-4 pb-4">
               <div className="col-span-2">{description(false)}</div>
               {qty(false)}
-              {unit(false)}
               <div className="col-span-2 flex items-end gap-2">
                 <div className="flex-1">{price(false)}</div>
                 {handle}
@@ -392,11 +382,20 @@ export function LineEditor({
               type="button"
               variant="ghost"
               className="text-danger-ink"
-              onClick={() => dispatch({ type: "removeLine", sectionId, lineId: line.id })}
+              onClick={() => setConfirmRemove(true)}
             >
               <Trash2 aria-hidden />
               Remove line
             </Button>
+            <ConfirmDialog
+              open={confirmRemove}
+              onOpenChange={setConfirmRemove}
+              title={`Remove ${line.description || "this line"}?`}
+              description="It comes off this draft. Anything already sent is not changed."
+              confirmLabel="Remove line"
+              destructive
+              onConfirm={() => dispatch({ type: "removeLine", sectionId, lineId: line.id })}
+            />
           </div>
         </div>
       )}

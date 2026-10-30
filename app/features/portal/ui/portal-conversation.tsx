@@ -312,7 +312,7 @@ export function ChangeRequestSheet({
 
           {chosen === "quantity" && line && (
             <TextField
-              label={`New quantity (now ${formatQuantity(line.qtyMilli)} ${line.unit})`}
+              label={`New quantity (now ${formatQuantity(line.qtyMilli)})`}
               name="quantity"
               inputMode="decimal"
               required

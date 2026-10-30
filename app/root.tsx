@@ -1,3 +1,4 @@
+import * as React from "react";
 import {
   isRouteErrorResponse,
   Links,
@@ -9,6 +10,7 @@ import {
 } from "react-router";
 import { Toaster } from "~/components/ui/toast";
 import { useNonce } from "~/lib/nonce";
+import { setUpPwa } from "~/lib/pwa";
 import { readPreferences } from "~/lib/preferences";
 import { themeColors } from "~/lib/theme-color";
 import type { Route } from "./+types/root";
@@ -63,6 +65,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 }
 
 export default function App() {
+  // Installable app and push alerts (owner request): register the service worker once.
+  React.useEffect(() => {
+    if (!import.meta.env.DEV) setUpPwa();
+  }, []);
   return <Outlet />;
 }
 

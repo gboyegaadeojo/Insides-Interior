@@ -19,7 +19,6 @@ async function fillLine(
   await qty.click();
   await qty.fill(values.qty);
   await qty.press("Tab");
-  await line.getByLabel("Unit").fill(values.unit);
   const price = line.getByLabel("Price");
   await price.click();
   await price.fill(values.price);

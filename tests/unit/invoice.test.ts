@@ -4,6 +4,7 @@ import {
   balanceCents,
   checkPayment,
   deriveInvoiceStatus,
+  jobBalance,
   percentPaid,
   settledCents,
   suggestedWhtCents,
@@ -31,6 +32,21 @@ describe("balance (SPEC 8.3)", () => {
     expect(percentPaid(1000, 1500)).toBe(100);
     expect(percentPaid(1000, -5)).toBe(0);
     expect(percentPaid(0, 0)).toBe(100);
+  });
+});
+
+describe("job balance (owner request: deposit receipts)", () => {
+  it("keeps the 15% balance owed after an 85% deposit invoice is paid in full", () => {
+    expect(jobBalance(519_000_000, [441_150_000])).toEqual({
+      approvedTotalCents: 519_000_000,
+      paidCents: 441_150_000,
+      remainingCents: 77_850_000,
+    });
+  });
+
+  it("never reports a negative balance", () => {
+    expect(jobBalance(1000, [600, 600]).remainingCents).toBe(0);
+    expect(jobBalance(1000, []).remainingCents).toBe(1000);
   });
 });
 

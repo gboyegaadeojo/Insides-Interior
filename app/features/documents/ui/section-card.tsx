@@ -17,6 +17,7 @@ import { CSS } from "@dnd-kit/utilities";
 import * as Popover from "@radix-ui/react-popover";
 import { ArrowDown, ArrowUp, Ellipsis, GripVertical, Plus, Trash2 } from "lucide-react";
 import * as React from "react";
+import { ConfirmDialog } from "~/components/ui/confirm-dialog";
 import { MoneyText } from "~/components/ui/text";
 import type { DocumentTotals } from "~/domain/document";
 import { cn } from "~/lib/utils";
@@ -69,6 +70,7 @@ export function SectionCard({
 }) {
   const sensors = useDragSensors();
   const [menu, setMenu] = React.useState(false);
+  const [confirmRemove, setConfirmRemove] = React.useState(false);
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } =
     useSortable({ id: section.id });
   const title = section.title || "Untitled room";
@@ -163,7 +165,10 @@ export function SectionCard({
                 className={cn(menuItem, "text-danger-ink [&_svg]:text-danger-ink")}
                 disabled={count <= 1}
                 aria-label={`Remove room ${section.title}`}
-                onClick={() => act({ type: "removeSection", sectionId: section.id })}
+                onClick={() => {
+                  setMenu(false);
+                  setConfirmRemove(true);
+                }}
               >
                 <Trash2 aria-hidden />
                 Remove room
@@ -171,6 +176,19 @@ export function SectionCard({
             </Popover.Content>
           </Popover.Portal>
         </Popover.Root>
+        <ConfirmDialog
+          open={confirmRemove}
+          onOpenChange={setConfirmRemove}
+          title={`Remove ${title}?`}
+          description={
+            items > 0
+              ? `Its ${items} line${items === 1 ? "" : "s"} will be removed from this draft too.`
+              : "The room is empty."
+          }
+          confirmLabel="Remove room"
+          destructive
+          onConfirm={() => dispatch({ type: "removeSection", sectionId: section.id })}
+        />
       </div>
 
       {wide && items > 0 && (
@@ -183,7 +201,7 @@ export function SectionCard({
         >
           <span className={cn(LEDGER_ITEM, "px-2")}>Item</span>
           <span className={cn(LEDGER_FIGURES, "row-start-1")}>
-            <span className="col-span-2 px-2 text-right">Qty</span>
+            <span className="px-2 text-right">Qty</span>
             <span className="px-2 text-right">Price</span>
             <span className="pr-2 text-right">Amount</span>
           </span>

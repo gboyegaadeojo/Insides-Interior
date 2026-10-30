@@ -134,6 +134,7 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
     revision: detail.revision,
     quote: detail.quote,
     reissueOf: detail.reissueOf,
+    job: detail.job,
     payments: detail.payments.map((p) => ({
       id: p.id,
       amountCents: p.amountCents,
@@ -215,10 +216,15 @@ export async function action({ request, params, context }: Route.ActionArgs) {
           return fail(issue.message, String(issue.path[0]));
         }
         const result = await recordPayment(ctx, params.id, parsed.data);
+        const jobLeft = result.jobRemainingCents
+          ? `; ${formatCents(result.jobRemainingCents)} still to pay on the job`
+          : "";
         return done(
-          result.status === "paid"
-            ? `Paid in full${result.creditCents ? `; ${formatCents(result.creditCents)} kept as client credit` : ""}`
-            : `Payment recorded; ${formatCents(result.balanceCents)} still due`,
+          result.status === "paid" && jobLeft
+            ? `Invoice settled${jobLeft}`
+            : result.status === "paid"
+              ? `Paid in full${result.creditCents ? `; ${formatCents(result.creditCents)} kept as client credit` : ""}`
+              : `Payment recorded; ${formatCents(result.balanceCents)} still due`,
           { status: result.status },
         );
       }
@@ -526,6 +532,19 @@ function BalanceCard({ data, total }: { data: LoaderData; total: number }) {
           {overdue ? "Overdue since " : "Due "}
           {formatDate(data.invoice.dueDate)}
         </p>
+      )}
+      {data.job && (
+        <dl
+          className="mt-3 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 border-t border-border pt-3 text-label"
+          data-testid="job-balance"
+        >
+          <dt className="text-secondary">Quote {data.job.quoteNumber} total</dt>
+          <dd className="text-right tabular">{formatCents(data.job.approvedTotalCents)}</dd>
+          <dt className="text-secondary">Paid on the job</dt>
+          <dd className="text-right tabular">{formatCents(data.job.paidCents)}</dd>
+          <dt className="font-semibold">Still to pay on the job</dt>
+          <dd className="text-right font-semibold tabular">{formatCents(data.job.remainingCents)}</dd>
+        </dl>
       )}
       <RemindersRow data={data} />
       {(data.quote || data.reissueOf) && (

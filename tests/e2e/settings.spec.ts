@@ -90,6 +90,6 @@ test("unsaved changes warn before leaving (FR-SET-11)", async ({ page }) => {
 
 test("account lists this device (FR-AUTH-05)", async ({ page }) => {
   await openSection(page, "Account");
-  await expect(page.getByText("This device")).toBeVisible();
+  await expect(page.getByText("This device", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Sign out everywhere" })).toBeVisible();
 });

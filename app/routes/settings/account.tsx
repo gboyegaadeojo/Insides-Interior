@@ -1,4 +1,5 @@
-import { Fingerprint, LogOut, Monitor, Smartphone, Trash2 } from "lucide-react";
+import { Fingerprint, LogOut, Monitor, Smartphone } from "lucide-react";
+import { ConfirmDelete } from "~/components/ui/confirm-delete";
 import * as React from "react";
 import { data, Form, redirect, useNavigation, useRevalidator } from "react-router";
 import { SectionHeader } from "~/components/settings/section-header";
@@ -174,13 +175,14 @@ export default function AccountSettings({ loaderData, actionData }: Route.Compon
                     <span className="block text-label font-normal text-secondary">Added {p.createdAt}</span>
                   )}
                 </span>
-                <Form method="post">
-                  <input type="hidden" name="intent" value="delete-passkey" />
-                  <input type="hidden" name="id" value={p.id} />
-                  <Button type="submit" variant="ghost" aria-label={`Remove ${p.name}`}>
-                    <Trash2 aria-hidden />
-                  </Button>
-                </Form>
+                <ConfirmDelete
+                  iconOnly
+                  label={`Remove ${p.name}`}
+                  title={`Remove the passkey ${p.name}?`}
+                  description="You won't be able to sign in with it any more. You can still sign in with an email link."
+                  confirmLabel="Remove passkey"
+                  fields={{ intent: "delete-passkey", id: p.id }}
+                />
               </li>
             ))}
           </ul>

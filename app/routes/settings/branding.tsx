@@ -1,8 +1,8 @@
 import * as React from "react";
+import { ConfirmDelete } from "~/components/ui/confirm-delete";
 import { BrandPreview } from "~/components/doc/brand-preview";
 import { SectionHeader } from "~/components/settings/section-header";
 import { SettingsForm, useIntentErrors } from "~/components/settings/settings-form";
-import { Form, useNavigation } from "react-router";
 import { Button } from "~/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { TextField } from "~/components/ui/field";
@@ -150,8 +150,6 @@ function SignatureCard({
   current: { svg: string; name: string | null; title: string | null } | null;
 }) {
   const errors = useIntentErrors("signature");
-  const navigation = useNavigation();
-  const removing = navigation.state !== "idle" && navigation.formData?.get("intent") === "remove_signature";
   return (
     <div className="grid gap-6 desktop:grid-cols-2">
       <SettingsForm
@@ -207,12 +205,13 @@ function SignatureCard({
               {current.name && <p className="font-semibold">{current.name}</p>}
               {current.title && <p className="text-label text-secondary">{current.title}</p>}
             </div>
-            <Form method="post">
-              <input type="hidden" name="intent" value="remove_signature" />
-              <Button type="submit" variant="ghost" loading={removing}>
-                Remove signature
-              </Button>
-            </Form>
+            <ConfirmDelete
+              label="Remove signature"
+              title="Remove your signature?"
+              description="Quotes and invoices will go out without a signature until you sign again."
+              confirmLabel="Remove signature"
+              fields={{ intent: "remove_signature" }}
+            />
           </div>
         )}
       </Card>

@@ -11,6 +11,7 @@ import { WHOLE_DOCUMENT } from "~/domain/change-requests";
 import { formatAddress } from "~/features/clients/service";
 import { openLineRefs } from "~/features/conversations/requests";
 import { PAYMENT_METHOD_LABEL } from "~/features/invoices/constants";
+import { partBilling } from "~/features/invoices/service";
 import { conversationAction } from "~/features/portal/action";
 import {
   loadPortalInvoice,
@@ -63,11 +64,12 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
   }
   const { invoice, revision, client, site, payments } = portal;
   const db = getDb(env);
-  const [business, [settings], thread, whatChanged] = await Promise.all([
+  const [business, [settings], thread, whatChanged, parts] = await Promise.all([
     loadDocBusiness(db, invoice.businessId),
     db.select().from(schema.settings).where(eq(schema.settings.businessId, invoice.businessId)),
     print ? [] : portalThread(env, "invoice", invoice.id),
     print ? null : portalWhatChanged(env, "invoice", invoice.id, revision),
+    partBilling(db, invoice),
   ]);
   const bank = {
     bankName: settings?.bankName ?? null,
@@ -117,6 +119,14 @@ export async function loader({ request, params, context }: Route.LoaderArgs) {
       totalCents: revision.totalCents,
       settledCents: portal.settledCents,
       balanceCents: portal.balanceCents,
+      // A deposit or progress invoice: what's still owed on the whole job.
+      job: parts && {
+        part: invoice.kind === "deposit" ? "deposit" : "progress payment",
+        quoteNumber: parts.quoteNumber,
+        totalCents: parts.approvedTotalCents,
+        paidCents: parts.paidCents,
+        remainingCents: parts.remainingCents,
+      },
       payments: payments.map((p) => ({
         id: p.id,
         amountCents: p.amountCents + p.whtCents,
@@ -293,6 +303,7 @@ function Portal({ d }: { d: LoaderData }) {
                   {formatCents(d.settledCents)} of {formatCents(d.totalCents)} received
                 </p>
               )}
+              {d.job && <JobBalance job={d.job} />}
             </div>
             {d.balanceCents > 0 && <HowToPay d={d} />}
           </section>
@@ -423,6 +434,23 @@ function HowToPay({ d }: { d: LoaderData }) {
   );
 }
 
+/** The whole job behind a deposit or progress invoice (owner request). */
+function JobBalance({ job }: { job: NonNullable<LoaderData["job"]> }) {
+  return (
+    <dl
+      className="mt-4 grid grid-cols-[1fr_auto] gap-x-4 gap-y-1 border-t border-border pt-3 text-label"
+      data-testid="job-balance"
+    >
+      <dt className="text-secondary">Quote {job.quoteNumber} total</dt>
+      <dd className="text-right tabular">{formatCents(job.totalCents)}</dd>
+      <dt className="text-secondary">Paid so far</dt>
+      <dd className="text-right tabular">{formatCents(job.paidCents)}</dd>
+      <dt className="font-semibold">Still to pay on the job</dt>
+      <dd className="text-right font-semibold tabular">{formatCents(job.remainingCents)}</dd>
+    </dl>
+  );
+}
+
 function StatusBanner({ d }: { d: LoaderData }) {
   const banner = (tone: string, Icon: typeof Check, title: string, body: React.ReactNode) => (
     <div role="status" className={cn("mt-5 flex gap-3 rounded-card border p-4", tone)}>
@@ -435,6 +463,13 @@ function StatusBanner({ d }: { d: LoaderData }) {
   );
   switch (d.state) {
     case "paid":
+      if (d.job && d.job.remainingCents > 0)
+        return banner(
+          "border-sage-base bg-sage-tint text-sage-ink",
+          Check,
+          d.job.part === "deposit" ? "Deposit paid" : "Progress payment paid",
+          `Thank you. Nothing more is due on ${d.number}. ${formatCents(d.job.remainingCents)} is still to pay on quote ${d.job.quoteNumber}; it will be invoiced separately.`,
+        );
       return banner(
         "border-sage-base bg-sage-tint text-sage-ink",
         Check,

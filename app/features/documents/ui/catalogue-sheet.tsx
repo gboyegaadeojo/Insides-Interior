@@ -164,7 +164,7 @@ export function CatalogueSheet({
                         <ItemTypeChip type={item.type} />
                       </span>
                       <span className="text-right text-label font-normal">
-                        <MoneyText cents={item.priceCents} className="block font-semibold" />/ {item.unit}
+                        <MoneyText cents={item.priceCents} className="block font-semibold" />
                       </span>
                     </button>
                   </li>

@@ -26,6 +26,10 @@ const INK = "#24211E";
 const BODY = "#3D3731";
 const MUTED = "#68615A";
 const CANVAS = "#F5F5F4";
+/** A red notice (danger tint, base and ink from app/styles/tokens.ts), e.g. a quote's validity. */
+const ALERT_TINT = "#FBECEA";
+const ALERT_BASE = "#B3261E";
+const ALERT_INK = "#8C1D18";
 const LINE = "#E2DDD4";
 const FALLBACK_BRAND = "#0F766E";
 
@@ -55,6 +59,8 @@ export function layout(
     facts?: [label: string, value: string][];
     /** A quoted message from the client, shown in a soft panel. */
     quote?: string;
+    /** A short notice in red above the button (a quote's validity, owner request). */
+    alert?: string;
     button: { label: string; url: string };
     footnote?: string;
   },
@@ -74,6 +80,9 @@ export function layout(
   const quoted = opts.quote
     ? `<tr><td style="padding:16px 28px 0"><div style="padding:14px 16px;background:${CANVAS};border-left:3px solid ${color};border-radius:4px;font-family:${SANS};font-size:15px;line-height:1.5;color:${BODY};white-space:pre-line">${escape(opts.quote)}</div></td></tr>`
     : "";
+  const alert = opts.alert
+    ? `<tr><td style="padding:18px 28px 0"><div style="padding:12px 14px;background:${ALERT_TINT};border-left:3px solid ${ALERT_BASE};border-radius:4px;font-family:${SANS};font-size:15px;line-height:1.45;font-weight:600;color:${ALERT_INK}">${escape(opts.alert)}</div></td></tr>`
+    : "";
   const html = `<!doctype html>
 <html lang="en-NG"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>${escape(opts.headline)}</title></head>
 <body style="margin:0;padding:0;background:${CANVAS}">
@@ -85,6 +94,7 @@ export function layout(
 <tr><td style="padding:24px 28px 0;font-family:Fraunces,Georgia,serif;font-size:28px;line-height:1.2;font-weight:500;color:${INK}">${escape(opts.headline)}</td></tr>
 ${opts.body.map((p) => `<tr><td style="padding:12px 28px 0;font-family:${SANS};font-size:16px;line-height:1.5;color:${BODY}">${escape(p)}</td></tr>`).join("\n")}
 ${quoted}
+${alert}
 ${facts}
 <tr><td style="padding:24px 28px 8px">
 <a href="${escape(opts.button.url)}" style="display:block;text-align:center;background:${color};color:${onBrand(color)};font-family:${SANS};font-size:16px;font-weight:600;line-height:48px;height:48px;border-radius:10px;text-decoration:none">${escape(opts.button.label)}</a>
@@ -97,6 +107,7 @@ ${opts.footnote ? `<tr><td style="padding:8px 28px 0;font-family:${SANS};font-si
     "",
     ...opts.body,
     ...(opts.quote ? ["", ...opts.quote.split("\n").map((l) => `> ${l}`)] : []),
+    ...(opts.alert ? ["", opts.alert] : []),
     ...(opts.facts?.length ? ["", ...opts.facts.map(([l, v]) => `${l}: ${v}`)] : []),
     "",
     `${opts.button.label}: ${opts.button.url}`,
@@ -148,6 +159,8 @@ export interface QuoteEmailFacts {
   total: string;
   validUntil?: string;
   deposit?: string;
+  /** "This quote is valid for 7 days from the date it was issued (until …)." Shown in red. */
+  validity?: string;
 }
 
 /**
@@ -191,6 +204,7 @@ export function quoteSentEmail(
     headline: revised ? `Your revised quote is ready` : `Your quote is ready`,
     body,
     quote: opts.note?.trim() || undefined,
+    alert: opts.facts.validity,
     facts: [
       ["Quote", revised ? `${opts.facts.number} · rev ${opts.revision}` : opts.facts.number],
       ...(revised ? changesFacts(opts.changes) : []),
@@ -411,32 +425,77 @@ export function paymentReceiptEmail(
     receivedOn: string;
     balance: string;
     paidInFull: boolean;
+    /**
+     * A deposit or progress invoice: the job it is part of. Settling it is not
+     * the job paid in full, so the receipt says what's still owed (owner request).
+     */
+    job?: {
+      part: "Deposit" | "Progress payment";
+      quoteNumber: string;
+      total: string;
+      paid: string;
+      remaining: string;
+      settled: boolean;
+    };
     url: string;
     override?: EmailTemplateOverride;
     defaults: EmailTemplateOverride;
   },
 ): RenderedEmail {
+  const job = opts.job;
+  const owed = job ? job.remaining : opts.balance;
   const values: MergeValues = {
     "client.firstName": firstName(opts.clientName),
     "client.name": opts.clientName,
     "business.name": brand.name,
     "invoice.number": opts.number,
-    "amount.due": opts.balance,
+    "amount.due": owed,
     link: opts.url,
   };
   const wording = opts.override ?? opts.defaults;
-  const { html, text } = layout(brand, {
-    preheader: `${opts.amount} received for ${opts.number}. ${opts.paidInFull ? "Paid in full." : `Balance ${opts.balance}.`}`,
-    headline: opts.paidInFull ? "Paid in full, thank you" : "Payment received, thank you",
-    body: paragraphs(renderMergeFields(wording.body, values)),
-    facts: [
-      ["Invoice", opts.number],
+  const body = paragraphs(renderMergeFields(wording.body, values));
+  let headline = opts.paidInFull ? "Paid in full, thank you" : "Payment received, thank you";
+  let preheader = `${opts.amount} received for ${opts.number}. ${opts.paidInFull ? "Paid in full." : `Balance ${opts.balance}.`}`;
+  let facts: [string, string][] = [
+    ["Invoice", opts.number],
+    ["Received", opts.amount],
+    ...(opts.wht ? ([["Withholding tax", opts.wht]] as [string, string][]) : []),
+    ["Method", opts.method],
+    ["Date", opts.receivedOn],
+    ["Balance remaining", opts.balance],
+  ];
+  if (job) {
+    const part = job.part === "Deposit" ? "deposit" : "progress payment";
+    const jobDone = job.settled;
+    headline = jobDone
+      ? "Paid in full, thank you"
+      : opts.paidInFull
+        ? `${job.part} received, thank you`
+        : "Payment received, thank you";
+    preheader = `${opts.amount} received for ${opts.number}. ${jobDone ? "Paid in full." : `${job.remaining} still to pay on quote ${job.quoteNumber}.`}`;
+    if (!jobDone)
+      body.push(
+        opts.paidInFull
+          ? `This settles the ${part} invoice ${opts.number}. The balance of ${job.remaining} on quote ${job.quoteNumber} is still to be paid; we'll invoice it separately.`
+          : `${opts.balance} is still due on this ${part} invoice, and ${job.remaining} in total on quote ${job.quoteNumber}.`,
+      );
+    facts = [
+      ["Invoice", `${opts.number} (${part})`],
       ["Received", opts.amount],
       ...(opts.wht ? ([["Withholding tax", opts.wht]] as [string, string][]) : []),
       ["Method", opts.method],
       ["Date", opts.receivedOn],
-      ["Balance remaining", opts.balance],
-    ],
+      [`Due on ${opts.number}`, opts.paidInFull ? "Settled" : opts.balance],
+      [`Quote ${job.quoteNumber} total`, job.total],
+      ["Paid so far", job.paid],
+      ["Balance remaining", job.remaining],
+    ];
+  }
+  const { html, text } = layout(brand, {
+    preheader,
+    headline,
+    body,
+    facts,
     button: { label: "View receipt", url: opts.url },
   });
   return { subject: renderMergeFields(wording.subject, values), html, text };
@@ -595,4 +654,19 @@ export function bounceAlertEmail(
     button: { label: "Fix email address", url: opts.url },
   });
   return { subject: `Email to ${opts.to} ${what}`, html, text };
+}
+
+/**
+ * A short alert to the owner for an in-app notification that has no email of
+ * its own (quote or invoice opened, invoice drafted, backups stopped). Owner
+ * request: every notification also reaches the owner by email.
+ */
+export function ownerAlertEmail(brand: Brand, opts: { title: string; url: string }): RenderedEmail {
+  const { html, text } = layout(brand, {
+    preheader: opts.title,
+    headline: opts.title,
+    body: ["This alert is also in the bell in the app."],
+    button: { label: "Open in the app", url: opts.url },
+  });
+  return { subject: opts.title, html, text };
 }

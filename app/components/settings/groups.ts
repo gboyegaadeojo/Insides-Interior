@@ -7,6 +7,7 @@ import {
   Mail,
   Palette,
   Percent,
+  Smartphone,
   ShieldCheck,
   SunMoon,
   Users,
@@ -79,6 +80,14 @@ export const SETTINGS_GROUPS: SettingsGroup[] = [
     icon: Users,
     tone: "terracotta",
     ownerOnly: true,
+  },
+  {
+    path: "notifications",
+    label: "App and alerts",
+    description: "Install the app, alerts on this device",
+    icon: Smartphone,
+    tone: "indigo",
+    ownerOnly: false,
   },
   {
     path: "account",

@@ -106,17 +106,41 @@ Secrets live only in Cloudflare (`wrangler secret`) and GitHub repository secret
 repository. Change one with `npx wrangler secret put <NAME>` (production) or
 `npx wrangler versions secret put <NAME> --env preview` (preview), then redeploy.
 
-| Secret                  | What it does                                             | Rotating it                                                                                                                                                                                                   |
-| ----------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `RESEND_API_KEY`        | Sends email                                              | Yearly (SPEC 11.1). Create a new key in Resend, put it, deploy, send a test, then revoke the old key.                                                                                                         |
-| `RESEND_WEBHOOK_SECRET` | Verifies delivery and bounce webhooks                    | Roll the signing secret on the Resend webhook, then put the new value straight away (events signed with the old one are rejected until you do).                                                               |
-| `BETTER_AUTH_SECRET`    | Signs sessions, client share links and file links        | **Only if it leaked.** Everyone is signed out and every client link (quotes and invoices) stops working; resend open documents so clients get new links. Use a long random value (`openssl rand -base64 48`). |
-| `GOOGLE_CLIENT_*`       | Google sign-in (not switched on yet)                     | Make a new client secret in Google Cloud, put it, deploy, delete the old one.                                                                                                                                 |
-| `CLOUDFLARE_API_TOKEN`  | GitHub Actions: deploys, previews, backups (GitHub only) | Create a new token (Workers, D1, R2 edit) in Cloudflare, update the GitHub secret, re-run a workflow, revoke the old token.                                                                                   |
-| `E2E_SECRET`            | Test sign-in on previews only (never production)         | Change it in GitHub, preview (`--env preview`) and `.dev.vars` together.                                                                                                                                      |
+| Secret                  | What it does                                                                               | Rotating it                                                                                                                                                                                                   |
+| ----------------------- | ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `RESEND_API_KEY`        | Sends email                                                                                | Yearly (SPEC 11.1). Create a new key in Resend, put it, deploy, send a test, then revoke the old key.                                                                                                         |
+| `RESEND_WEBHOOK_SECRET` | Verifies delivery and bounce webhooks                                                      | Roll the signing secret on the Resend webhook, then put the new value straight away (events signed with the old one are rejected until you do).                                                               |
+| `BETTER_AUTH_SECRET`    | Signs sessions, client share links and file links                                          | **Only if it leaked.** Everyone is signed out and every client link (quotes and invoices) stops working; resend open documents so clients get new links. Use a long random value (`openssl rand -base64 48`). |
+| `GOOGLE_CLIENT_*`       | Google sign-in (not switched on yet)                                                       | Make a new client secret in Google Cloud, put it, deploy, delete the old one.                                                                                                                                 |
+| `CLOUDFLARE_API_TOKEN`  | GitHub Actions: deploys, previews, backups (GitHub only)                                   | Create a new token (Workers, D1, R2 edit) in Cloudflare, update the GitHub secret, re-run a workflow, revoke the old token.                                                                                   |
+| `VAPID_PRIVATE_KEY`     | Signs push alerts to installed devices (public half: `VAPID_PUBLIC_KEY` in wrangler.jsonc) | Only if it leaked: run `node scripts/vapid-keys.ts`, put both halves, deploy; every device has to turn alerts on again.                                                                                       |
+| `E2E_SECRET`            | Test sign-in on previews only (never production)                                           | Change it in GitHub, preview (`--env preview`) and `.dev.vars` together.                                                                                                                                      |
 
 After any rotation, run the smoke check: sign in, open a quote, download a PDF, send a test email
 to yourself.
+
+## Storage
+
+- Photos (receipts, catalogue, project covers) are shrunk in the browser before upload (2000px, JPEG 82%).
+- Cached PDFs can always be rebuilt from the saved document, so they may expire. Rule (run once; it was not
+  added automatically because it deletes files):
+  ```sh
+  npx wrangler r2 bucket lifecycle add insides-files cached-pdfs-6-months pdf/ --expire-days 180 -y
+  npx wrangler r2 bucket lifecycle add insides-files-preview cached-pdfs-6-months pdf/ --expire-days 180 -y
+  ```
+  R2 rules count from when a file was made; an expired PDF is rendered again the next time it is opened.
+- Receipts, photos and logos are records and are never expired.
+
+## Push alerts
+
+Alerts need the secret once per Worker (the key is in `.dev.vars` on the machine that generated it):
+
+```sh
+npx wrangler secret put VAPID_PRIVATE_KEY
+npx wrangler versions secret put VAPID_PRIVATE_KEY --env preview
+```
+
+Without it, alerts are skipped and every email still goes. Devices turn alerts on in Settings → App and alerts.
 
 ## Move the old app's records in (SPEC 12)
 

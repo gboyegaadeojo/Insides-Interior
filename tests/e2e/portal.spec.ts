@@ -23,7 +23,6 @@ async function seriousViolations(page: Page) {
 
 async function fillLine(line: Locator, values: { description: string; price: string }) {
   await line.getByLabel("Description").fill(values.description);
-  await line.getByLabel("Unit").fill("each");
   const price = line.getByLabel("Price");
   await price.click();
   await price.fill(values.price);

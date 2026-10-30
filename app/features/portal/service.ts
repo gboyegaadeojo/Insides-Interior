@@ -188,6 +188,7 @@ export async function recordQuoteView(env: Env, portal: PortalQuote, meta: Visit
     );
   }
   await db.batch(statements as Batch);
+  if (quote.status === "sent") await enqueue(env, [{ kind: "notify" }]);
 }
 
 function checkOpen(portal: PortalQuote, revisionId: string, allowed: string[]) {
@@ -367,7 +368,8 @@ export async function approveQuote(env: Env, token: string, input: ApproveInput,
     checkOpen(fresh, input.revisionId, ["sent", "viewed"]);
     throw error;
   }
-  await enqueue(env, jobs);
+  // Push alerts and owner emails for the notifications above (owner request).
+  await enqueue(env, [...jobs, { kind: "notify" }]);
 
   // Owner request: draft the deposit invoice (or one for the total) right away.
   // The approval stands even if this fails; the owner can still make it by hand.
@@ -382,7 +384,10 @@ export async function approveQuote(env: Env, token: string, input: ApproveInput,
         entityId: drafted.id,
         title: `${drafted.kind === "deposit" ? "Deposit invoice" : "Invoice"} for ${client.displayName} is drafted; check it and send`,
       });
-      if (notices.length > 0) await db.batch(notices as unknown as Batch);
+      if (notices.length > 0) {
+        await db.batch(notices as unknown as Batch);
+        await enqueue(env, [{ kind: "notify" }]);
+      }
     }
   } catch (error) {
     console.error(
@@ -475,6 +480,7 @@ export async function recordInvoiceView(env: Env, portal: PortalInvoice, meta: V
     );
   }
   await db.batch(statements as Batch);
+  if (invoice.status === "sent") await enqueue(env, [{ kind: "notify" }]);
 }
 
 // ---------- Conversation (FR-MSG-02, 03; SPEC 11.1) ----------
@@ -676,7 +682,8 @@ export async function postClientMessage(
     meta,
   });
   await db.batch(statements as Batch);
-  await enqueue(env, jobs);
+  // Push alerts and owner emails for the notifications above (owner request).
+  await enqueue(env, [...jobs, { kind: "notify" }]);
 }
 
 /** "Remove this item: Cushions", "Change quantity: Cushions (2 → 1)". */
@@ -771,7 +778,8 @@ export async function raiseChangeRequest(
       throw new PortalError("This changed while you were writing. Please try again.", "stale");
     throw error;
   }
-  await enqueue(env, jobs);
+  // Push alerts and owner emails for the notifications above (owner request).
+  await enqueue(env, [...jobs, { kind: "notify" }]);
 }
 
 /** The thread under a portal document, without hidden messages (FR-MSG-10). */

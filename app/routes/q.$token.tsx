@@ -11,7 +11,7 @@ import { MoneyText } from "~/components/ui/text";
 import { toast } from "~/components/ui/toast";
 import { computeContent, depositFrom } from "~/domain/document";
 import { formatCents, lineAmountCents } from "~/domain/money";
-import { applySelection, selectedOptionIds } from "~/domain/portal";
+import { applySelection, selectedOptionIds, validitySentence } from "~/domain/portal";
 import { WHOLE_DOCUMENT } from "~/domain/change-requests";
 import { formatAddress } from "~/features/clients/service";
 import { openLineRefs } from "~/features/conversations/requests";
@@ -316,10 +316,17 @@ function Portal({ d }: { d: LoaderData }) {
           {d.revisionNo > 1 && ` · Revised (rev ${d.revisionNo})`}
         </p>
         <h1 className="mt-2 font-display text-display">{d.title || `Your quote from ${d.business.name}`}</h1>
-        <p className="mt-2 text-secondary">
-          Prepared for {d.client.name}
-          {d.validUntil && d.state === "open" && <> · valid until {formatDate(d.validUntil)}</>}
-        </p>
+        <p className="mt-2 text-secondary">Prepared for {d.client.name}</p>
+        {/* Owner request: the validity jumps out to the client while it can be approved. */}
+        {d.validUntil && d.state === "open" && (
+          <p
+            className="mt-4 flex items-start gap-2 rounded-card border border-danger-base/40 bg-danger-tint px-4 py-3 font-semibold text-danger-ink"
+            data-testid="quote-validity"
+          >
+            <Clock className="mt-0.5 size-4.5 shrink-0" aria-hidden />
+            <span>{validitySentence(d.issuedOn, d.validUntil, formatDate)}</span>
+          </p>
+        )}
 
         <StatusBanner d={d} />
 

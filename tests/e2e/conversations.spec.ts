@@ -32,7 +32,6 @@ async function fillLine(line: Locator, v: { description: string; qty: string; pr
   await qty.click();
   await qty.fill(v.qty);
   await qty.press("Tab");
-  await line.getByLabel("Unit").fill("each");
   const price = line.getByLabel("Price");
   await price.click();
   await price.fill(v.price);

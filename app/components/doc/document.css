@@ -367,11 +367,16 @@
   color: var(--text-secondary);
 }
 
-/* The validity sentence opens a quote's terms, a little stronger than the rest. */
+/* The validity sentence opens a quote's terms, in red so the client sees it
+   (owner request), boxed so it reads as a notice rather than an error. */
 .doc-validity {
-  margin-bottom: 4pt !important;
-  color: var(--text-primary);
-  font-weight: 500;
+  margin-bottom: 6pt !important;
+  padding: 5pt 8pt;
+  border-left: 2pt solid var(--danger-base);
+  background: var(--danger-tint);
+  color: var(--danger-ink);
+  font-size: 9pt;
+  font-weight: 600;
 }
 
 /* The owner's permanent signature (Settings → Branding). */

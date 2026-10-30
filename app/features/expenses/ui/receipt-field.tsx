@@ -1,4 +1,5 @@
 import { Camera, FileText, ImageUp, RotateCw, Trash2 } from "lucide-react";
+import { shrinkImage } from "~/lib/shrink-image";
 import * as React from "react";
 import { Button } from "~/components/ui/button";
 import { RECEIPT_ACCEPT, RECEIPT_MAX_BYTES } from "../constants";
@@ -67,8 +68,10 @@ export function ReceiptField({
   const run = React.useRef(0);
 
   const start = React.useCallback(
-    async (file: File) => {
+    async (original: File) => {
       const id = ++run.current;
+      // Shrunk first (storage costs); a receipt photo stays readable at 2000px.
+      const file = await shrinkImage(original);
       if (file.size > RECEIPT_MAX_BYTES) {
         setState({ kind: "failed", file, message: "The receipt must be 10 MB or smaller." });
         return;
