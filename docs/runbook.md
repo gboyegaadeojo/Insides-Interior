@@ -122,8 +122,8 @@ to yourself.
 ## Storage
 
 - Photos (receipts, catalogue, project covers) are shrunk in the browser before upload (2000px, JPEG 82%).
-- Cached PDFs can always be rebuilt from the saved document, so they may expire. Rule (run once; it was not
-  added automatically because it deletes files):
+- Cached PDFs can always be rebuilt from the saved document, so they may expire. This rule is in place on
+  both buckets (added 2026-10-31; check with `npx wrangler r2 bucket lifecycle list insides-files`):
   ```sh
   npx wrangler r2 bucket lifecycle add insides-files cached-pdfs-6-months pdf/ --expire-days 180 -y
   npx wrangler r2 bucket lifecycle add insides-files-preview cached-pdfs-6-months pdf/ --expire-days 180 -y
