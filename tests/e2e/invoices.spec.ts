@@ -1,4 +1,5 @@
 import { type Browser, expect, type Locator, type Page, test } from "@playwright/test";
+import { recordPortalLink } from "./portal-links";
 
 // SPEC 14.1 phase 6 exit: F1–F3 reproduced through the UI. F1 is built and
 // approved, the deposit invoice (F2) and the final invoice (F3) both come to
@@ -138,6 +139,7 @@ test("F1 quote → F2 deposit invoice → payment → F3 final invoice (SPEC 10.
 
   // The client opens the invoice link and sees what's due and how to pay.
   const invoiceLink = new URL(await page.getByLabel("Link").inputValue()).pathname;
+  recordPortalLink("invoice", invoiceLink);
   await client.goto(invoiceLink);
   await expect(client.getByTestId("portal-balance")).toHaveText("₦60,975.28");
   // Bank details when they're set in Settings; otherwise who to contact.

@@ -1,5 +1,6 @@
 import AxeBuilder from "@axe-core/playwright";
 import { type Browser, expect, type Locator, type Page, test } from "@playwright/test";
+import { recordPortalLink } from "./portal-links";
 
 // SPEC 14.1 phase 5 exit: a test client approves from a phone. The owner builds
 // and sends a quote; a separate, signed-out browser on the same device opens
@@ -80,6 +81,7 @@ async function buildAndSend(page: Page) {
   await expect(page.getByText("Sent", { exact: true }).first()).toBeVisible();
   const link = await page.getByLabel("Link").inputValue();
   expect(link).toMatch(/\/q\/[A-Za-z0-9_-]{43}$/);
+  recordPortalLink("quote", new URL(link).pathname);
   return { link: new URL(link).pathname, quoteUrl: page.url() };
 }
 
