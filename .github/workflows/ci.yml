@@ -11,8 +11,8 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -32,8 +32,8 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -46,7 +46,7 @@ jobs:
           node scripts/seed.ts --local --e2e
       - run: npm run test:e2e
       # Always uploaded: it carries the /design screenshots for review (SPEC 13).
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: playwright-report
@@ -66,8 +66,8 @@ jobs:
       CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
           node-version: 24
           cache: npm
@@ -100,10 +100,36 @@ jobs:
         env:
           E2E_BASE_URL: ${{ steps.upload.outputs.url }}
           E2E_SECRET: ${{ secrets.E2E_SECRET }}
+          # The portal and invoice tests save their client links here for Lighthouse.
+          PORTAL_LINKS_FILE: ${{ runner.temp }}/portal-links.ndjson
         run: >-
           npx playwright test tests/e2e/smoke.spec.ts tests/e2e/quote-builder.spec.ts tests/e2e/portal.spec.ts tests/e2e/invoices.spec.ts
           --project="iPhone 14" --project="Desktop Chrome 1440"
-      - uses: actions/upload-artifact@v4
+      # Page speed of the client quote and invoice pages on a phone over slow 4G (lighthouserc.cjs).
+      - name: Page speed of the client pages (Lighthouse)
+        env:
+          LHCI_BASE_URL: ${{ steps.upload.outputs.url }}
+          PORTAL_LINKS_FILE: ${{ runner.temp }}/portal-links.ndjson
+        run: |
+          # The links carry share tokens: keep them out of the logs.
+          jq -r '.path' "$PORTAL_LINKS_FILE" | while read -r p; do echo "::add-mask::$p"; done
+          set +e
+          npx --yes @lhci/cli@0.15.1 autorun
+          status=$?
+          {
+            echo "### Client page speed (median of 3, phone on slow 4G)"
+            echo "| Page | Performance | Accessibility | Best practices |"
+            echo "| --- | --- | --- | --- |"
+            jq -r '.[] | select(.isRepresentativeRun) | [(if (.url | test("/q/")) then "Quote" else "Invoice" end), (.summary.performance * 100 | round), (.summary.accessibility * 100 | round), (.summary["best-practices"] * 100 | round)] | map(tostring) | "| " + join(" | ") + " |"' .lighthouseci/reports/manifest.json
+          } >> "$GITHUB_STEP_SUMMARY"
+          # What moved while loading, per page (element selectors only, no links).
+          jq -r '.[] | select(.isRepresentativeRun) | [(if (.url | test("/q/")) then "Quote" else "Invoice" end), .jsonPath] | @tsv' .lighthouseci/reports/manifest.json |
+            while IFS=$'\t' read -r page file; do
+              echo "Layout shifts on the $page page:"
+              jq -r '.audits["layout-shifts"].details.items[]? | "  \(.score | . * 1000 | round / 1000)  \(.node.selector // "?")  \(.node.nodeLabel // "" | .[0:80])"' "$file"
+            done
+          exit $status
+      - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: preview-smoke-report

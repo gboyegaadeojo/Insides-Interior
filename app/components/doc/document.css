@@ -38,7 +38,9 @@
 
 .doc-logo {
   display: block;
-  max-height: 0.7in;
+  /* A fixed height so the page doesn't jump when the logo loads. */
+  height: 0.7in;
+  width: auto;
   max-width: 2.6in;
   object-fit: contain;
   margin-bottom: 8pt;
@@ -388,7 +390,8 @@
 .doc-signature-img {
   display: block;
   width: 100%;
-  max-height: 0.8in;
+  /* A fixed height so the page doesn't jump when the image decodes. */
+  height: 0.8in;
   object-fit: contain;
   object-position: left bottom;
 }

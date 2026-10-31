@@ -18,12 +18,17 @@ import "./app.css";
 // The document styles load with the shell, so a document never flashes unstyled
 // while its route chunk arrives (found by the a11y sweep, phase 10).
 import "./components/doc/document.css";
+// Preloaded so text doesn't reflow when the fonts arrive (Lighthouse layout shift on the client pages).
+import frauncesUrl from "@fontsource-variable/fraunces/files/fraunces-latin-wght-normal.woff2?url";
+import interUrl from "@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url";
 
 export function loader({ request }: Route.LoaderArgs) {
   return { preferences: readPreferences(request.headers.get("Cookie")) };
 }
 
 export const links: Route.LinksFunction = () => [
+  { rel: "preload", href: interUrl, as: "font", type: "font/woff2", crossOrigin: "anonymous" },
+  { rel: "preload", href: frauncesUrl, as: "font", type: "font/woff2", crossOrigin: "anonymous" },
   { rel: "manifest", href: "/manifest.webmanifest" },
   { rel: "icon", href: "/icons/favicon.svg", type: "image/svg+xml" },
   { rel: "icon", href: "/icons/icon-192.png", type: "image/png", sizes: "192x192" },
