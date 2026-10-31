@@ -12,9 +12,8 @@ import type { BatchItem } from "drizzle-orm/batch";
 import { backupStale, newestBackup } from "~/domain/backups";
 import { daysPastDue, dueStep, dueWording } from "~/domain/reminders";
 import { formatCents } from "~/domain/money";
-import { activeOwners, emailInsert, enqueue, type EmailJob } from "~/features/email/service";
+import { emailedOwners, emailInsert, enqueue, type EmailJob } from "~/features/email/service";
 import { getInvoice, invoiceShareUrl, remindableInvoices } from "~/features/invoices/service";
-import { ownerNotices } from "~/features/notifications/service";
 import { quoteShareUrl } from "~/features/quotes/service";
 import { loadEmailBrand } from "~/features/settings/doc-business";
 import { ServiceError } from "~/features/settings/service";
@@ -402,7 +401,7 @@ export async function runDailyJob(env: Env, now = new Date()): Promise<DailyResu
     }
   }
 
-  if (env.APP_ENV === "production") result.backupStale = await checkBackups(env, db, today);
+  if (env.APP_ENV === "production") result.backupStale = await checkBackups(env, today);
 
   await enqueueAll(env, jobs);
   // Safety net: anything not yet pushed or emailed goes now (owner request).
@@ -413,9 +412,11 @@ export async function runDailyJob(env: Env, now = new Date()): Promise<DailyResu
 
 /**
  * SPEC 11.3: the nightly export (GitHub Actions, docs/runbook.md) runs outside
- * the Worker; if it stops, every owner gets one notice a day until it's fixed.
+ * the Worker. Owners aren't told when it stops (owner request 2026-10-31: the
+ * developer looks after backups, and GitHub emails them when the job fails);
+ * the daily run records it in the automation log and the Worker logs.
  */
-export async function checkBackups(env: Env, db: Db, today: string) {
+export async function checkBackups(env: Env, today: string) {
   const keys: string[] = [];
   let cursor: string | undefined;
   do {
@@ -425,21 +426,7 @@ export async function checkBackups(env: Env, db: Db, today: string) {
   } while (cursor);
   const newest = newestBackup(keys);
   if (!backupStale(newest, today)) return false;
-  const businesses = await db.select({ id: schema.business.id }).from(schema.business);
-  for (const { id } of businesses) {
-    const notices = await ownerNotices(db, id, {
-      type: "backup_stale",
-      entityType: "backup",
-      entityId: today,
-      title: newest
-        ? `Backups have stopped: the newest is from ${formatDate(newest)}. See the runbook.`
-        : "No database backup has been made yet. See the runbook.",
-    });
-    if (notices.length) {
-      await db.batch(notices as [(typeof notices)[number], ...typeof notices]);
-      await enqueue(env, [{ kind: "notify" }]);
-    }
-  }
+  console.warn(newest ? `Backups have stopped: the newest is from ${newest}` : "No database backup yet");
   return true;
 }
 
@@ -573,7 +560,7 @@ export async function runWeeklyDigest(env: Env, now = new Date()): Promise<Weekl
     if (!facts.overdue.count && !facts.awaiting.count && !facts.openRequests && !facts.expiring.count)
       continue;
     const brand = await loadEmailBrand(db, env, businessId);
-    for (const owner of await activeOwners(db, businessId)) {
+    for (const owner of await emailedOwners(db, businessId)) {
       const message = {
         ...weeklyDigestEmail(brand, {
           ownerName: owner.name,

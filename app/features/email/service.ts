@@ -127,6 +127,21 @@ export async function activeOwners(db: Db, businessId: string) {
     );
 }
 
+/** Active owners who get the business emails (Settings → Team; owner request 2026-10-31). */
+export async function emailedOwners(db: Db, businessId: string) {
+  return db
+    .select({ id: schema.user.id, email: schema.user.email, name: schema.user.name })
+    .from(schema.user)
+    .where(
+      and(
+        eq(schema.user.businessId, businessId),
+        eq(schema.user.role, "owner"),
+        isNull(schema.user.disabledAt),
+        eq(schema.user.businessEmails, true),
+      ),
+    );
+}
+
 /**
  * Queue consumer for one email job. Already-sent rows are skipped, so a
  * redelivered job never sends twice; Resend's idempotency key covers a crash
@@ -299,7 +314,7 @@ export async function applyResendEvent(env: Env, event: z.output<typeof resendEv
           .where(eq(schema.client.id, c.id)),
       );
     }
-    const owners = await activeOwners(db, row.businessId);
+    const owners = await emailedOwners(db, row.businessId);
     // An alert about an owner's own mail would bounce in a loop; alerts go to clients' bounces only.
     if (flagged.length > 0) {
       const brand = await loadEmailBrand(db, env, row.businessId);

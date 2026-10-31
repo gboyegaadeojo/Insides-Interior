@@ -3,7 +3,7 @@
 // and emails a magic link. Owners can turn off anyone's access but their own,
 // so the business always keeps at least one active owner.
 
-import { and, asc, eq } from "drizzle-orm";
+import { and, asc, eq, isNull } from "drizzle-orm";
 import type { z } from "zod";
 import { ServiceError } from "~/features/settings/service";
 import { newId } from "~/lib/ids";
@@ -22,6 +22,7 @@ export async function listTeam(ctx: Pick<RequestContext, "db" | "user">) {
       role: schema.user.role,
       disabledAt: schema.user.disabledAt,
       emailVerified: schema.user.emailVerified,
+      businessEmails: schema.user.businessEmails,
     })
     .from(schema.user)
     .where(eq(schema.user.businessId, ctx.user.businessId))
@@ -88,6 +89,83 @@ export async function setMemberDisabled(ctx: RequestContext, userId: string, dis
       entityType: "user",
       entityId: userId,
       action: disabled ? "team.disabled" : "team.enabled",
+    }),
+  ]);
+}
+
+/**
+ * Owner or staff. Anyone's role can change, your own included (the developer
+ * hands over by making themselves staff), as long as another active owner who
+ * has signed in remains, so the business is never left without an owner.
+ */
+export async function setMemberRole(ctx: RequestContext, userId: string, role: "owner" | "staff") {
+  const member = await teamMember(ctx, userId);
+  if (member.role === role) return;
+  if (role === "staff") {
+    const owners = await ctx.db
+      .select({ id: schema.user.id })
+      .from(schema.user)
+      .where(
+        and(
+          eq(schema.user.businessId, ctx.user.businessId),
+          eq(schema.user.role, "owner"),
+          eq(schema.user.emailVerified, true),
+          isNull(schema.user.disabledAt),
+          eq(schema.user.businessEmails, true),
+        ),
+      );
+    if (!owners.some((o) => o.id !== userId))
+      throw new ServiceError(
+        "Another owner who gets the business emails must have signed in first, so the business always has one",
+      );
+  }
+  await ctx.db.batch([
+    ctx.db.update(schema.user).set({ role, updatedAt: new Date() }).where(eq(schema.user.id, userId)),
+    activityInsert(ctx.db, {
+      businessId: ctx.user.businessId,
+      actor: { type: "user", id: ctx.user.id },
+      entityType: "user",
+      entityId: userId,
+      action: "team.role_changed",
+      data: { from: member.role, to: role },
+    }),
+  ]);
+}
+
+/**
+ * Whether an owner gets the business emails (owner request 2026-10-31: the
+ * developer stays an owner without the alerts). At least one active owner
+ * always keeps them, so nothing important goes unread.
+ */
+export async function setBusinessEmails(ctx: RequestContext, userId: string, on: boolean) {
+  const member = await teamMember(ctx, userId);
+  if (member.role !== "owner") throw new ServiceError("Only owners get the business emails");
+  if (!on) {
+    const others = await ctx.db
+      .select({ id: schema.user.id })
+      .from(schema.user)
+      .where(
+        and(
+          eq(schema.user.businessId, ctx.user.businessId),
+          eq(schema.user.role, "owner"),
+          isNull(schema.user.disabledAt),
+          eq(schema.user.businessEmails, true),
+        ),
+      );
+    if (!others.some((o) => o.id !== userId))
+      throw new ServiceError("At least one owner must get the business emails");
+  }
+  await ctx.db.batch([
+    ctx.db
+      .update(schema.user)
+      .set({ businessEmails: on, updatedAt: new Date() })
+      .where(eq(schema.user.id, userId)),
+    activityInsert(ctx.db, {
+      businessId: ctx.user.businessId,
+      actor: { type: "user", id: ctx.user.id },
+      entityType: "user",
+      entityId: userId,
+      action: on ? "team.emails_on" : "team.emails_off",
     }),
   ]);
 }

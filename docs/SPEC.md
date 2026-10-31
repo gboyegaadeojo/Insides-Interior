@@ -988,7 +988,7 @@ Buy one domain, host its DNS on Cloudflare, serve the app from a subdomain, and 
 | Weekly digest (to owner) | Monday 07:30 | Open Home |
 | Bounce alert (to owner) | Resend webhook | Fix email address |
 
-Emails are premium and on-brand: logo, brand-colour header rule, the display serif for the headline, one large button (48 px tall, full width on phone), a plain-text part, and the business address in the footer. Test in light and dark mail clients (Apple Mail, Gmail app, Outlook). Amounts in an email always match the attached PDF because both render from the same revision.
+Emails match the app (owner request 2026-10-31): logo or business name, an Inter headline, the app's greys and one large graphite button (48 px tall, full width on phone), dark styles where the mail app supports them, a plain-text part, and the business address in the footer. The brand colour is for documents, not emails. Owner emails go to every active owner whose "Gets the business emails" switch is on (Settings → Team). Test in light and dark mail clients (Apple Mail, Gmail app, Outlook). Amounts in an email always match the attached PDF because both render from the same revision.
 
 ### 9.5 Volume and cost
 

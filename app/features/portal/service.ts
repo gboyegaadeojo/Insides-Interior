@@ -19,7 +19,7 @@ import {
   validateSignerName,
 } from "~/domain/portal";
 import { conversationOf, type ThreadEntity, threadMessages } from "~/features/conversations/requests";
-import { activeOwners, emailInsert, enqueue, type EmailJob } from "~/features/email/service";
+import { emailedOwners, emailInsert, enqueue, type EmailJob } from "~/features/email/service";
 import { createInvoiceOnApproval } from "~/features/invoices/service";
 import { ownerNotices } from "~/features/notifications/service";
 import { loadEmailBrand } from "~/features/settings/doc-business";
@@ -240,7 +240,7 @@ export async function approveQuote(env: Env, token: string, input: ApproveInput,
   const db = getDb(env);
   const [brand, owners] = await Promise.all([
     loadEmailBrand(db, env, quote.businessId),
-    activeOwners(db, quote.businessId),
+    emailedOwners(db, quote.businessId),
   ]);
   const facts = {
     number: quote.number!,
@@ -576,7 +576,7 @@ async function clientPost(
 
   const [brand, owners] = await Promise.all([
     loadEmailBrand(db, env, doc.businessId),
-    activeOwners(db, doc.businessId),
+    emailedOwners(db, doc.businessId),
   ]);
   const ownerUrl = new URL(`/${doc.entity}s/${doc.id}#conversation`, env.APP_URL).toString();
   const request = args.about !== undefined;
