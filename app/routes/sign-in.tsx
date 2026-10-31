@@ -1,4 +1,5 @@
 import { Fingerprint, Mail, MailCheck } from "lucide-react";
+import { describeError } from "~/lib/describe-error";
 import * as React from "react";
 import { data, Form, redirect, useNavigation } from "react-router";
 import { z } from "zod";
@@ -103,7 +104,7 @@ export async function action({ request, context }: Route.ActionArgs) {
       headers: request.headers,
     });
   } catch (error) {
-    console.error("magic link send failed", error);
+    console.error("magic link send failed", describeError(error));
     return data(
       { error: "We couldn't send the email just now. Try again in a minute.", sent: null },
       { status: 503 },

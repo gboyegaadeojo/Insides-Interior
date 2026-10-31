@@ -2,6 +2,7 @@ import { isbot } from "isbot";
 import { renderToReadableStream } from "react-dom/server";
 import type { AppLoadContext, EntryContext } from "react-router";
 import { ServerRouter } from "react-router";
+import { describeError } from "~/lib/describe-error";
 import { NonceContext } from "~/lib/nonce";
 import { contentSecurityPolicy, newNonce } from "~/server/security-headers";
 
@@ -9,7 +10,7 @@ import { contentSecurityPolicy, newNonce } from "~/server/security-headers";
 export function handleError(error: unknown, { request }: { request: Request }) {
   if (request.signal.aborted) return;
   const path = new URL(request.url).pathname;
-  console.error(`route error on ${path}`, error instanceof Error ? (error.stack ?? error.message) : error);
+  console.error(`route error on ${path}`, describeError(error));
 }
 
 export default async function handleRequest(
@@ -34,7 +35,7 @@ export default async function handleRequest(
         responseStatusCode = 500;
         // Log streaming errors only; errors before the shell renders reject the
         // promise and are handled by React Router's error boundary.
-        if (shellRendered) console.error(error);
+        if (shellRendered) console.error(describeError(error));
       },
     },
   );

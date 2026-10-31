@@ -1,4 +1,5 @@
 import { createRequestHandler } from "react-router";
+import { describeError } from "~/lib/describe-error";
 import type { Job } from "~/features/email/service";
 import { withBaselineHeaders } from "~/server/security-headers";
 
@@ -62,10 +63,7 @@ export default {
         }
         message.ack();
       } catch (error) {
-        console.error(
-          `job ${message.id} attempt ${message.attempts} failed`,
-          error instanceof Error ? error.message : error,
-        );
+        console.error(`job ${message.id} attempt ${message.attempts} failed`, describeError(error));
         message.retry({ delaySeconds: Math.min(30 * 2 ** (message.attempts - 1), 600) });
       }
     }

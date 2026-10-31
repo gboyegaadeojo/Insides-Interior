@@ -76,6 +76,8 @@ jobs:
       - name: Migrate and seed the preview database
         run: |
           npx wrangler d1 migrations apply insides_db_preview --remote --env preview
+          # Start each run from an empty preview: D1 reads are a per-account daily allowance shared with production.
+          npx wrangler d1 execute insides_db_preview --remote --env preview -y --file scripts/preview-reset.sql
           node scripts/seed.ts --env preview --e2e
       - name: Build for the preview environment
         run: npm run build

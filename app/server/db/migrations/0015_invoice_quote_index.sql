@@ -1,0 +1,1 @@
+CREATE INDEX `invoice_quote_idx` ON `invoice` (`quote_id`);
