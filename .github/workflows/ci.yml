@@ -122,6 +122,12 @@ jobs:
             echo "| --- | --- | --- | --- |"
             jq -r '.[] | select(.isRepresentativeRun) | [(if (.url | test("/q/")) then "Quote" else "Invoice" end), (.summary.performance * 100 | round), (.summary.accessibility * 100 | round), (.summary["best-practices"] * 100 | round)] | map(tostring) | "| " + join(" | ") + " |"' .lighthouseci/reports/manifest.json
           } >> "$GITHUB_STEP_SUMMARY"
+          # What moved while loading, per page (element selectors only, no links).
+          jq -r '.[] | select(.isRepresentativeRun) | [(if (.url | test("/q/")) then "Quote" else "Invoice" end), .jsonPath] | @tsv' .lighthouseci/reports/manifest.json |
+            while IFS=$'\t' read -r page file; do
+              echo "Layout shifts on the $page page:"
+              jq -r '.audits["layout-shifts"].details.items[]? | "  \(.score | . * 1000 | round / 1000)  \(.node.selector // "?")  \(.node.nodeLabel // "" | .[0:80])"' "$file"
+            done
           exit $status
       - uses: actions/upload-artifact@v7
         if: always()
