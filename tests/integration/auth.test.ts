@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { beforeEach, describe, expect, it } from "vitest";
-import { inviteMember, setMemberDisabled } from "~/features/team/service";
+import { emailedOwners } from "~/features/email/service";
+import { inviteMember, setBusinessEmails, setMemberDisabled, setMemberRole } from "~/features/team/service";
 import { createAuth } from "~/server/auth";
 import { getDb, schema } from "~/server/db";
 import { E2E_OWNER_EMAIL } from "~/server/db/seed-sql";
@@ -110,6 +111,50 @@ describe("a second owner (handover)", () => {
     const [row] = await getDb(testEnv).select().from(schema.user).where(eq(schema.user.id, first.user.id));
     expect(row!.disabledAt).not.toBeNull();
     await expect(setMemberDisabled(secondCtx, second!.id, true)).rejects.toThrow(/your own/);
+  });
+
+  it("an owner can stop their business emails once another owner gets them (owner request)", async () => {
+    const first = ownerContext();
+    const db = getDb(testEnv);
+    const recipients = async () => (await emailedOwners(db, first.user.businessId)).map((o) => o.id);
+
+    // Start with this owner as the only one getting them (the handover test above turns their access off).
+    await db.update(schema.user).set({ disabledAt: null }).where(eq(schema.user.id, first.user.id));
+    for (const id of await recipients()) if (id !== first.user.id) await setBusinessEmails(first, id, false);
+    expect(await recipients()).toEqual([first.user.id]);
+
+    // The only owner getting them can't stop them, or be made staff.
+    await expect(setBusinessEmails(first, first.user.id, false)).rejects.toThrow(/At least one owner/);
+    await expect(setMemberRole(first, first.user.id, "staff")).rejects.toThrow(/Another owner/);
+
+    await inviteMember(first, appRequest("/settings/team"), {
+      name: "Business Owner",
+      email: "business.owner@example.com",
+      role: "owner",
+    });
+    await signInWith("business.owner@example.com");
+    const [other] = await db
+      .select()
+      .from(schema.user)
+      .where(eq(schema.user.email, "business.owner@example.com"));
+
+    await setBusinessEmails(first, first.user.id, false);
+    expect(await recipients()).toEqual([other!.id]);
+    // The first owner keeps full access.
+    const [me] = await db.select().from(schema.user).where(eq(schema.user.id, first.user.id));
+    expect(me).toMatchObject({ role: "owner", businessEmails: false, disabledAt: null });
+    // Now the other owner is the last recipient and can't stop them.
+    await expect(setBusinessEmails(first, other!.id, false)).rejects.toThrow(/At least one owner/);
+
+    // Nor be made staff while they're the only one getting them.
+    await expect(setMemberRole(first, other!.id, "staff")).rejects.toThrow(/Another owner/);
+
+    await setBusinessEmails(first, first.user.id, true);
+    await setMemberRole(first, other!.id, "staff");
+    expect(await recipients()).toEqual([first.user.id]);
+    await expect(setBusinessEmails(first, other!.id, true)).rejects.toThrow(/Only owners/);
+    await setMemberRole(first, other!.id, "owner");
+    expect((await recipients()).sort()).toEqual([first.user.id, other!.id].sort());
   });
 });
 

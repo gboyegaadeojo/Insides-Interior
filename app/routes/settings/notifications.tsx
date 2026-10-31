@@ -1,11 +1,12 @@
 import { BellRing, Check, Download, Mail, Share, Smartphone } from "lucide-react";
 import * as React from "react";
-import { useFetcher } from "react-router";
+import { Link, useFetcher } from "react-router";
 import { SectionHeader } from "~/components/settings/section-header";
 import { RouteErrorBoundary } from "~/components/shell/route-error";
 import { Button } from "~/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "~/components/ui/card";
 import { toast } from "~/components/ui/toast";
+import { emailedOwners } from "~/features/email/service";
 import { pushDevices, sendTestAlert } from "~/features/notifications/service";
 import {
   canPromptInstall,
@@ -24,8 +25,13 @@ import type { Route } from "./+types/notifications";
 
 export async function loader({ request, context }: Route.LoaderArgs) {
   const ctx = await requireUser(context.cloudflare.env, request);
-  const devices = await pushDevices(ctx);
-  return { vapidPublicKey: ctx.env.VAPID_PUBLIC_KEY ?? "", devices: devices.length, email: ctx.user.email };
+  const [devices, owners] = await Promise.all([pushDevices(ctx), emailedOwners(ctx.db, ctx.user.businessId)]);
+  return {
+    vapidPublicKey: ctx.env.VAPID_PUBLIC_KEY ?? "",
+    devices: devices.length,
+    owners: owners.map((o) => ({ name: o.name, email: o.email })),
+    isOwner: ctx.user.role === "owner",
+  };
 }
 
 export async function action({ request, context }: Route.ActionArgs) {
@@ -39,14 +45,13 @@ export async function action({ request, context }: Route.ActionArgs) {
   throw new Response("Unknown action", { status: 400 });
 }
 
-/** Every event that emails the owner; none of these can be switched off (owner request). */
+/** Every event that emails the owners; none of these can be switched off (owner request). */
 const ALWAYS_EMAILED = [
   "A client approves a quote",
   "A client asks for a change or sends a message",
   "A client opens a quote or an invoice",
   "An invoice is drafted for you when a quote is approved",
   "An email to a client bounces or is marked as spam",
-  "Nightly backups stop",
   "The Monday summary of what's owed",
 ];
 
@@ -213,12 +218,33 @@ export default function NotificationSettings({ loaderData }: Route.ComponentProp
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Mail className="size-5 text-secondary" aria-hidden />
-            Emails you always get
+            Emails the owners always get
           </CardTitle>
           <CardDescription>
-            Sent to {loaderData.email}. These are always on, so nothing important is missed.
+            These are always on, so nothing important is missed. They go to every owner:
           </CardDescription>
         </CardHeader>
+        <ul className="mb-4 flex flex-col gap-1" aria-label="Owners who get these emails">
+          {loaderData.owners.map((o) => (
+            <li key={o.email} className="flex flex-wrap gap-x-2">
+              <span className="font-semibold">{o.name}</span>
+              <span className="text-secondary">{o.email}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="mb-4 text-label font-normal text-secondary">
+          {loaderData.isOwner ? (
+            <>
+              To add someone, invite them as an Owner in{" "}
+              <Link to="/settings/team" className="font-semibold text-accent underline underline-offset-2">
+                Team
+              </Link>
+              . Staff don't get these emails.
+            </>
+          ) : (
+            "Staff don't get these emails; an owner can change who has access in Team."
+          )}
+        </p>
         <ul className="flex flex-col gap-2">
           {ALWAYS_EMAILED.map((item) => (
             <li key={item} className="flex items-start gap-2">

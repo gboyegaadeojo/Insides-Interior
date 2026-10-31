@@ -44,6 +44,8 @@ export const user = sqliteTable("user", {
   businessId: text().references(() => business.id),
   /** Staff and owners can be deactivated without losing their history. */
   disabledAt: text(),
+  /** Owners only: gets the business emails (approvals, messages, bounces, digest). Owner request 2026-10-31. */
+  businessEmails: integer({ mode: "boolean" }).notNull().default(true),
   createdAt: authTime().notNull(),
   updatedAt: authTime().notNull(),
 });

@@ -1,0 +1,1 @@
+ALTER TABLE `user` ADD `business_emails` integer DEFAULT true NOT NULL;

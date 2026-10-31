@@ -81,7 +81,7 @@ export async function markNotificationsRead(ctx: Ctx, ids: string[] | "all") {
  * Notification types that have no email of their own. Approvals, change
  * requests, messages and bounces already email the owner where they happen.
  */
-const EMAIL_TYPES = new Set(["quote.viewed", "invoice.viewed", "invoice.drafted", "backup_stale"]);
+const EMAIL_TYPES = new Set(["quote.viewed", "invoice.viewed", "invoice.drafted"]);
 
 /** Ask the queue to deliver new notifications (push + email). Call after the batch that made them. */
 export function notifyOwners(env: Pick<Env, "JOBS">) {
@@ -107,6 +107,7 @@ export async function deliverNotifications(env: Env) {
       email: schema.user.email,
       businessId: schema.user.businessId,
       disabledAt: schema.user.disabledAt,
+      businessEmails: schema.user.businessEmails,
     })
     .from(n)
     .innerJoin(schema.user, eq(schema.user.id, n.userId))
@@ -134,7 +135,7 @@ export async function deliverNotifications(env: Env) {
       if (result === "gone")
         await db.delete(schema.pushSubscription).where(eq(schema.pushSubscription.id, sub.id));
     }
-    if (EMAIL_TYPES.has(row.type) && row.email && row.businessId) {
+    if (EMAIL_TYPES.has(row.type) && row.businessEmails && row.email && row.businessId) {
       let brand = brands.get(row.businessId);
       if (!brand) {
         brand = await loadEmailBrand(db, env, row.businessId);

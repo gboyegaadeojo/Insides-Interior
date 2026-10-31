@@ -1,14 +1,17 @@
-// Email templates (SPEC 9.4). Premium, on-brand HTML plus a plain-text part:
-// logo or name, brand-colour rule, display serif headline, one 48px button
-// (full width on phone), business address in the footer. Hand-built HTML
-// strings rather than React Email: rendering React on Workers Free's 10 ms CPU
-// budget isn't worth it for a handful of templates (docs/decisions.md).
+// Email templates (SPEC 9.4). HTML in the app's own style plus a plain-text
+// part: logo or name, Inter headline, one 48px graphite button (full width on
+// phone), business address in the footer, dark mode where the mail app
+// supports it. Hand-built HTML strings rather than React Email: rendering
+// React on Workers Free's 10 ms CPU budget isn't worth it for a handful of
+// templates (docs/decisions.md).
 
 import { renderMergeFields, type MergeValues } from "~/lib/merge-fields";
 import type { EmailTemplateOverride } from "~/server/db/schema";
+import { NEUTRALS, STATUS_EXTRA } from "~/styles/tokens";
 
 export interface Brand {
   name: string;
+  /** Used on documents (PDF and portal); emails follow the app's own colours. */
   brandColor: string;
   logoUrl?: string;
   address?: string;
@@ -20,18 +23,22 @@ export interface RenderedEmail {
   text: string;
 }
 
-// The app's warm neutrals (app/styles/tokens.ts), inlined because mail clients
-// don't read CSS variables.
-const INK = "#24211E";
-const BODY = "#3D3731";
-const MUTED = "#68615A";
-const CANVAS = "#F5F5F4";
-/** A red notice (danger tint, base and ink from app/styles/tokens.ts), e.g. a quote's validity. */
-const ALERT_TINT = "#FBECEA";
-const ALERT_BASE = "#B3261E";
-const ALERT_INK = "#8C1D18";
-const LINE = "#E2DDD4";
-const FALLBACK_BRAND = "#0F766E";
+// The app's tokens (app/styles/tokens.ts), inlined because mail clients don't
+// read CSS variables. Light values go inline; dark ones in a media query for
+// the mail apps that honour it (Apple Mail, iOS, Outlook.com).
+const T = (name: string) => NEUTRALS[name]!;
+const CANVAS = T("canvas");
+const SURFACE = T("surface");
+const PANEL = T("surface-2");
+const LINE = T("border");
+const INK = T("text-primary");
+const MUTED = T("text-secondary");
+const ACTION = T("action");
+const ACTION_ON = T("action-on");
+const ACCENT = T("accent");
+/** A red notice, e.g. a quote's validity (danger). */
+const DANGER = STATUS_EXTRA.danger;
+const DANGER_TINT = "#FBECEA";
 
 function escape(value: string) {
   return value.replace(
@@ -40,14 +47,19 @@ function escape(value: string) {
   );
 }
 
-/** Text colour on the brand colour: white unless the brand is light. */
-function onBrand(hex: string) {
-  const n = Number.parseInt(hex.slice(1), 16);
-  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-  return 0.299 * r + 0.587 * g + 0.114 * b > 160 ? INK : "#FFFFFF";
-}
+// The app's UI font (app.css --font-sans), with each platform's system font after it.
+const SANS = "Inter,-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 
-const SANS = "Inter,-apple-system,'Segoe UI',Roboto,sans-serif";
+const DARK_CSS = `@media (prefers-color-scheme: dark) {
+  .e-canvas { background:${CANVAS.dark} !important; }
+  .e-card { background:${SURFACE.dark} !important; border-color:${LINE.dark} !important; }
+  .e-ink { color:${INK.dark} !important; }
+  .e-muted { color:${MUTED.dark} !important; }
+  .e-line { border-color:${LINE.dark} !important; }
+  .e-panel { background:${PANEL.dark} !important; border-color:${ACCENT.dark} !important; color:${INK.dark} !important; }
+  .e-alert { background:${PANEL.dark} !important; border-color:${DANGER.dark} !important; color:${DANGER.dark} !important; }
+  .e-btn { background:${ACTION.dark} !important; color:${ACTION_ON.dark} !important; }
+}`;
 
 export function layout(
   brand: Brand,
@@ -65,42 +77,42 @@ export function layout(
     footnote?: string;
   },
 ): { html: string; text: string } {
-  const color = /^#[0-9a-f]{6}$/i.test(brand.brandColor) ? brand.brandColor : FALLBACK_BRAND;
+  const font = `font-family:${SANS}`;
   const header = brand.logoUrl
-    ? `<img src="${escape(brand.logoUrl)}" alt="${escape(brand.name)}" height="40" style="display:block;height:40px;border:0">`
-    : `<span style="font-family:Georgia,serif;font-size:20px;font-weight:500;color:${INK}">${escape(brand.name)}</span>`;
+    ? `<img src="${escape(brand.logoUrl)}" alt="${escape(brand.name)}" height="36" style="display:block;height:36px;border:0">`
+    : `<span class="e-ink" style="${font};font-size:17px;line-height:1.3;font-weight:600;letter-spacing:-0.01em;color:${INK.light}">${escape(brand.name)}</span>`;
   const facts = opts.facts?.length
-    ? `<tr><td style="padding:20px 28px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid ${LINE}">${opts.facts
+    ? `<tr><td style="padding:20px 28px 0"><table role="presentation" width="100%" cellpadding="0" cellspacing="0">${opts.facts
         .map(
           ([label, value]) =>
-            `<tr><td style="padding:10px 0;border-bottom:1px solid ${LINE};font-family:${SANS};font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:${MUTED}">${escape(label)}</td><td align="right" style="padding:10px 0;border-bottom:1px solid ${LINE};font-family:${SANS};font-size:16px;font-weight:600;color:${INK}">${escape(value)}</td></tr>`,
+            `<tr><td class="e-muted e-line" style="padding:11px 0;border-bottom:1px solid ${LINE.light};${font};font-size:14px;line-height:1.4;color:${MUTED.light}">${escape(label)}</td><td align="right" class="e-ink e-line" style="padding:11px 0;border-bottom:1px solid ${LINE.light};${font};font-size:15px;line-height:1.4;font-weight:600;font-variant-numeric:tabular-nums;color:${INK.light}">${escape(value)}</td></tr>`,
         )
         .join("")}</table></td></tr>`
     : "";
   const quoted = opts.quote
-    ? `<tr><td style="padding:16px 28px 0"><div style="padding:14px 16px;background:${CANVAS};border-left:3px solid ${color};border-radius:4px;font-family:${SANS};font-size:15px;line-height:1.5;color:${BODY};white-space:pre-line">${escape(opts.quote)}</div></td></tr>`
+    ? `<tr><td style="padding:16px 28px 0"><div class="e-panel" style="padding:14px 16px;background:${PANEL.light};border-left:3px solid ${ACCENT.light};border-radius:10px;${font};font-size:15px;line-height:1.5;color:${INK.light};white-space:pre-line">${escape(opts.quote)}</div></td></tr>`
     : "";
   const alert = opts.alert
-    ? `<tr><td style="padding:18px 28px 0"><div style="padding:12px 14px;background:${ALERT_TINT};border-left:3px solid ${ALERT_BASE};border-radius:4px;font-family:${SANS};font-size:15px;line-height:1.45;font-weight:600;color:${ALERT_INK}">${escape(opts.alert)}</div></td></tr>`
+    ? `<tr><td style="padding:18px 28px 0"><div class="e-alert" style="padding:12px 14px;background:${DANGER_TINT};border-left:3px solid ${DANGER.light};border-radius:10px;${font};font-size:15px;line-height:1.45;font-weight:600;color:${DANGER.light}">${escape(opts.alert)}</div></td></tr>`
     : "";
   const html = `<!doctype html>
-<html lang="en-NG"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><title>${escape(opts.headline)}</title></head>
-<body style="margin:0;padding:0;background:${CANVAS}">
+<html lang="en-NG"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light dark"><meta name="supported-color-schemes" content="light dark"><title>${escape(opts.headline)}</title><style>${DARK_CSS}</style></head>
+<body class="e-canvas" style="margin:0;padding:0;background:${CANVAS.light}">
 <span style="display:none;max-height:0;overflow:hidden">${escape(opts.preheader)}</span>
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${CANVAS}"><tr><td align="center" style="padding:24px 12px">
-<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#FFFFFF;border:1px solid ${LINE};border-radius:16px">
-<tr><td style="padding:28px 28px 0">${header}</td></tr>
-<tr><td style="padding:16px 28px 0"><div style="height:1px;background:${color}"></div></td></tr>
-<tr><td style="padding:24px 28px 0;font-family:Fraunces,Georgia,serif;font-size:28px;line-height:1.2;font-weight:500;color:${INK}">${escape(opts.headline)}</td></tr>
-${opts.body.map((p) => `<tr><td style="padding:12px 28px 0;font-family:${SANS};font-size:16px;line-height:1.5;color:${BODY}">${escape(p)}</td></tr>`).join("\n")}
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="e-canvas" style="background:${CANVAS.light}"><tr><td align="center" style="padding:24px 12px">
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" class="e-card" style="max-width:560px;background:${SURFACE.light};border:1px solid ${LINE.light};border-radius:14px">
+<tr><td style="padding:24px 28px 0">${header}</td></tr>
+<tr><td style="padding:28px 28px 0;${font};font-size:26px;line-height:1.15;font-weight:700;letter-spacing:-0.02em;color:${INK.light}" class="e-ink">${escape(opts.headline)}</td></tr>
+${opts.body.map((p) => `<tr><td class="e-ink" style="padding:12px 28px 0;${font};font-size:16px;line-height:1.5;color:${INK.light}">${escape(p)}</td></tr>`).join("\n")}
 ${quoted}
 ${alert}
 ${facts}
 <tr><td style="padding:24px 28px 8px">
-<a href="${escape(opts.button.url)}" style="display:block;text-align:center;background:${color};color:${onBrand(color)};font-family:${SANS};font-size:16px;font-weight:600;line-height:48px;height:48px;border-radius:10px;text-decoration:none">${escape(opts.button.label)}</a>
+<a href="${escape(opts.button.url)}" class="e-btn" style="display:block;text-align:center;background:${ACTION.light};color:${ACTION_ON.light};${font};font-size:16px;font-weight:600;line-height:48px;height:48px;border-radius:10px;text-decoration:none">${escape(opts.button.label)}</a>
 </td></tr>
-${opts.footnote ? `<tr><td style="padding:8px 28px 0;font-family:${SANS};font-size:13px;line-height:1.4;color:${MUTED}">${escape(opts.footnote)}</td></tr>` : ""}
-<tr><td style="padding:24px 28px 28px;font-family:${SANS};font-size:12px;line-height:1.4;color:${MUTED}">${escape(brand.name)}${brand.address ? ` · ${escape(brand.address)}` : ""}</td></tr>
+${opts.footnote ? `<tr><td class="e-muted" style="padding:8px 28px 0;${font};font-size:13px;line-height:1.45;color:${MUTED.light}">${escape(opts.footnote)}</td></tr>` : ""}
+<tr><td style="padding:24px 28px 0"><div class="e-line" style="border-top:1px solid ${LINE.light}"></div></td></tr>
+<tr><td class="e-muted" style="padding:14px 28px 24px;${font};font-size:12px;line-height:1.45;color:${MUTED.light}">${escape(brand.name)}${brand.address ? ` · ${escape(brand.address)}` : ""}</td></tr>
 </table></td></tr></table></body></html>`;
   const text = [
     opts.headline,
